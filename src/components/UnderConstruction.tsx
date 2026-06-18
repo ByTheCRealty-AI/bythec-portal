@@ -14,11 +14,11 @@ export function UnderConstruction({
       <PageHeader title={title} subtitle={phase} />
       <EmptyState
         icon={<Hammer className="h-6 w-6" />}
-        title="Módulo em construção"
-        message="Esta área entra nas próximas rodadas da Onda 2. O schema do banco já está modelado — falta a interface."
+        title="Module under construction"
+        message="This area ships in the next Wave 2 rounds. The database schema is already modeled — only the interface is left."
         cta={
           <Link href="/clientes" className={buttonClass("ghost")}>
-            Ir para Clientes
+            Go to Clients
           </Link>
         }
       />

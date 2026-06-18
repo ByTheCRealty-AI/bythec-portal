@@ -5,8 +5,8 @@ import { createClienteAction } from "../actions";
 export default function NovoClientePage() {
   return (
     <>
-      <PageHeader title="Novo cliente" subtitle="Cliente primeiro. A propriedade pendura nele depois." />
-      <ClienteForm action={createClienteAction} submitLabel="Criar cliente" cancelHref="/clientes" />
+      <PageHeader title="New client" subtitle="Client first. The property is attached to them afterward." />
+      <ClienteForm action={createClienteAction} submitLabel="Create client" cancelHref="/clientes" />
     </>
   );
 }

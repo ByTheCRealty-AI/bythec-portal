@@ -39,9 +39,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         subtitle={p.address2 ?? PROPERTY_TYPE_LABEL[p.property_type]}
         action={
           <div className="flex items-center gap-3">
-            {archived && <Badge tone="muted">Arquivada</Badge>}
+            {archived && <Badge tone="muted">Archived</Badge>}
             <Link href={`/propriedades/${p.id}/editar`} className={buttonClass("ghost")}>
-              <Pencil className="h-4 w-4" /> Editar
+              <Pencil className="h-4 w-4" /> Edit
             </Link>
             <PropriedadeArchiveButton id={p.id} archived={archived} />
           </div>
@@ -51,12 +51,12 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="h-display text-sm text-ink/70">Dados</h3>
+            <h3 className="h-display text-sm text-ink/70">Details</h3>
             <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
           </div>
-          <Row label="Endereço" value={p.address} />
-          <Row label="Unidade / apto" value={p.address2} />
-          <Row label="Comissão" value={p.commission_fee} />
+          <Row label="Address" value={p.address} />
+          <Row label="Unit / apt" value={p.address2} />
+          <Row label="Commission" value={p.commission_fee} />
         </Card>
 
         <Card>
@@ -75,25 +75,25 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               </span>
             </Link>
           ) : (
-            <p className="text-sm text-ink/50">Sem owner.</p>
+            <p className="text-sm text-ink/50">No owner.</p>
           )}
         </Card>
 
         {isRental && (
           <Card className="md:col-span-2">
-            <h3 className="h-display mb-3 text-sm text-ink/70">Aluguel</h3>
+            <h3 className="h-display mb-3 text-sm text-ink/70">Rent</h3>
             <div className="grid grid-cols-2 gap-x-8 sm:grid-cols-4">
-              <Row label="Mensal" value={money(p.rent_price)} />
-              <Row label="Vencimento" value={p.rent_due_day ? `Dia ${p.rent_due_day}` : null} />
-              <Row label="Início" value={date(p.rental_start)} />
-              <Row label="Fim" value={date(p.rental_end)} />
+              <Row label="Monthly" value={money(p.rent_price)} />
+              <Row label="Due" value={p.rent_due_day ? `Day ${p.rent_due_day}` : null} />
+              <Row label="Start" value={date(p.rental_start)} />
+              <Row label="End" value={date(p.rental_end)} />
             </div>
           </Card>
         )}
 
         {p.notes && (
           <Card className="md:col-span-2">
-            <h3 className="h-display mb-2 text-sm text-ink/70">Notas</h3>
+            <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>
             <p className="whitespace-pre-wrap text-sm text-ink/80">{p.notes}</p>
           </Card>
         )}

@@ -16,55 +16,55 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
 
   return (
     <>
-      <PageHeader title="Editar propriedade" subtitle="Mudar o tipo carrega o histórico junto." />
+      <PageHeader title="Edit property" subtitle="Changing the type carries the history with it." />
       <form action={action} className="space-y-6">
         <section className="glass p-6">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field label="Endereço *" hint="Da base, com unit number — nunca do Google.">
+            <Field label="Address *" hint="From our records, with unit number — never from Google.">
               <input name="address" required defaultValue={p.address} className={inputClass} />
             </Field>
-            <Field label="Unidade / apto">
+            <Field label="Unit / apt">
               <input name="address2" defaultValue={p.address2 ?? ""} className={inputClass} />
             </Field>
-            <Field label="Tipo *">
+            <Field label="Type *">
               <select name="property_type" required defaultValue={p.property_type} className={inputClass}>
                 {Object.entries(PROPERTY_TYPE_LABEL).map(([v, label]) => (
                   <option key={v} value={v}>{label}</option>
                 ))}
               </select>
             </Field>
-            <Field label="Comissão">
+            <Field label="Commission">
               <input name="commission_fee" type="number" step="0.01" defaultValue={p.commission_fee ?? ""} className={inputClass} />
             </Field>
-            <Field label="Aluguel mensal (USD)">
+            <Field label="Monthly rent (USD)">
               <input name="rent_price" type="number" step="0.01" defaultValue={p.rent_price ?? ""} className={inputClass} />
             </Field>
-            <Field label="Dia de vencimento">
+            <Field label="Rent due day">
               <input name="rent_due_day" type="number" min={1} max={31} defaultValue={p.rent_due_day ?? ""} className={inputClass} />
             </Field>
-            <Field label="Início do lease">
+            <Field label="Lease start">
               <input name="rental_start" type="date" defaultValue={p.rental_start ?? ""} className={inputClass} />
             </Field>
-            <Field label="Fim do lease">
+            <Field label="Lease end">
               <input name="rental_end" type="date" defaultValue={p.rental_end ?? ""} className={inputClass} />
             </Field>
-            <Field label="Frequência">
+            <Field label="Frequency">
               <select name="rent_frequency" defaultValue={p.rent_frequency ?? "monthly"} className={inputClass}>
-                <option value="monthly">Mensal</option>
-                <option value="quarterly">Trimestral</option>
-                <option value="annual">Anual</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="annual">Annual</option>
               </select>
             </Field>
           </div>
           <div className="mt-5">
-            <Field label="Notas">
+            <Field label="Notes">
               <textarea name="notes" rows={3} defaultValue={p.notes ?? ""} className={inputClass} />
             </Field>
           </div>
         </section>
         <div className="flex gap-3">
-          <button type="submit" className={buttonClass("primary")}>Salvar alterações</button>
-          <Link href={`/propriedades/${p.id}`} className={buttonClass("ghost")}>Cancelar</Link>
+          <button type="submit" className={buttonClass("primary")}>Save changes</button>
+          <Link href={`/propriedades/${p.id}`} className={buttonClass("ghost")}>Cancel</Link>
         </div>
       </form>
     </>

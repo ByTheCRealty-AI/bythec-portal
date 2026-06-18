@@ -27,8 +27,8 @@ type Item = {
 // Ordem dos módulos do painel. Só Clientes e Propriedades são funcionais agora.
 const NAV: Item[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard, ready: false },
-  { href: "/clientes", label: "Clientes", icon: Users, ready: true },
-  { href: "/propriedades", label: "Propriedades", icon: Home, ready: true },
+  { href: "/clientes", label: "Clients", icon: Users, ready: true },
+  { href: "/propriedades", label: "Properties", icon: Home, ready: true },
   { href: "/invoices", label: "Invoices", icon: FileText, ready: false },
   { href: "/payments", label: "Payments", icon: Wallet, ready: false },
   { href: "/expenses", label: "Expenses", icon: Receipt, ready: false },
@@ -48,7 +48,7 @@ export function Sidebar() {
         </div>
         <div>
           <p className="h-display text-sm leading-tight text-ink">By the C</p>
-          <p className="text-[10px] uppercase tracking-widest text-ink/45">Painel</p>
+          <p className="text-[10px] uppercase tracking-widest text-ink/45">Dashboard</p>
         </div>
       </div>
 
@@ -77,7 +77,7 @@ export function Sidebar() {
               <span className="flex-1">{item.label}</span>
               {!item.ready && (
                 <span className="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink/45">
-                  em breve
+                  Coming soon
                 </span>
               )}
             </Link>
@@ -86,7 +86,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-4 rounded-xl border border-black/[0.07] bg-black/[0.015] p-3 text-[11px] leading-relaxed text-ink/50">
-        Onda 2 · build próprio
+        Wave 2 · custom build
         <br />
         Cape Cod, MA · America/New_York
       </div>

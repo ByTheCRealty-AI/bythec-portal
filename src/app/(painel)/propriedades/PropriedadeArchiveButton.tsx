@@ -11,7 +11,7 @@ export function PropriedadeArchiveButton({ id, archived }: { id: string; archive
   if (archived) {
     return (
       <button onClick={() => start(() => unarchivePropriedadeAction(id))} disabled={pending} className={buttonClass("ghost")}>
-        <ArchiveRestore className="h-4 w-4" /> {pending ? "Restaurando…" : "Restaurar"}
+        <ArchiveRestore className="h-4 w-4" /> {pending ? "Restoring…" : "Restore"}
       </button>
     );
   }
@@ -19,14 +19,14 @@ export function PropriedadeArchiveButton({ id, archived }: { id: string; archive
   return (
     <button
       onClick={() => {
-        if (confirm("Arquivar esta propriedade? O histórico é preservado (nunca deletamos).")) {
+        if (confirm("Archive this property? The history is preserved (we never delete).")) {
           start(() => archivePropriedadeAction(id));
         }
       }}
       disabled={pending}
       className={buttonClass("danger")}
     >
-      <Archive className="h-4 w-4" /> {pending ? "Arquivando…" : "Arquivar"}
+      <Archive className="h-4 w-4" /> {pending ? "Archiving…" : "Archive"}
     </button>
   );
 }

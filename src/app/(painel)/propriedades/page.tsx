@@ -27,7 +27,7 @@ async function load(typeFilter?: string) {
 }
 
 const FILTERS = [
-  { value: "", label: "Todas" },
+  { value: "", label: "All" },
   ...Object.entries(PROPERTY_TYPE_LABEL).map(([value, label]) => ({ value, label })),
 ];
 
@@ -44,11 +44,11 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
   return (
     <>
       <PageHeader
-        title="Propriedades"
-        subtitle="Toda propriedade tem um owner. Cadastre pela ficha do cliente."
+        title="Properties"
+        subtitle="Every property has an owner. Add it from the client's record."
         action={
           <Link href="/clientes" className={buttonClass("ghost")}>
-            <Plus className="h-4 w-4" /> Via cliente
+            <Plus className="h-4 w-4" /> Via client
           </Link>
         }
       />
@@ -75,8 +75,8 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
 
       {!ok && (
         <Card className="mb-6 border-secondary/30 bg-secondary/[0.06] text-sm text-ink/70">
-          Banco não conectado. Confira as variáveis de ambiente{" "}
-          <code className="text-primary">NEXT_PUBLIC_SUPABASE_URL</code> e{" "}
+          Database not connected. Check the environment variables{" "}
+          <code className="text-primary">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
           <code className="text-primary">SUPABASE_SERVICE_ROLE_KEY</code>.
         </Card>
       )}
@@ -84,11 +84,11 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
       {properties.length === 0 ? (
         <EmptyState
           icon={<Home className="h-6 w-6" />}
-          title="Nenhuma propriedade"
-          message="Propriedade nasce pendurada num cliente. Abra um cliente e cadastre a casa dele."
+          title="No properties"
+          message="A property is created attached to a client. Open a client and add their home."
           cta={
             <Link href="/clientes" className={buttonClass("primary")}>
-              Ir para Clientes
+              Go to Clients
             </Link>
           }
         />
@@ -97,10 +97,10 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
           <table className="w-full text-left text-sm">
             <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
               <tr>
-                <th className="px-5 py-3 font-bold">Endereço</th>
-                <th className="px-5 py-3 font-bold">Tipo</th>
+                <th className="px-5 py-3 font-bold">Address</th>
+                <th className="px-5 py-3 font-bold">Type</th>
                 <th className="px-5 py-3 font-bold">Owner</th>
-                <th className="px-5 py-3 font-bold">Aluguel</th>
+                <th className="px-5 py-3 font-bold">Rent</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>

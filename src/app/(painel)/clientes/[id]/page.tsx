@@ -51,28 +51,28 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   const detailsTab = (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <Card>
-        <h3 className="h-display mb-3 text-sm text-ink/70">Identificação</h3>
-        <Row label="Nome" value={client.name} />
-        <Row label="Tipo" value={CLIENT_TYPE_LABEL[client.client_type]} />
-        <Row label="E-mail" value={client.email} />
-        <Row label="Telefone" value={client.phone} />
+        <h3 className="h-display mb-3 text-sm text-ink/70">Identification</h3>
+        <Row label="Name" value={client.name} />
+        <Row label="Type" value={CLIENT_TYPE_LABEL[client.client_type]} />
+        <Row label="Email" value={client.email} />
+        <Row label="Phone" value={client.phone} />
       </Card>
       <Card>
-        <h3 className="h-display mb-3 text-sm text-ink/70">Cobrança e co-cliente</h3>
-        <Row label="Endereço" value={client.billing_address} />
-        <Row label="Unidade / apto" value={client.billing_address2} />
-        <Row label="Co-cliente" value={client.co_client_name} />
+        <h3 className="h-display mb-3 text-sm text-ink/70">Billing and co-client</h3>
+        <Row label="Address" value={client.billing_address} />
+        <Row label="Unit / apt" value={client.billing_address2} />
+        <Row label="Co-client" value={client.co_client_name} />
         <Row
-          label="Notificações"
+          label="Notifications"
           value={[
-            client.email_notifications ? "E-mail" : null,
+            client.email_notifications ? "Email" : null,
             client.sms_notifications ? "SMS" : null,
-          ].filter(Boolean).join(" · ") || "Nenhuma"}
+          ].filter(Boolean).join(" · ") || "None"}
         />
       </Card>
       {client.notes && (
         <Card className="md:col-span-2">
-          <h3 className="h-display mb-2 text-sm text-ink/70">Notas</h3>
+          <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>
           <p className="whitespace-pre-wrap text-sm text-ink/80">{client.notes}</p>
         </Card>
       )}
@@ -91,8 +91,8 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       {properties.length === 0 ? (
         <EmptyState
           icon={<Home className="h-6 w-6" />}
-          title="Sem propriedades"
-          message="Pendure a primeira propriedade neste cliente. Owner e endereço são auto-preenchidos."
+          title="No properties"
+          message="Attach the first property to this client. Owner and address are auto-filled."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -107,11 +107,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="block text-ink/45">Comissão</span>
+                  <span className="block text-ink/45">Commission</span>
                   <span className="text-ink/85">{p.commission_fee ?? "—"}</span>
                 </div>
                 <div>
-                  <span className="block text-ink/45">Aluguel</span>
+                  <span className="block text-ink/45">Rent</span>
                   <span className="text-ink/85">{money(p.rent_price)}</span>
                 </div>
                 {p.rental_start && (
@@ -123,7 +123,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
               </div>
               <div className="mt-4">
                 <Link href={`/propriedades/${p.id}`} className="text-xs font-semibold text-primary hover:underline">
-                  Ver propriedade →
+                  View property →
                 </Link>
               </div>
             </Card>
@@ -135,7 +135,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
 
   // ---- Abas stub (Notes, Documents, Requests) ----
   const stub = (label: string, icon: React.ReactNode, msg: string) => (
-    <EmptyState icon={icon} title={`${label} em construção`} message={msg} />
+    <EmptyState icon={icon} title={`${label} under construction`} message={msg} />
   );
 
   return (
@@ -145,9 +145,9 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         subtitle={CLIENT_TYPE_LABEL[client.client_type]}
         action={
           <div className="flex items-center gap-3">
-            {archived && <Badge tone="muted">Arquivado</Badge>}
+            {archived && <Badge tone="muted">Archived</Badge>}
             <Link href={`/clientes/${client.id}/editar`} className={buttonClass("ghost")}>
-              <Pencil className="h-4 w-4" /> Editar
+              <Pencil className="h-4 w-4" /> Edit
             </Link>
             <ArchiveButton id={client.id} archived={archived} />
           </div>
@@ -156,11 +156,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
 
       <Tabs
         tabs={[
-          { id: "details", label: "Detalhes", content: detailsTab },
-          { id: "properties", label: `Propriedades (${properties.length})`, content: propertiesTab },
-          { id: "notes", label: "Notas", content: stub("Notas", <StickyNote className="h-6 w-6" />, "Notas polimórficas por cliente. Schema pronto; UI nas próximas rodadas.") },
-          { id: "documents", label: "Documentos", content: stub("Documentos", <FileText className="h-6 w-6" />, "Multi-upload com filtro por ano. Schema pronto; UI nas próximas rodadas.") },
-          { id: "requests", label: "Requests", content: stub("Requests", <Home className="h-6 w-6" />, "Tenant requests vinculados. Schema pronto; UI nas próximas rodadas.") },
+          { id: "details", label: "Details", content: detailsTab },
+          { id: "properties", label: `Properties (${properties.length})`, content: propertiesTab },
+          { id: "notes", label: "Notes", content: stub("Notes", <StickyNote className="h-6 w-6" />, "Polymorphic notes per client. Schema ready; UI in upcoming rounds.") },
+          { id: "documents", label: "Documents", content: stub("Documents", <FileText className="h-6 w-6" />, "Multi-upload with filter by year. Schema ready; UI in upcoming rounds.") },
+          { id: "requests", label: "Requests", content: stub("Requests", <Home className="h-6 w-6" />, "Linked tenant requests. Schema ready; UI in upcoming rounds.") },
         ]}
       />
     </>

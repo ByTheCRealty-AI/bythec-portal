@@ -61,24 +61,24 @@ export interface Property {
   owner?: Pick<Client, "id" | "name" | "email"> | null;
 }
 
-// Rótulos pt-BR (UI). Fonte única de verdade de exibição.
+// Display labels (UI). Single source of truth for display.
 export const CLIENT_TYPE_LABEL: Record<ClientType, string> = {
-  tenant: "Inquilino",
-  airbnb_owner: "Dono Airbnb",
-  landlord: "Locador",
-  buy_sell_client: "Comprador / Vendedor",
-  off_season_tenant: "Inquilino de inverno",
+  tenant: "Tenant",
+  airbnb_owner: "Airbnb Owner",
+  landlord: "Landlord",
+  buy_sell_client: "Buyer / Seller",
+  off_season_tenant: "Off-Season Tenant",
 };
 
 export const PROPERTY_TYPE_LABEL: Record<PropertyType, string> = {
-  year_round_rental: "Aluguel anual",
-  vacation_rental: "Temporada (Airbnb)",
-  off_season_rental: "Inverno / off-season",
-  for_sale: "À venda",
+  year_round_rental: "Year-Round Rental",
+  vacation_rental: "Vacation Rental",
+  off_season_rental: "Off-Season Rental",
+  for_sale: "For Sale",
 };
 
 export const DEAL_SIDE_LABEL: Record<DealSide, string> = {
-  buyer: "Comprador",
-  seller: "Vendedor",
-  both: "Comprador e vendedor",
+  buyer: "Buyer",
+  seller: "Seller",
+  both: "Buyer and seller",
 };

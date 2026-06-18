@@ -16,13 +16,13 @@ const body = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "By the C — Painel de gestão",
-  description: "Sistema próprio By the C Realty & Property Management. Cape Cod, MA.",
+  title: "By the C — Management Dashboard",
+  description: "By the C Realty & Property Management — in-house system. Cape Cod, MA.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${display.variable} ${body.variable}`}>
+    <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body className="font-sans">{children}</body>
     </html>
   );

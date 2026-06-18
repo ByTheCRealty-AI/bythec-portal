@@ -1,4 +1,4 @@
 import { UnderConstruction } from "@/components/UnderConstruction";
 export default function Page() {
-  return <UnderConstruction title="Service Providers" phase="Cadastro alfabético de prestadores · Onda 2 / Fase 1" />;
+  return <UnderConstruction title="Service Providers" phase="Alphabetical provider directory · Wave 2 / Phase 1" />;
 }

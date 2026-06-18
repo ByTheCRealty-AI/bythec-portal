@@ -28,8 +28,8 @@ export default async function OverviewPage() {
   const c = await getCounts();
 
   const cards = [
-    { label: "Clientes ativos", value: c.clients, icon: Users, tone: "gold" as const },
-    { label: "Propriedades ativas", value: c.properties, icon: Home, tone: "orange" as const },
+    { label: "Active clients", value: c.clients, icon: Users, tone: "gold" as const },
+    { label: "Active properties", value: c.properties, icon: Home, tone: "orange" as const },
     { label: "Invoices", value: c.invoices, icon: FileText, tone: "neutral" as const },
   ];
 
@@ -45,12 +45,12 @@ export default async function OverviewPage() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-secondary" />
             <div className="text-sm text-ink/70">
-              <p className="font-semibold text-ink">Banco não conectado</p>
+              <p className="font-semibold text-ink">Database not connected</p>
               <p className="mt-1">
-                Confira as variáveis de ambiente{" "}
-                <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-primary">NEXT_PUBLIC_SUPABASE_URL</code> e{" "}
+                Check the environment variables{" "}
+                <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-primary">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
                 <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-primary">SUPABASE_SERVICE_ROLE_KEY</code>.
-                Os números aparecem assim que o Postgres responder.
+                The numbers appear as soon as Postgres responds.
               </p>
             </div>
           </div>
@@ -74,12 +74,12 @@ export default async function OverviewPage() {
       </div>
 
       <Card className="mt-6">
-        <h2 className="h-display text-lg text-ink">Onda 2 — esta rodada</h2>
+        <h2 className="h-display text-lg text-ink">Wave 2 — this round</h2>
         <p className="mt-2 text-sm leading-relaxed text-ink/65">
-          Fundação do sistema próprio que substitui o Bubble. Schema completo (núcleo, finanças,
-          operação) modelado em SQL com as regras travadas. Módulos <strong className="text-ink">Clientes</strong> e{" "}
-          <strong className="text-ink">Propriedades</strong> funcionais — criar, ver, editar e arquivar
-          (nunca deletar). Os demais módulos seguem nas próximas rodadas.
+          Foundation of the in-house system that replaces Bubble. Full schema (core, finance,
+          operations) modeled in SQL with the locked rules. The <strong className="text-ink">Clients</strong> and{" "}
+          <strong className="text-ink">Properties</strong> modules are functional — create, view, edit and archive
+          (never delete). The remaining modules follow in the next rounds.
         </p>
       </Card>
     </>

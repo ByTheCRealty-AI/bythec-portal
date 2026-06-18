@@ -18,8 +18,8 @@ export default async function EditarClientePage({ params }: { params: { id: stri
 
   return (
     <>
-      <PageHeader title={`Editar — ${client.name}`} subtitle="Editar nunca apaga histórico." />
-      <ClienteForm client={client} action={action} submitLabel="Salvar alterações" cancelHref={`/clientes/${client.id}`} />
+      <PageHeader title={`Edit — ${client.name}`} subtitle="Editing never erases history." />
+      <ClienteForm client={client} action={action} submitLabel="Save changes" cancelHref={`/clientes/${client.id}`} />
     </>
   );
 }

@@ -10,7 +10,7 @@ export function money(value: number | null | undefined): string {
   return USD.format(value);
 }
 
-const DATE = new Intl.DateTimeFormat("pt-BR", {
+const DATE = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
   day: "2-digit",
   month: "2-digit",

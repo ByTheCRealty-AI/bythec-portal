@@ -15,7 +15,7 @@ export function ArchiveButton({ id, archived }: { id: string; archived: boolean 
         disabled={pending}
         className={buttonClass("ghost")}
       >
-        <ArchiveRestore className="h-4 w-4" /> {pending ? "Restaurando…" : "Restaurar"}
+        <ArchiveRestore className="h-4 w-4" /> {pending ? "Restoring…" : "Restore"}
       </button>
     );
   }
@@ -24,14 +24,14 @@ export function ArchiveButton({ id, archived }: { id: string; archived: boolean 
     <button
       onClick={() => {
         // TRAVADO: arquivar, nunca deletar. Confirmação leve.
-        if (confirm("Arquivar este cliente? O histórico é preservado (nunca deletamos).")) {
+        if (confirm("Archive this client? The history is preserved (we never delete).")) {
           start(() => archiveClienteAction(id));
         }
       }}
       disabled={pending}
       className={buttonClass("danger")}
     >
-      <Archive className="h-4 w-4" /> {pending ? "Arquivando…" : "Arquivar"}
+      <Archive className="h-4 w-4" /> {pending ? "Archiving…" : "Archive"}
     </button>
   );
 }

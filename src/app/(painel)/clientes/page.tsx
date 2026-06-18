@@ -24,7 +24,7 @@ async function load(typeFilter?: string) {
 }
 
 const FILTERS: Array<{ value: string; label: string }> = [
-  { value: "", label: "Todos" },
+  { value: "", label: "All" },
   ...Object.entries(CLIENT_TYPE_LABEL).map(([value, label]) => ({ value, label })),
 ];
 
@@ -45,11 +45,11 @@ export default async function ClientesPage({
   return (
     <>
       <PageHeader
-        title="Clientes"
-        subtitle="Entidade-mãe. A propriedade pendura no cliente."
+        title="Clients"
+        subtitle="The parent record. Properties belong to a client."
         action={
           <Link href="/clientes/novo" className={buttonClass("primary")}>
-            <Plus className="h-4 w-4" /> Novo cliente
+            <Plus className="h-4 w-4" /> New client
           </Link>
         }
       />
@@ -77,8 +77,8 @@ export default async function ClientesPage({
 
       {!ok && (
         <Card className="mb-6 border-secondary/30 bg-secondary/[0.06] text-sm text-ink/70">
-          Banco não conectado. Confira as variáveis de ambiente{" "}
-          <code className="text-primary">NEXT_PUBLIC_SUPABASE_URL</code> e{" "}
+          Database not connected. Check the environment variables{" "}
+          <code className="text-primary">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
           <code className="text-primary">SUPABASE_SERVICE_ROLE_KEY</code>.
         </Card>
       )}
@@ -86,11 +86,11 @@ export default async function ClientesPage({
       {clients.length === 0 ? (
         <EmptyState
           icon={<Users className="h-6 w-6" />}
-          title="Nenhum cliente ainda"
-          message="Cadastre o primeiro cliente. A propriedade vem depois, pendurada nele."
+          title="No clients yet"
+          message="Add the first client. The property comes next, attached to them."
           cta={
             <Link href="/clientes/novo" className={buttonClass("primary")}>
-              <Plus className="h-4 w-4" /> Novo cliente
+              <Plus className="h-4 w-4" /> New client
             </Link>
           }
         />
@@ -99,9 +99,9 @@ export default async function ClientesPage({
           <table className="w-full text-left text-sm">
             <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
               <tr>
-                <th className="px-5 py-3 font-bold">Nome</th>
-                <th className="px-5 py-3 font-bold">Tipo</th>
-                <th className="px-5 py-3 font-bold">Contato</th>
+                <th className="px-5 py-3 font-bold">Name</th>
+                <th className="px-5 py-3 font-bold">Type</th>
+                <th className="px-5 py-3 font-bold">Contact</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
