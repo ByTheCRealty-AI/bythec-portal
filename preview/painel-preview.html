@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>By the C — Painel (prévia)</title>
+<style>
+  :root{
+    --bg:#0b0f14; --bg2:#10161e; --card:#141c26; --card2:#18222e;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --txt:#e8eef5; --txt2:#9bb0c2; --txt3:#65788a;
+    --accent:#2dd4bf; --accent2:#38bdf8; --accentbg:rgba(45,212,191,.12);
+    --warn:#fbbf24; --warnbg:rgba(251,191,36,.12);
+    --blue:#60a5fa; --bluebg:rgba(96,165,250,.14);
+    --gray:#94a3b8; --graybg:rgba(148,163,184,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,rgba(56,189,248,.10),transparent),
+               radial-gradient(900px 500px at -10% 110%,rgba(45,212,191,.08),transparent),var(--bg);
+    color:var(--txt);display:flex;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+  /* Sidebar */
+  .side{width:248px;flex-shrink:0;background:linear-gradient(180deg,var(--bg2),rgba(16,22,30,.6));
+    border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 20px}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-weight:700;color:#06222b;font-size:18px;letter-spacing:-1px}
+  .brand b{font-size:16px;font-weight:600;letter-spacing:.2px}
+  .brand span{display:block;font-size:11.5px;color:var(--txt3);font-weight:400}
+  .navlabel{font-size:10.5px;text-transform:uppercase;letter-spacing:1.4px;color:var(--txt3);padding:14px 10px 6px}
+  .nav{display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:10px;font-size:14px;color:var(--txt2);cursor:pointer;border:1px solid transparent;transition:.12s}
+  .nav:hover{background:var(--card);color:var(--txt)}
+  .nav.on{background:var(--accentbg);color:var(--accent);border-color:rgba(45,212,191,.25);font-weight:500}
+  .nav .ic{width:18px;text-align:center;font-size:15px}
+  .side .foot{margin-top:auto;border-top:1px solid var(--line);padding-top:14px;display:flex;align-items:center;gap:10px}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--bluebg);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .foot small{display:block;color:var(--txt3);font-size:11px}
+
+  /* Main */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 30px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,15,20,.85);backdrop-filter:blur(8px);z-index:5}
+  .crumb{font-size:13px;color:var(--txt3)}
+  .crumb b{color:var(--txt);font-weight:500}
+  .search{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 13px;color:var(--txt3);font-size:13px;width:230px}
+  .content{padding:28px 30px;max-width:1080px}
+  h1{font-size:23px;font-weight:600;letter-spacing:-.3px}
+  .sub{color:var(--txt2);font-size:13.5px;margin-top:5px}
+  .btn{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06222b;
+    border:none;border-radius:9px;padding:9px 15px;font-size:13.5px;font-weight:600;cursor:pointer}
+  .btnghost{background:var(--card);color:var(--txt);border:1px solid var(--line2)}
+
+  .banner{display:flex;align-items:center;gap:10px;background:var(--warnbg);border:1px solid rgba(251,191,36,.3);
+    color:#fcd77f;border-radius:11px;padding:11px 15px;font-size:13px;margin:18px 0 22px}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 18px}
+  .stat .k{font-size:12.5px;color:var(--txt2);display:flex;align-items:center;gap:7px}
+  .stat .v{font-size:27px;font-weight:600;margin-top:9px;letter-spacing:-.5px}
+  .stat .d{font-size:11.5px;color:var(--txt3);margin-top:3px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:15px;overflow:hidden}
+  .phead{display:flex;align-items:center;justify-content:space-between;padding:15px 19px;border-bottom:1px solid var(--line)}
+  .phead h2{font-size:15.5px;font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;color:var(--txt3);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.5px;padding:12px 19px;background:var(--bg2)}
+  td{padding:14px 19px;border-top:1px solid var(--line)}
+  tr.row{cursor:pointer;transition:.1s}
+  tr.row:hover td{background:var(--card2)}
+  .who{font-weight:500}
+  .muted{color:var(--txt3);font-size:12px;margin-top:2px}
+  .badge{display:inline-block;padding:4px 11px;border-radius:20px;font-size:11.5px;font-weight:500}
+  .b-owner{background:var(--accentbg);color:var(--accent)}
+  .b-land{background:var(--bluebg);color:var(--blue)}
+  .b-tenant{background:var(--graybg);color:var(--gray)}
+  .b-buy{background:rgba(167,139,250,.16);color:#c4b5fd}
+  .pill{font-size:11px;color:var(--txt3);border:1px solid var(--line);border-radius:7px;padding:2px 8px}
+  .num{font-weight:600;font-variant-numeric:tabular-nums}
+  .lock{font-size:11.5px;color:var(--txt3);margin-top:16px;display:flex;align-items:center;gap:7px}
+
+  .pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}
+  .prop{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.12s}
+  .prop:hover{border-color:var(--line2);transform:translateY(-1px)}
+  .prop .addr{font-size:15px;font-weight:600}
+  .prop .row2{display:flex;gap:18px;margin-top:13px;flex-wrap:wrap}
+  .prop .row2 div{font-size:12.5px;color:var(--txt2)}
+  .prop .row2 b{display:block;color:var(--txt);font-weight:600;font-size:14px;margin-top:2px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">B</div>
+      <div><b>By the C</b><span>Realty & Property Mgmt</span></div>
+    </div>
+    <div class="navlabel">Gestão</div>
+    <div class="nav" data-v="overview"><span class="ic">▦</span> Visão geral</div>
+    <div class="nav on" data-v="clientes"><span class="ic">◍</span> Clientes</div>
+    <div class="nav" data-v="props"><span class="ic">⌂</span> Propriedades</div>
+    <div class="navlabel">Finanças</div>
+    <div class="nav" data-v="soon"><span class="ic">▤</span> Faturas</div>
+    <div class="nav" data-v="soon"><span class="ic">$</span> Pagamentos</div>
+    <div class="nav" data-v="soon"><span class="ic">▢</span> Despesas</div>
+    <div class="navlabel">Operação</div>
+    <div class="nav" data-v="soon"><span class="ic">⚙</span> Manutenção</div>
+    <div class="nav" data-v="soon"><span class="ic">◈</span> Prestadores</div>
+    <div class="nav" data-v="soon"><span class="ic">▣</span> Anúncios</div>
+    <div class="foot">
+      <div class="avatar">AD</div>
+      <div><div style="font-size:13px;font-weight:500">Andrea Desouza</div><small>Administradora</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">Painel <b id="crumb">/ Clientes</b></div>
+      <div class="search">⌕ &nbsp;Buscar cliente, casa, fatura…</div>
+    </div>
+    <div class="content">
+
+      <!-- OVERVIEW -->
+      <section id="v-overview" class="hide">
+        <h1>Visão geral</h1>
+        <p class="sub">Resumo do seu negócio · dados ao vivo do banco</p>
+        <div class="banner">⚠ Prévia com 4 cadastros de exemplo. Os dados reais entram na migração do Bubble (83 clientes · 53 casas · 235 faturas).</div>
+        <div class="cards">
+          <div class="stat"><div class="k"><span class="dot" style="background:var(--accent)"></span>Clientes ativos</div><div class="v">4</div><div class="d">donos, inquilinos e compradores</div></div>
+          <div class="stat"><div class="k"><span class="dot" style="background:var(--blue)"></span>Propriedades</div><div class="v">3</div><div class="d">sob gestão</div></div>
+          <div class="stat"><div class="k"><span class="dot" style="background:#c4b5fd"></span>Prestadores</div><div class="v">2</div><div class="d">encanador, eletricista</div></div>
+          <div class="stat"><div class="k"><span class="dot" style="background:var(--warn)"></span>Comissão prevista</div><div class="v">$300</div><div class="d">10% · regime de caixa</div></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><h2>O que este painel já faz</h2></div>
+          <table><tbody>
+            <tr><td>✓ Cadastrar cliente como entidade-mãe e pendurar as casas nele</td></tr>
+            <tr><td>✓ Nunca deletar — só arquivar (guarda o histórico inteiro)</td></tr>
+            <tr><td>✓ Comissão de aluguel anual: 10%, só conta quando o dinheiro entra</td></tr>
+            <tr><td>✓ Banco trancado e seguro, na sua conta</td></tr>
+          </tbody></table>
+        </div>
+      </section>
+
+      <!-- CLIENTES -->
+      <section id="v-clientes">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div><h1>Clientes</h1><p class="sub">4 clientes ativos · cliente é a entidade-mãe, as casas penduram nele</p></div>
+          <button class="btn">＋ Novo cliente</button>
+        </div>
+        <div class="banner">⚠ Estes 4 são exemplos fictícios — dá pra apagar com um clique quando entrarem os reais.</div>
+        <div class="panel">
+          <div class="phead"><h2>Todos os clientes</h2><span class="pill">filtrar por tipo ▾</span></div>
+          <table>
+            <thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th style="text-align:center">Casas</th></tr></thead>
+            <tbody>
+              <tr class="row"><td><div class="who">John Carpenter</div><div class="muted">com Mary Carpenter</div></td>
+                <td><span class="badge b-owner">Dono Airbnb</span></td>
+                <td><div>john.carpenter@example.com</div><div class="muted">+1 508-555-0101</div></td>
+                <td style="text-align:center" class="num">2</td></tr>
+              <tr class="row"><td><div class="who">Helena Borges</div><div class="muted">15 Pine Hill Ave, Hyannis</div></td>
+                <td><span class="badge b-land">Locadora</span></td>
+                <td><div>helena.borges@example.com</div><div class="muted">+1 508-555-0142</div></td>
+                <td style="text-align:center" class="num">1</td></tr>
+              <tr class="row"><td><div class="who">Patricia Lima</div><div class="muted">inquilina year-round</div></td>
+                <td><span class="badge b-tenant">Inquilina</span></td>
+                <td><div>patricia.lima@example.com</div><div class="muted">+1 508-555-0173</div></td>
+                <td style="text-align:center" class="num">0</td></tr>
+              <tr class="row"><td><div class="who">Daniel Souza</div><div class="muted">comprador até $850k · Sandwich</div></td>
+                <td><span class="badge b-buy">Comprador</span></td>
+                <td><div>daniel.souza@example.com</div><div class="muted">+1 774-555-0188</div></td>
+                <td style="text-align:center" class="num">0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="lock">🔒 Banco protegido — só acesso autorizado entra.</div>
+      </section>
+
+      <!-- PROPRIEDADES -->
+      <section id="v-props" class="hide">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div><h1>Propriedades</h1><p class="sub">3 casas sob gestão · cada uma pertence a um cliente</p></div>
+          <button class="btn">＋ Nova propriedade</button>
+        </div>
+        <div class="banner">⚠ Exemplos fictícios. O endereço sempre vem da sua base (com unidade), nunca do Google.</div>
+        <div class="pgrid">
+          <div class="prop">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div class="addr">12 Rainbow Ave</div><span class="badge b-owner">Temporada</span></div>
+            <div class="muted">East Falmouth MA 02536</div>
+            <div class="row2"><div>Dono<b>John Carpenter</b></div><div>Comissão<b>12,5%</b></div><div>Obs.<b>Hot tub</b></div></div>
+          </div>
+          <div class="prop">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div class="addr">5 Seagull Ln</div><span class="badge b-owner">Temporada</span></div>
+            <div class="muted">Falmouth MA 02540</div>
+            <div class="row2"><div>Dono<b>John Carpenter</b></div><div>Comissão<b>12,5%</b></div><div>Tipo<b>Airbnb</b></div></div>
+          </div>
+          <div class="prop">
+            <div style="display:flex;justify-content:space-between;align-items:center"><div class="addr">15 Pine Hill Ave · Unit 1</div><span class="badge b-land">Aluguel anual</span></div>
+            <div class="muted">Hyannis MA 02601</div>
+            <div class="row2"><div>Dono<b>Helena Borges</b></div><div>Inquilina<b>Patricia Lima</b></div><div>Aluguel<b>$3.000/mês</b></div><div>Vencimento<b>dia 5</b></div></div>
+          </div>
+        </div>
+        <div class="lock">🔒 Banco protegido — só acesso autorizado entra.</div>
+      </section>
+
+      <!-- SOON -->
+      <section id="v-soon" class="hide">
+        <h1>Em construção</h1>
+        <p class="sub">Este módulo é o próximo a ser ligado. A fundação (banco + regras) já está pronta por baixo.</p>
+        <div class="panel" style="margin-top:20px"><div class="phead"><h2>Próximos módulos</h2></div>
+          <table><tbody>
+            <tr><td>Faturas — com a fórmula de temporada travada (validada no #335) + serviço (labor + material)</td></tr>
+            <tr><td>Pagamentos — aluguel anual em regime de caixa, comprovantes</td></tr>
+            <tr><td>Despesas — inclusive do próprio escritório</td></tr>
+            <tr><td>Manutenção — pedido do inquilino → prestador → ordem de serviço</td></tr>
+          </tbody></table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+<script>
+  var navs=document.querySelectorAll('.nav'), crumb=document.getElementById('crumb');
+  var labels={overview:'/ Visão geral',clientes:'/ Clientes',props:'/ Propriedades',soon:'/ Em construção'};
+  function show(v){
+    ['overview','clientes','props','soon'].forEach(function(id){
+      document.getElementById('v-'+id).classList.toggle('hide',id!==v);
+    });
+    crumb.textContent=labels[v]||'';
+  }
+  navs.forEach(function(n){ n.addEventListener('click',function(){
+    navs.forEach(function(x){x.classList.remove('on')}); n.classList.add('on');
+    show(n.getAttribute('data-v'));
+  });});
+  show('clientes');
+</script>
+</body>
+</html>

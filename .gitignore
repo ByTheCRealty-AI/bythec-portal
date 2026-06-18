@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Env — NUNCA versionar credencial. Só .env.example entra no git.
+.env
+.env*
+!.env.example
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+.supabase/
+
+# Logs / OS
+*.log
+npm-debug.log*
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
