@@ -15,12 +15,12 @@ import {
   Building2,
   Anchor,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { LucideIcon } from "lucide-react";
 
 type Item = {
   href: string;
   label: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   ready: boolean; // funcional nesta rodada?
 };
 
