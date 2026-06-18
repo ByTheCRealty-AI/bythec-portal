@@ -6,6 +6,7 @@
 //
 // Por quê: o RLS está LIGADO em todas as tabelas e ainda NÃO existem policies
 // nem login. Logo, a chave anon não lê nada (comportamento correto e seguro).
+// O banco fica TRANCADO; só este servidor, com a chave secreta, acessa.
 // Enquanto o painel é uma ferramenta INTERNA sem autenticação, ele lê/escreve
 // via service_role no servidor.
 //
@@ -39,7 +40,6 @@ export function createClient() {
 
   return createSupabaseClient(url, serviceRoleKey, {
     auth: {
-      // Sem sessão de usuário: este client é uma identidade de serviço fixa.
       persistSession: false,
       autoRefreshToken: false,
     },

@@ -12,14 +12,14 @@ export function Tabs({
 
   return (
     <div>
-      <div className="mb-6 flex gap-1 border-b border-white/[0.08]">
+      <div className="mb-6 flex gap-1 border-b border-black/[0.08]">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActive(t.id)}
             className={cx(
               "relative px-4 py-2.5 text-sm font-semibold transition",
-              active === t.id ? "text-white" : "text-white/45 hover:text-white/75"
+              active === t.id ? "text-primary" : "text-ink/50 hover:text-ink/80"
             )}
           >
             {t.label}

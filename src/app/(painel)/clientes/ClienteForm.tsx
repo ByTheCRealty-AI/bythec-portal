@@ -21,7 +21,7 @@ export function ClienteForm({
     <form action={action} className="space-y-8">
       {/* Identificação */}
       <section className="glass p-6">
-        <h2 className="h-display mb-5 text-base text-white">Identificação</h2>
+        <h2 className="h-display mb-5 text-base text-ink">Identificação</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Nome *">
             <input name="name" required defaultValue={client?.name ?? ""} className={inputClass} placeholder="Nome do cliente" />
@@ -53,7 +53,7 @@ export function ClienteForm({
 
       {/* Endereço de cobrança */}
       <section className="glass p-6">
-        <h2 className="h-display mb-5 text-base text-white">Endereço de cobrança</h2>
+        <h2 className="h-display mb-5 text-base text-ink">Endereço de cobrança</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Endereço">
             <input name="billing_address" defaultValue={client?.billing_address ?? ""} className={inputClass} placeholder="Rua, cidade, estado, ZIP" />
@@ -66,7 +66,7 @@ export function ClienteForm({
 
       {/* Co-cliente */}
       <section className="glass p-6">
-        <h2 className="h-display mb-5 text-base text-white">Co-cliente <span className="text-sm font-normal text-white/40">(cônjuge / sócio no nome)</span></h2>
+        <h2 className="h-display mb-5 text-base text-ink">Co-cliente <span className="text-sm font-normal text-ink/45">(cônjuge / sócio no nome)</span></h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <Field label="Nome">
             <input name="co_client_name" defaultValue={client?.co_client_name ?? ""} className={inputClass} />
@@ -82,14 +82,14 @@ export function ClienteForm({
 
       {/* Preferências + notas */}
       <section className="glass p-6">
-        <h2 className="h-display mb-5 text-base text-white">Preferências e notas</h2>
+        <h2 className="h-display mb-5 text-base text-ink">Preferências e notas</h2>
         <div className="mb-5 flex flex-wrap gap-6">
-          <label className="flex items-center gap-2.5 text-sm text-white/75">
-            <input type="checkbox" name="email_notifications" defaultChecked={client?.email_notifications ?? true} className="h-4 w-4 accent-[#FACC15]" />
+          <label className="flex items-center gap-2.5 text-sm text-ink/80">
+            <input type="checkbox" name="email_notifications" defaultChecked={client?.email_notifications ?? true} className="h-4 w-4 accent-[#198577]" />
             Notificações por e-mail
           </label>
-          <label className="flex items-center gap-2.5 text-sm text-white/75">
-            <input type="checkbox" name="sms_notifications" defaultChecked={client?.sms_notifications ?? false} className="h-4 w-4 accent-[#FACC15]" />
+          <label className="flex items-center gap-2.5 text-sm text-ink/80">
+            <input type="checkbox" name="sms_notifications" defaultChecked={client?.sms_notifications ?? false} className="h-4 w-4 accent-[#198577]" />
             Notificações por SMS
           </label>
         </div>

@@ -7,10 +7,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Paleta premium By the C — base profunda, primário gold, secundário orange.
-        ink: "#0a0a0a",          // background base (nunca #000 puro)
-        primary: "#FACC15",      // amber/gold
-        secondary: "#F97316",    // orange
+        // Paleta premium By the C — tema claro, verdes da marca da Andrea.
+        page: "#f6f8f7",         // fundo da página (off-white suave, nunca branco puro chapado)
+        surface: "#ffffff",      // superfícies de card
+        ink: "#0f1b19",          // texto principal (near-black esverdeado)
+        primary: "#198577",      // verde-teal profundo (logo)
+        secondary: "#04a27f",    // verde mais vivo (acento)
       },
       fontFamily: {
         // Fontes premium via next/font (Space Grotesk display + Satoshi-like body).
@@ -22,6 +24,11 @@ const config: Config = {
       },
       backdropBlur: {
         xs: "2px",
+      },
+      boxShadow: {
+        // Sombra suave premium para cards no tema claro.
+        card: "0 1px 2px rgba(15,27,25,0.04), 0 8px 24px -12px rgba(15,27,25,0.10)",
+        glow: "0 8px 24px -8px rgba(25,133,119,0.45)",
       },
       keyframes: {
         "fade-up": {

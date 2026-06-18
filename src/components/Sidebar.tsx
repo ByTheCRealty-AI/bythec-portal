@@ -41,14 +41,14 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-white/[0.06] bg-white/[0.015] px-4 py-6 backdrop-blur-sm">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-black/[0.07] bg-white/70 px-4 py-6 backdrop-blur-sm">
       <div className="mb-8 flex items-center gap-2.5 px-2">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-black">
+        <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-glow">
           <Anchor className="h-4 w-4" strokeWidth={2.5} />
         </div>
         <div>
-          <p className="h-display text-sm leading-tight text-white">By the C</p>
-          <p className="text-[10px] uppercase tracking-widest text-white/40">Painel</p>
+          <p className="h-display text-sm leading-tight text-ink">By the C</p>
+          <p className="text-[10px] uppercase tracking-widest text-ink/45">Painel</p>
         </div>
       </div>
 
@@ -66,17 +66,17 @@ export function Sidebar() {
               className={cx(
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                 active
-                  ? "bg-white/[0.07] text-white"
-                  : "text-white/55 hover:bg-white/[0.04] hover:text-white/90"
+                  ? "bg-primary/10 font-semibold text-primary"
+                  : "text-ink/60 hover:bg-black/[0.035] hover:text-ink"
               )}
             >
               <Icon
-                className={cx("h-[18px] w-[18px] shrink-0", active && "text-primary")}
+                className={cx("h-[18px] w-[18px] shrink-0", active ? "text-primary" : "text-ink/50")}
                 strokeWidth={2}
               />
               <span className="flex-1">{item.label}</span>
               {!item.ready && (
-                <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-white/35">
+                <span className="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink/45">
                   em breve
                 </span>
               )}
@@ -85,7 +85,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] leading-relaxed text-white/40">
+      <div className="mt-4 rounded-xl border border-black/[0.07] bg-black/[0.015] p-3 text-[11px] leading-relaxed text-ink/50">
         Onda 2 · build próprio
         <br />
         Cape Cod, MA · America/New_York

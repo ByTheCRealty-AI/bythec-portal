@@ -13,9 +13,9 @@ type PropertyRow = Property & { owner: { id: string; name: string; email: string
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-white/[0.05] py-2.5 last:border-0">
-      <span className="text-xs uppercase tracking-wider text-white/40">{label}</span>
-      <span className="text-sm text-white/85">{value || "—"}</span>
+    <div className="flex flex-col gap-0.5 border-b border-black/[0.06] py-2.5 last:border-0">
+      <span className="text-xs uppercase tracking-wider text-ink/45">{label}</span>
+      <span className="text-sm text-ink/90">{value || "—"}</span>
     </div>
   );
 }
@@ -51,7 +51,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="h-display text-sm text-white/70">Dados</h3>
+            <h3 className="h-display text-sm text-ink/70">Dados</h3>
             <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
           </div>
           <Row label="Endereço" value={p.address} />
@@ -60,28 +60,28 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         </Card>
 
         <Card>
-          <h3 className="h-display mb-3 text-sm text-white/70">Owner</h3>
+          <h3 className="h-display mb-3 text-sm text-ink/70">Owner</h3>
           {p.owner ? (
             <Link
               href={`/clientes/${p.owner.id}`}
-              className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 transition hover:border-primary/40"
+              className="flex items-center gap-3 rounded-xl border border-black/[0.10] bg-black/[0.015] p-3 transition hover:border-primary/40 hover:bg-primary/[0.04]"
             >
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/15 text-primary">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
                 <User className="h-4 w-4" />
               </span>
               <span>
-                <span className="block text-sm font-semibold text-white">{p.owner.name}</span>
-                <span className="block text-xs text-white/45">{p.owner.email ?? "—"}</span>
+                <span className="block text-sm font-semibold text-ink">{p.owner.name}</span>
+                <span className="block text-xs text-ink/50">{p.owner.email ?? "—"}</span>
               </span>
             </Link>
           ) : (
-            <p className="text-sm text-white/45">Sem owner.</p>
+            <p className="text-sm text-ink/50">Sem owner.</p>
           )}
         </Card>
 
         {isRental && (
           <Card className="md:col-span-2">
-            <h3 className="h-display mb-3 text-sm text-white/70">Aluguel</h3>
+            <h3 className="h-display mb-3 text-sm text-ink/70">Aluguel</h3>
             <div className="grid grid-cols-2 gap-x-8 sm:grid-cols-4">
               <Row label="Mensal" value={money(p.rent_price)} />
               <Row label="Vencimento" value={p.rent_due_day ? `Dia ${p.rent_due_day}` : null} />
@@ -93,8 +93,8 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
 
         {p.notes && (
           <Card className="md:col-span-2">
-            <h3 className="h-display mb-2 text-sm text-white/70">Notas</h3>
-            <p className="whitespace-pre-wrap text-sm text-white/75">{p.notes}</p>
+            <h3 className="h-display mb-2 text-sm text-ink/70">Notas</h3>
+            <p className="whitespace-pre-wrap text-sm text-ink/80">{p.notes}</p>
           </Card>
         )}
       </div>

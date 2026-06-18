@@ -63,8 +63,8 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
               className={
                 "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition " +
                 (isActive
-                  ? "border-primary/40 bg-primary/15 text-primary"
-                  : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/90")
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-black/10 bg-white text-ink/60 hover:text-ink hover:border-black/20")
               }
             >
               {f.label}
@@ -74,7 +74,7 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
       </div>
 
       {!ok && (
-        <Card className="mb-6 border-secondary/30 bg-secondary/[0.06] text-sm text-white/70">
+        <Card className="mb-6 border-secondary/30 bg-secondary/[0.06] text-sm text-ink/70">
           Banco não conectado. Confira as variáveis de ambiente{" "}
           <code className="text-primary">NEXT_PUBLIC_SUPABASE_URL</code> e{" "}
           <code className="text-primary">SUPABASE_SERVICE_ROLE_KEY</code>.
@@ -93,9 +93,9 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/[0.08]">
+        <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-white/[0.04] text-xs uppercase tracking-wider text-white/45">
+            <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
               <tr>
                 <th className="px-5 py-3 font-bold">Endereço</th>
                 <th className="px-5 py-3 font-bold">Tipo</th>
@@ -109,27 +109,27 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
                 <tr
                   key={p.id}
                   className={
-                    "border-t border-white/[0.05] transition hover:bg-white/[0.04] " +
-                    (i % 2 === 1 ? "bg-white/[0.02]" : "")
+                    "border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
+                    (i % 2 === 1 ? "bg-black/[0.015]" : "")
                   }
                 >
                   <td className="px-5 py-3.5">
-                    <Link href={`/propriedades/${p.id}`} className="font-semibold text-white hover:text-primary">
+                    <Link href={`/propriedades/${p.id}`} className="font-semibold text-ink hover:text-primary">
                       {p.address}
                     </Link>
-                    {p.address2 && <span className="block text-xs text-white/40">{p.address2}</span>}
+                    {p.address2 && <span className="block text-xs text-ink/45">{p.address2}</span>}
                   </td>
                   <td className="px-5 py-3.5">
                     <Badge tone={toneFor(p.property_type)}>{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
                   </td>
-                  <td className="px-5 py-3.5 text-white/60">
+                  <td className="px-5 py-3.5 text-ink/65">
                     {p.owner ? (
                       <Link href={`/clientes/${p.owner.id}`} className="hover:text-primary">{p.owner.name}</Link>
                     ) : "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-white/70">{money(p.rent_price)}</td>
+                  <td className="px-5 py-3.5 text-ink/70">{money(p.rent_price)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <Link href={`/propriedades/${p.id}`} className="inline-flex text-white/40 hover:text-primary">
+                    <Link href={`/propriedades/${p.id}`} className="inline-flex text-ink/40 hover:text-primary">
                       <ChevronRight className="h-4 w-4" />
                     </Link>
                   </td>

@@ -39,8 +39,8 @@ export function PropriedadeForm({
       className="glass space-y-5 p-6"
     >
       <div className="flex items-center justify-between">
-        <h3 className="h-display text-base text-white">Nova propriedade</h3>
-        <span className="text-xs text-white/40">Owner: {ownerName} (auto)</span>
+        <h3 className="h-display text-base text-ink">Nova propriedade</h3>
+        <span className="text-xs text-ink/45">Owner: {ownerName} (auto)</span>
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

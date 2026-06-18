@@ -18,9 +18,9 @@ export const dynamic = "force-dynamic";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-white/[0.05] py-2.5 last:border-0">
-      <span className="text-xs uppercase tracking-wider text-white/40">{label}</span>
-      <span className="text-sm text-white/85">{value || "—"}</span>
+    <div className="flex flex-col gap-0.5 border-b border-black/[0.06] py-2.5 last:border-0">
+      <span className="text-xs uppercase tracking-wider text-ink/45">{label}</span>
+      <span className="text-sm text-ink/90">{value || "—"}</span>
     </div>
   );
 }
@@ -51,14 +51,14 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   const detailsTab = (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <Card>
-        <h3 className="h-display mb-3 text-sm text-white/70">Identificação</h3>
+        <h3 className="h-display mb-3 text-sm text-ink/70">Identificação</h3>
         <Row label="Nome" value={client.name} />
         <Row label="Tipo" value={CLIENT_TYPE_LABEL[client.client_type]} />
         <Row label="E-mail" value={client.email} />
         <Row label="Telefone" value={client.phone} />
       </Card>
       <Card>
-        <h3 className="h-display mb-3 text-sm text-white/70">Cobrança e co-cliente</h3>
+        <h3 className="h-display mb-3 text-sm text-ink/70">Cobrança e co-cliente</h3>
         <Row label="Endereço" value={client.billing_address} />
         <Row label="Unidade / apto" value={client.billing_address2} />
         <Row label="Co-cliente" value={client.co_client_name} />
@@ -72,8 +72,8 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       </Card>
       {client.notes && (
         <Card className="md:col-span-2">
-          <h3 className="h-display mb-2 text-sm text-white/70">Notas</h3>
-          <p className="whitespace-pre-wrap text-sm text-white/75">{client.notes}</p>
+          <h3 className="h-display mb-2 text-sm text-ink/70">Notas</h3>
+          <p className="whitespace-pre-wrap text-sm text-ink/80">{client.notes}</p>
         </Card>
       )}
     </div>
@@ -100,24 +100,24 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
             <Card key={p.id} className="glass-hover">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-white">{p.address}</p>
-                  {p.address2 && <p className="text-xs text-white/40">{p.address2}</p>}
+                  <p className="font-semibold text-ink">{p.address}</p>
+                  {p.address2 && <p className="text-xs text-ink/45">{p.address2}</p>}
                 </div>
                 <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="block text-white/40">Comissão</span>
-                  <span className="text-white/80">{p.commission_fee ?? "—"}</span>
+                  <span className="block text-ink/45">Comissão</span>
+                  <span className="text-ink/85">{p.commission_fee ?? "—"}</span>
                 </div>
                 <div>
-                  <span className="block text-white/40">Aluguel</span>
-                  <span className="text-white/80">{money(p.rent_price)}</span>
+                  <span className="block text-ink/45">Aluguel</span>
+                  <span className="text-ink/85">{money(p.rent_price)}</span>
                 </div>
                 {p.rental_start && (
                   <div className="col-span-2">
-                    <span className="block text-white/40">Lease</span>
-                    <span className="text-white/80">{date(p.rental_start)} — {date(p.rental_end)}</span>
+                    <span className="block text-ink/45">Lease</span>
+                    <span className="text-ink/85">{date(p.rental_start)} — {date(p.rental_end)}</span>
                   </div>
                 )}
               </div>

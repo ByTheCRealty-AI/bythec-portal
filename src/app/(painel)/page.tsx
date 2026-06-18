@@ -44,12 +44,12 @@ export default async function OverviewPage() {
         <Card className="mb-6 border-secondary/30 bg-secondary/[0.06]">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-secondary" />
-            <div className="text-sm text-white/70">
-              <p className="font-semibold text-white">Banco não conectado</p>
+            <div className="text-sm text-ink/70">
+              <p className="font-semibold text-ink">Banco não conectado</p>
               <p className="mt-1">
                 Confira as variáveis de ambiente{" "}
-                <code className="rounded bg-white/10 px-1.5 py-0.5 text-primary">NEXT_PUBLIC_SUPABASE_URL</code> e{" "}
-                <code className="rounded bg-white/10 px-1.5 py-0.5 text-primary">SUPABASE_SERVICE_ROLE_KEY</code>.
+                <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-primary">NEXT_PUBLIC_SUPABASE_URL</code> e{" "}
+                <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-primary">SUPABASE_SERVICE_ROLE_KEY</code>.
                 Os números aparecem assim que o Postgres responder.
               </p>
             </div>
@@ -64,21 +64,21 @@ export default async function OverviewPage() {
             <Card key={card.label} className="glass-hover">
               <div className="flex items-center justify-between">
                 <Badge tone={card.tone}>By the C</Badge>
-                <Icon className="h-5 w-5 text-white/40" />
+                <Icon className="h-5 w-5 text-primary/60" />
               </div>
-              <p className="mt-5 h-display text-4xl text-white">{card.value}</p>
-              <p className="mt-1 text-sm text-white/50">{card.label}</p>
+              <p className="mt-5 h-display text-4xl text-ink">{card.value}</p>
+              <p className="mt-1 text-sm text-ink/55">{card.label}</p>
             </Card>
           );
         })}
       </div>
 
       <Card className="mt-6">
-        <h2 className="h-display text-lg text-white">Onda 2 — esta rodada</h2>
-        <p className="mt-2 text-sm leading-relaxed text-white/55">
+        <h2 className="h-display text-lg text-ink">Onda 2 — esta rodada</h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink/65">
           Fundação do sistema próprio que substitui o Bubble. Schema completo (núcleo, finanças,
-          operação) modelado em SQL com as regras travadas. Módulos <strong className="text-white/80">Clientes</strong> e{" "}
-          <strong className="text-white/80">Propriedades</strong> funcionais — criar, ver, editar e arquivar
+          operação) modelado em SQL com as regras travadas. Módulos <strong className="text-ink">Clientes</strong> e{" "}
+          <strong className="text-ink">Propriedades</strong> funcionais — criar, ver, editar e arquivar
           (nunca deletar). Os demais módulos seguem nas próximas rodadas.
         </p>
       </Card>
