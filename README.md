@@ -19,9 +19,17 @@ Esta pasta é a **fundação** da Onda 2: schema completo do banco + painel inte
 | Ícones | lucide-react |
 | Fontes | Space Grotesk (display) + Manrope (body) via `next/font` |
 
-Design: tema escuro premium (base `#0a0a0a`, primário gold `#FACC15`, secundário orange `#F97316`),
-glass-morphism, gradients/grid de fundo, empty states com ícone + mensagem + CTA. pt-BR com acentuação,
-dinheiro em USD, datas em `America/New_York`.
+Design: tema CLARO premium By the C (fundo `#f6f8f7`, verdes da marca primário `#198577` /
+secundário `#04a27f`), superfícies brancas com sombra suave, gradients/grid de fundo, empty states
+com ícone + mensagem + CTA. UI em inglês (US), dinheiro em USD, datas em `America/New_York`.
+
+### Auth + RBAC (login real)
+Login por e-mail/senha (Supabase Auth, sessão por cookie via `@supabase/ssr`). `middleware.ts` protege
+todas as rotas do painel. Acesso por **capability** (ver `src/lib/auth/capabilities.ts`), espelhado no
+SQL via `has_cap()` (migration `0005`) — o RLS do banco é a camada segura. Papéis internos: **owner**
+(super admin), **manager** (gestão sem deletar usuários), **secretary** (operação sem finanças nem
+gestão de usuários). Tela **Users & Access** (`/users`) convida logins por e-mail (a pessoa define a
+própria senha), edita papel/permissões/ativo e remove (owner only).
 
 ---
 
@@ -36,7 +44,8 @@ sistema/
 │       ├── 0001_enums_and_core.sql   # enums + clients + properties (entidade-mãe)
 │       ├── 0002_finance.sql          # invoices, invoice_items, payments, expenses
 │       ├── 0003_operations.sql       # requests, providers, services, listings, notes, documents
-│       └── 0004_users_and_rls.sql    # app_users + RLS (esqueleto/TODO documentado)
+│       ├── 0004_users_and_rls.sql    # esqueleto antigo (substituído por 0005)
+│       └── 0005_auth_rbac.sql        # profiles + app_role + has_cap() + RLS por capacidade
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx              # root: fontes + globals
@@ -48,10 +57,13 @@ sistema/
 │   │       ├── propriedades/       # MÓDULO FUNCIONAL (list, [id], editar)
 │   │       └── invoices|payments|expenses|requests|providers|listings/  # placeholders
 │   ├── components/                 # Sidebar, Tabs, UnderConstruction, ui/
+│   ├── middleware.ts               # protege todas as rotas do painel (sessão)
 │   └── lib/
-│       ├── types.ts                # tipos do domínio + rótulos pt-BR
+│       ├── types.ts                # tipos do domínio + rótulos
 │       ├── format.ts               # money (USD), date (NY), cx
-│       └── supabase/server.ts      # client server-side (@supabase/ssr)
+│       ├── auth/capabilities.ts    # RBAC: capabilities + role defaults (fonte de verdade do front)
+│       ├── auth/session.ts         # getProfile / requireProfile / requireCapability
+│       └── supabase/               # client.ts (browser) · server.ts (sessão+RLS) · admin.ts (service_role)
 ├── env.example.txt                 # template de env (renomear p/ .env.example / .env.local)
 ├── package.json · tsconfig.json · tailwind.config.ts · next.config.mjs · postcss.config.mjs
 └── .gitignore                      # .env* ignorado (só .env.example versiona)

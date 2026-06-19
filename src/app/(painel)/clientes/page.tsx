@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, Badge, buttonClass, Card } from "@/components/ui";
+import { PageHeader, EmptyState, Badge, buttonClass, Card, NoAccess } from "@/components/ui";
 import { CLIENT_TYPE_LABEL, type Client, type ClientType } from "@/lib/types";
+import { getProfile } from "@/lib/auth/session";
+import { can } from "@/lib/auth/capabilities";
 import { Users, Plus, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -39,6 +41,16 @@ export default async function ClientesPage({
 }: {
   searchParams: { tipo?: string };
 }) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    return (
+      <>
+        <PageHeader title="Clients" />
+        <NoAccess />
+      </>
+    );
+  }
+
   const active = searchParams.tipo ?? "";
   const { ok, clients } = await load(active || undefined);
 

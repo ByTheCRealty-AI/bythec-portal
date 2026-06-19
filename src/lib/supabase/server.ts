@@ -1,47 +1,49 @@
-// ============================================================================
-// TEMPORÁRIO — PRÉ-AUTH (Onda 2, Fase 1)
+// =============================================================================
+// Supabase — SERVER client (Server Components / Server Actions / Route Handlers)
+// =============================================================================
+// AUTH LIGADO (Onda 2, Fase Auth): este client usa a ANON key + a SESSÃO DO
+// USUÁRIO LOGADO (cookies do @supabase/ssr). Toda leitura/escrita passa pelo RLS
+// do banco em nome do usuário autenticado — esta é a camada SEGURA.
 //
-// Este client roda SOMENTE no servidor (Server Components / Server Actions /
-// Route Handlers) e usa a SERVICE_ROLE key, que BYPASSA O RLS.
+// A service_role NÃO mora mais aqui. Ela vive SÓ em ./admin.ts, usada apenas
+// pela server action de convite/criação de usuário (auth.admin.inviteUserByEmail).
 //
-// Por quê: o RLS está LIGADO em todas as tabelas e ainda NÃO existem policies
-// nem login. Logo, a chave anon não lê nada (comportamento correto e seguro).
-// O banco fica TRANCADO; só este servidor, com a chave secreta, acessa.
-// Enquanto o painel é uma ferramenta INTERNA sem autenticação, ele lê/escreve
-// via service_role no servidor.
-//
-// >>> QUANDO O LOGIN (SUPABASE AUTH) ENTRAR, TROCAR ESTE ARQUIVO POR:
-//     createServerClient (de @supabase/ssr) + ANON key + cookies do Next
-//     + policies de RLS por usuário. O service_role sai de cena. <<<
-//
-// REGRA DE OURO: a service_role key NUNCA pode ir pro browser. Por isso ela é
-// lida de SUPABASE_SERVICE_ROLE_KEY (SEM o prefixo NEXT_PUBLIC_, que é o único
-// jeito do Next vazar env pro client). Este módulo só pode ser importado por
-// código server-side. Nunca importar de um Client Component ("use client").
-// ============================================================================
+// REGRA DE OURO: service_role NUNCA vai pro browser. anon key é pública por design.
+// Este módulo é server-only; nunca importar de um Client Component ("use client").
+// =============================================================================
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
-// Mantém a assinatura `createClient()` (síncrona) pra não quebrar os call sites
-// existentes em actions.ts e nas pages (que fazem `const supabase = createClient()`).
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Falha clara em RUNTIME (request-time), nunca em build-time. As pages que
-  // chamam isso são `force-dynamic` + try/catch, então o build na Vercel não
-  // depende dessas envs pra compilar.
-  if (!url || !serviceRoleKey) {
+  if (!url || !anonKey) {
     throw new Error(
-      "Supabase env ausente. Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY " +
+      "Supabase env ausente. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY " +
         "nas variáveis de ambiente (Vercel · Project Settings · Environment Variables)."
     );
   }
 
-  return createSupabaseClient(url, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+  const cookieStore = cookies();
+
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        // Em Server Components puros o set de cookie pode lançar — é esperado.
+        // O middleware é quem renova a sessão e escreve cookies de resposta.
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {
+          // No-op: chamado de um Server Component sem acesso de escrita ao cookie.
+        }
+      },
     },
   });
 }

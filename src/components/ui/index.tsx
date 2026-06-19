@@ -1,5 +1,6 @@
 // Primitivos de UI reutilizáveis (premium, sem dependência de lib de componentes).
 import { cx } from "@/lib/format";
+import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 
 // ---- Card ------------------------------------------------------------------
@@ -115,3 +116,23 @@ export function Field({
 
 export const inputClass =
   "w-full rounded-xl border border-black/[0.12] bg-white px-3.5 py-2.5 text-sm text-ink placeholder-ink/35 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+export const selectClass = inputClass;
+
+// ---- No access state -------------------------------------------------------
+// Estado limpo quando o usuário não tem a capacidade pra ver a tela.
+export function NoAccess({
+  message = "You do not have access to this section. Ask an administrator if you need it.",
+}: {
+  message?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-black/[0.12] bg-black/[0.015] px-8 py-16 text-center">
+      <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-black/[0.05] text-ink/45">
+        <Lock className="h-6 w-6" />
+      </div>
+      <h3 className="h-display text-lg text-ink">No access</h3>
+      <p className="mt-1 max-w-sm text-sm text-ink/55">{message}</p>
+    </div>
+  );
+}

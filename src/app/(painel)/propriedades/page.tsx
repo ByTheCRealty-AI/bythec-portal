@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, Badge, buttonClass, Card } from "@/components/ui";
+import { PageHeader, EmptyState, Badge, buttonClass, Card, NoAccess } from "@/components/ui";
 import { PROPERTY_TYPE_LABEL, type Property, type PropertyType } from "@/lib/types";
 import { money } from "@/lib/format";
+import { getProfile } from "@/lib/auth/session";
+import { can } from "@/lib/auth/capabilities";
 import { Home, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 
@@ -38,6 +40,16 @@ function toneFor(t: PropertyType): "gold" | "orange" | "neutral" {
 }
 
 export default async function PropriedadesPage({ searchParams }: { searchParams: { tipo?: string } }) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    return (
+      <>
+        <PageHeader title="Properties" />
+        <NoAccess />
+      </>
+    );
+  }
+
   const active = searchParams.tipo ?? "";
   const { ok, properties } = await load(active || undefined);
 

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, PageHeader, Badge } from "@/components/ui";
-import { Users, Home, FileText, AlertTriangle } from "lucide-react";
+import { Users, Home, FileText, AlertTriangle, Lock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,13 @@ async function getCounts() {
   }
 }
 
-export default async function OverviewPage() {
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: { denied?: string };
+}) {
   const c = await getCounts();
+  const denied = typeof searchParams.denied === "string" ? searchParams.denied : null;
 
   const cards = [
     { label: "Active clients", value: c.clients, icon: Users, tone: "gold" as const },
@@ -39,6 +44,18 @@ export default async function OverviewPage() {
         title="Overview"
         subtitle="By the C Realty & Property Management · Cape Cod, MA"
       />
+
+      {denied && (
+        <Card className="mb-6 border-black/[0.1] bg-black/[0.02]">
+          <div className="flex items-start gap-3">
+            <Lock className="mt-0.5 h-5 w-5 shrink-0 text-ink/45" />
+            <div className="text-sm text-ink/70">
+              <p className="font-semibold text-ink">No access to that section</p>
+              <p className="mt-1">You do not have permission to open it. Ask an administrator if you need it.</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {!c.ok && (
         <Card className="mb-6 border-secondary/30 bg-secondary/[0.06]">
