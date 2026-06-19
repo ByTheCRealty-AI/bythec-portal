@@ -12,7 +12,7 @@
 // Este módulo é server-only; nunca importar de um Client Component ("use client").
 // =============================================================================
 
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export function createClient() {
@@ -33,7 +33,7 @@ export function createClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
         // Em Server Components puros o set de cookie pode lançar — é esperado.
         // O middleware é quem renova a sessão e escreve cookies de resposta.
         try {
