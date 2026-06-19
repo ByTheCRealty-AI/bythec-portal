@@ -16,7 +16,7 @@ async function loadUsers() {
     // RLS decide quem o usuário enxerga (a si + quem pode gerir).
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, phone, address, role, permissions, active")
+      .select("id, full_name, email, phone, address, address_line1, address_line2, city, state, zip, role, permissions, active")
       .order("full_name", { ascending: true });
     if (error) throw error;
     return { ok: true as const, users: (data ?? []) as ProfileLike[] };

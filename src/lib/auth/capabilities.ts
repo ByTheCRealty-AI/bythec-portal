@@ -104,6 +104,11 @@ export interface ProfileLike {
   email: string | null;
   phone: string | null;
   address: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
   role: AppRole;
   permissions: PermissionOverrides | null;
   active: boolean;

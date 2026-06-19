@@ -55,7 +55,11 @@ export async function inviteUserAction(fd: FormData): Promise<Result> {
   const email = str(fd, "email")?.toLowerCase() ?? null;
   const fullName = str(fd, "full_name");
   const phone = str(fd, "phone");
-  const address = str(fd, "address");
+  const addressLine1 = str(fd, "address_line1");
+  const addressLine2 = str(fd, "address_line2");
+  const city = str(fd, "city");
+  const state = str(fd, "state");
+  const zip = str(fd, "zip");
   const role = (str(fd, "role") as AppRole) ?? "secretary";
 
   if (!email) return { ok: false, error: "Email is required." };
@@ -68,7 +72,7 @@ export async function inviteUserAction(fd: FormData): Promise<Result> {
   const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(email, {
     // O trigger lê estes metadados pra criar o profile com o papel certo +
     // dados pessoais. Mantemos um upsert abaixo como caminho confiável.
-    data: { full_name: fullName, phone, address, role },
+    data: { full_name: fullName, phone, role },
     redirectTo: `${siteUrl()}/auth/callback`,
   });
 
@@ -83,7 +87,15 @@ export async function inviteUserAction(fd: FormData): Promise<Result> {
   if (newId) {
     await admin
       .from("profiles")
-      .update({ full_name: fullName, phone, address })
+      .update({
+        full_name: fullName,
+        phone,
+        address_line1: addressLine1,
+        address_line2: addressLine2,
+        city,
+        state,
+        zip,
+      })
       .eq("id", newId);
   }
 
@@ -148,7 +160,11 @@ export async function updateUserAccessAction(
   // Dados pessoais (livres pra editar respeitando o who-can-edit-whom acima).
   const fullName = str(fd, "full_name");
   const phone = str(fd, "phone");
-  const address = str(fd, "address");
+  const addressLine1 = str(fd, "address_line1");
+  const addressLine2 = str(fd, "address_line2");
+  const city = str(fd, "city");
+  const state = str(fd, "state");
+  const zip = str(fd, "zip");
   const newEmail = str(fd, "email")?.toLowerCase() ?? null;
 
   // --- E-mail editável -------------------------------------------------------
@@ -169,7 +185,11 @@ export async function updateUserAccessAction(
     .update({
       full_name: fullName,
       phone,
-      address,
+      address_line1: addressLine1,
+      address_line2: addressLine2,
+      city,
+      state,
+      zip,
       ...(emailChanged ? { email: newEmail } : {}),
       role: newRole,
       permissions: overrides,
