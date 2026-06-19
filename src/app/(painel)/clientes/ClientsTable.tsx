@@ -3,6 +3,7 @@
 // Tabela de clientes com busca instantânea por nome (primeiro + último).
 // A lista já chega ORDENADA por nome (primeiro nome, A→Z) do servidor.
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui";
@@ -15,6 +16,7 @@ function toneFor(t: ClientType): "gold" | "orange" | "neutral" {
 }
 
 export function ClientsTable({ clients }: { clients: Client[] }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
   const filtered = term
@@ -57,8 +59,9 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
               {filtered.map((c, i) => (
                 <tr
                   key={c.id}
+                  onClick={() => router.push(`/clientes/${c.id}`)}
                   className={
-                    "border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
+                    "cursor-pointer border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
                     (i % 2 === 1 ? "bg-black/[0.015]" : "")
                   }
                 >
