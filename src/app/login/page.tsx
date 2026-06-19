@@ -20,7 +20,7 @@ export default function LoginPage({
             <Anchor className="h-6 w-6" strokeWidth={2.5} />
           </div>
           <h1 className="h-display text-2xl text-ink">By the C</h1>
-          <p className="mt-1 text-sm text-ink/55">Management Dashboard</p>
+          <p className="mt-1 text-sm font-medium text-ink/75">Realty and Property Management</p>
         </div>
 
         <div className="glass p-7">

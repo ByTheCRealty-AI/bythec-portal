@@ -71,7 +71,7 @@ export function Sidebar({
         </div>
         <div>
           <p className="h-display text-sm leading-tight text-ink">By the C</p>
-          <p className="text-[10px] uppercase tracking-widest text-ink/45">Dashboard</p>
+          <p className="text-[10px] leading-tight text-ink/45">Realty and Property Management</p>
         </div>
       </div>
 

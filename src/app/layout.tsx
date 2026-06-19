@@ -16,8 +16,8 @@ const body = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "By the C — Management Dashboard",
-  description: "By the C Realty & Property Management — in-house system. Cape Cod, MA.",
+  title: "By the C Realty and Property Management",
+  description: "By the C Realty and Property Management — in-house system. Cape Cod, MA.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

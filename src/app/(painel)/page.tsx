@@ -42,7 +42,7 @@ export default async function OverviewPage({
     <>
       <PageHeader
         title="Overview"
-        subtitle="By the C Realty & Property Management · Cape Cod, MA"
+        subtitle="By the C Realty and Property Management · Cape Cod, MA"
       />
 
       {denied && (
