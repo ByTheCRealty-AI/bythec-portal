@@ -5,6 +5,7 @@ import { PageHeader, Badge, Card, buttonClass, EmptyState } from "@/components/u
 import { Tabs } from "@/components/Tabs";
 import { PropriedadeForm } from "./PropriedadeForm";
 import { ArchiveButton } from "./ArchiveButton";
+import { BackButton } from "./BackButton";
 import {
   CLIENT_TYPE_LABEL,
   PROPERTY_TYPE_LABEL,
@@ -140,6 +141,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
 
   return (
     <>
+      <BackButton />
       <PageHeader
         title={client.name}
         subtitle={CLIENT_TYPE_LABEL[client.client_type]}

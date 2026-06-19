@@ -34,7 +34,7 @@ const FILTERS: Array<{ value: string; label: string }> = [
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: { tipo?: string };
+  searchParams: { tipo?: string; q?: string };
 }) {
   const profile = await getProfile();
   if (!can(profile, "clients.edit")) {
@@ -102,7 +102,7 @@ export default async function ClientesPage({
           }
         />
       ) : (
-        <ClientsTable clients={clients} />
+        <ClientsTable clients={clients} initialQuery={searchParams.q ?? ""} />
       )}
     </>
   );

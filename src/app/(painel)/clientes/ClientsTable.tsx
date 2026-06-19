@@ -2,7 +2,7 @@
 
 // Tabela de clientes com busca instantânea por nome (primeiro + último).
 // A lista já chega ORDENADA por nome (primeiro nome, A→Z) do servidor.
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
@@ -15,9 +15,25 @@ function toneFor(t: ClientType): "gold" | "orange" | "neutral" {
   return "neutral";
 }
 
-export function ClientsTable({ clients }: { clients: Client[] }) {
+export function ClientsTable({
+  clients,
+  initialQuery = "",
+}: {
+  clients: Client[];
+  initialQuery?: string;
+}) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+
+  // Mantém a busca na URL (sem refetch) pra o "Back to clients" do detalhe restaurar a busca.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set("q", query);
+    else url.searchParams.delete("q");
+    window.history.replaceState(null, "", url.toString());
+  }, [query]);
+
   const term = query.trim().toLowerCase();
   const filtered = term
     ? clients.filter((c) => {
