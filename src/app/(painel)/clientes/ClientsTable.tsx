@@ -75,7 +75,18 @@ export function ClientsTable({
               {filtered.map((c, i) => (
                 <tr
                   key={c.id}
-                  onClick={() => router.push(`/clientes/${c.id}`)}
+                  onClick={() => {
+                    // Snapshot da lista (aba + busca) pra o "Back to clients" restaurar.
+                    try {
+                      sessionStorage.setItem(
+                        "bythec:clients-return",
+                        "/clientes" + window.location.search
+                      );
+                    } catch {
+                      /* noop */
+                    }
+                    router.push(`/clientes/${c.id}`);
+                  }}
                   className={
                     "cursor-pointer border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
                     (i % 2 === 1 ? "bg-black/[0.015]" : "")
