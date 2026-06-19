@@ -15,6 +15,18 @@ function isPublic(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  // Links de e-mail no formato PKCE chegam com ?code=... em qualquer rota.
+  // Encaminha pro callback (troca code -> sessão) e segue pra definir senha.
+  const codeParam = request.nextUrl.searchParams.get("code");
+  if (codeParam && !request.nextUrl.pathname.startsWith("/auth/")) {
+    const cb = request.nextUrl.clone();
+    cb.pathname = "/auth/callback";
+    cb.search = "";
+    cb.searchParams.set("code", codeParam);
+    cb.searchParams.set("next", "/auth/set-password");
+    return NextResponse.redirect(cb);
+  }
+
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
