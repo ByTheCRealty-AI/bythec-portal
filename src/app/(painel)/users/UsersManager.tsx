@@ -208,10 +208,25 @@ export function UsersManager({
 }
 
 // ---- Modal shell -----------------------------------------------------------
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({
+  title,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 px-4 py-10 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-black/[0.08] bg-white p-6 shadow-card">
+      <div
+        className={
+          "w-full rounded-2xl border border-black/[0.08] bg-white p-6 shadow-card " +
+          (wide ? "max-w-4xl" : "max-w-lg")
+        }
+      >
         <div className="mb-5 flex items-center justify-between">
           <h3 className="h-display text-lg text-ink">{title}</h3>
           <button onClick={onClose} className="rounded-lg p-1.5 text-ink/45 transition hover:bg-black/[0.04] hover:text-ink">
@@ -340,10 +355,11 @@ function EditDialog({
   }
 
   return (
-    <Modal title={`Edit — ${user.full_name || user.email}`} onClose={onClose}>
+    <Modal title={`Edit — ${user.full_name || user.email}`} wide onClose={onClose}>
       <form action={submit} className="space-y-5">
         <input type="hidden" name="active" value={active ? "true" : ""} />
 
+        <div className="grid gap-5 md:grid-cols-2">
         <div className="space-y-4 rounded-xl border border-black/[0.08] bg-black/[0.012] p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink/50">
             Personal info
@@ -384,6 +400,7 @@ function EditDialog({
           </Field>
         </div>
 
+        <div className="space-y-5">
         <Field label="Role">
           <select
             name="role"
@@ -412,6 +429,8 @@ function EditDialog({
             className="h-5 w-5 accent-primary"
           />
         </label>
+        </div>
+        </div>
 
         {/* Capability overrides */}
         {isInternal ? (
