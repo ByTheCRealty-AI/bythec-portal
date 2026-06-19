@@ -15,6 +15,7 @@ import {
   type ProfileLike,
 } from "@/lib/auth/capabilities";
 import { Badge, buttonClass, Field, inputClass, EmptyState } from "@/components/ui";
+import { PhoneInput, AddressFields } from "@/components/form-fields";
 import { inviteUserAction, updateUserAccessAction, deleteUserAction } from "./actions";
 import {
   ShieldCheck,
@@ -42,93 +43,25 @@ function actorCanEdit(actorIsOwner: boolean, targetRole: AppRole): boolean {
   return targetRole !== "owner" && targetRole !== "manager";
 }
 
-// ---- Phone formatting helpers ---------------------------------------------
-// Normaliza pra no máximo 10 dígitos (pega os ÚLTIMOS 10 — corrige colagem com
-// +1 ou código de país) e renderiza progressivamente como (XXX) XXX-XXXX.
-function formatUsPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(-10);
-  const len = digits.length;
-  if (len === 0) return "";
-  if (len < 4) return `(${digits}`;
-  if (len < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
+// Field names dos profiles (Users) pro AddressFields compartilhado.
+const PROFILE_ADDRESS_NAMES = {
+  line1: "address_line1",
+  line2: "address_line2",
+  city: "city",
+  state: "state",
+  zip: "zip",
+} as const;
 
-// Input de telefone controlado: formata enquanto digita e submete em `phone`.
-function PhoneInput({ defaultValue }: { defaultValue?: string | null }) {
-  const [value, setValue] = useState<string>(() => formatUsPhone(defaultValue ?? ""));
-  return (
-    <input
-      name="phone"
-      type="tel"
-      inputMode="tel"
-      autoComplete="tel"
-      value={value}
-      onChange={(e) => setValue(formatUsPhone(e.target.value))}
-      className={inputClass}
-      placeholder="(508) 555-0142"
-    />
-  );
-}
-
-// ---- Address fields (structured) ------------------------------------------
-// Street (full), Apt/Unit (full, optional), then City/State/ZIP em grid.
-// Não usa <Field> no grid porque Field embrulha tudo num único <label>.
-function AddressFields({ user }: { user?: ProfileLike }) {
-  const labelClass =
-    "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink/50";
-  return (
-    <div className="space-y-4">
-      <Field label="Street address">
-        <input
-          name="address_line1"
-          defaultValue={user?.address_line1 ?? user?.address ?? ""}
-          className={inputClass}
-          placeholder="123 Main St"
-        />
-      </Field>
-      <Field label="Apt / Unit / Suite">
-        <input
-          name="address_line2"
-          defaultValue={user?.address_line2 ?? ""}
-          className={inputClass}
-          placeholder="Apt 4B (optional)"
-        />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-[1fr_auto_auto] sm:items-start">
-        <label className="block">
-          <span className={labelClass}>City</span>
-          <input
-            name="city"
-            defaultValue={user?.city ?? ""}
-            className={inputClass}
-            placeholder="Hyannis"
-          />
-        </label>
-        <label className="block">
-          <span className={labelClass}>State</span>
-          <input
-            name="state"
-            defaultValue={user?.state ?? ""}
-            className={inputClass + " sm:w-20"}
-            placeholder="MA"
-            maxLength={20}
-          />
-        </label>
-        <label className="block">
-          <span className={labelClass}>ZIP</span>
-          <input
-            name="zip"
-            defaultValue={user?.zip ?? ""}
-            className={inputClass + " sm:w-28"}
-            placeholder="02601"
-            inputMode="numeric"
-            maxLength={10}
-          />
-        </label>
-      </div>
-    </div>
-  );
+// Pré-preenche o AddressFields a partir de um profile (mantém o fallback legado
+// de `address` solto no line1).
+function profileAddressDefaults(user?: ProfileLike) {
+  return {
+    line1: user?.address_line1 ?? user?.address ?? "",
+    line2: user?.address_line2 ?? "",
+    city: user?.city ?? "",
+    state: user?.state ?? "",
+    zip: user?.zip ?? "",
+  };
 }
 
 export function UsersManager({
@@ -360,7 +293,7 @@ function InviteDialog({
         <Field label="Full name">
           <input name="full_name" className={inputClass} placeholder="Jane Doe" />
         </Field>
-        <AddressFields />
+        <AddressFields names={PROFILE_ADDRESS_NAMES} defaults={profileAddressDefaults()} />
         <Field label="Email" hint="They will receive an invite to set their own password.">
           <input name="email" type="email" required className={inputClass} placeholder="jane@bythecrealty.com" />
         </Field>
@@ -462,7 +395,7 @@ function EditDialog({
               placeholder="Jane Doe"
             />
           </Field>
-          <AddressFields user={user} />
+          <AddressFields names={PROFILE_ADDRESS_NAMES} defaults={profileAddressDefaults(user)} />
           <Field label="Email" hint="Changing this updates the login email too.">
             <input
               name="email"

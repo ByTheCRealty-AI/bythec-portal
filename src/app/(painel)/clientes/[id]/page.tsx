@@ -48,6 +48,19 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
 
   const archived = client.archived_at !== null;
 
+  // Compõe o endereço de cobrança estruturado em uma linha legível, pulando
+  // partes vazias. Ex.: "123 Main St, Apt 4B · Hyannis, MA 02601".
+  const billingAddress = (() => {
+    const street = [client.billing_address, client.billing_address2]
+      .filter(Boolean)
+      .join(", ");
+    const cityState = [client.billing_city, client.billing_state]
+      .filter(Boolean)
+      .join(", ");
+    const locality = [cityState, client.billing_zip].filter(Boolean).join(" ");
+    return [street, locality].filter(Boolean).join(" · ");
+  })();
+
   // ---- Aba Details ----
   const detailsTab = (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -60,8 +73,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       </Card>
       <Card>
         <h3 className="h-display mb-3 text-sm text-ink/70">Billing and co-client</h3>
-        <Row label="Address" value={client.billing_address} />
-        <Row label="Unit / apt" value={client.billing_address2} />
+        <Row label="Billing address" value={billingAddress} />
         <Row label="Co-client" value={client.co_client_name} />
         <Row
           label="Notifications"

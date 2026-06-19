@@ -27,6 +27,9 @@ export interface Client {
   notes: string | null;
   billing_address: string | null;
   billing_address2: string | null;
+  billing_city: string | null;
+  billing_state: string | null;
+  billing_zip: string | null;
   co_client_name: string | null;
   co_client_email: string | null;
   co_client_phone: string | null;

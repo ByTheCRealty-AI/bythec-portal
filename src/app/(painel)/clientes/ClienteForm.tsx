@@ -1,9 +1,19 @@
 "use client";
 
 import { Field, inputClass, buttonClass } from "@/components/ui";
+import { PhoneInput, AddressFields } from "@/components/form-fields";
 import { CLIENT_TYPE_LABEL, DEAL_SIDE_LABEL } from "@/lib/types";
 import type { Client } from "@/lib/types";
 import Link from "next/link";
+
+// Field names das colunas de billing no banco (clients) pro AddressFields.
+const BILLING_ADDRESS_NAMES = {
+  line1: "billing_address",
+  line2: "billing_address2",
+  city: "billing_city",
+  state: "billing_state",
+  zip: "billing_zip",
+} as const;
 
 // Formulário compartilhado (criar/editar cliente). `action` é o server action.
 export function ClienteForm({
@@ -46,22 +56,25 @@ export function ClienteForm({
             <input name="email" type="email" defaultValue={client?.email ?? ""} className={inputClass} placeholder="name@email.com" />
           </Field>
           <Field label="Phone">
-            <input name="phone" defaultValue={client?.phone ?? ""} className={inputClass} placeholder="+1 508-555-0000" />
+            <PhoneInput name="phone" defaultValue={client?.phone} />
           </Field>
         </div>
       </section>
 
       {/* Endereço de cobrança */}
       <section className="glass p-6">
-        <h2 className="h-display mb-5 text-base text-ink">Billing address</h2>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="Address">
-            <input name="billing_address" defaultValue={client?.billing_address ?? ""} className={inputClass} placeholder="Street, city, state, ZIP" />
-          </Field>
-          <Field label="Unit / apt" hint="Address comes from our records, with unit number — never from Google.">
-            <input name="billing_address2" defaultValue={client?.billing_address2 ?? ""} className={inputClass} placeholder="Apt 2B" />
-          </Field>
-        </div>
+        <h2 className="h-display mb-2 text-base text-ink">Billing address</h2>
+        <p className="mb-5 text-xs text-ink/45">From our records, with unit number. Never from Google.</p>
+        <AddressFields
+          names={BILLING_ADDRESS_NAMES}
+          defaults={{
+            line1: client?.billing_address,
+            line2: client?.billing_address2,
+            city: client?.billing_city,
+            state: client?.billing_state,
+            zip: client?.billing_zip,
+          }}
+        />
       </section>
 
       {/* Co-cliente */}
@@ -75,7 +88,7 @@ export function ClienteForm({
             <input name="co_client_email" type="email" defaultValue={client?.co_client_email ?? ""} className={inputClass} />
           </Field>
           <Field label="Phone">
-            <input name="co_client_phone" defaultValue={client?.co_client_phone ?? ""} className={inputClass} />
+            <PhoneInput name="co_client_phone" defaultValue={client?.co_client_phone} />
           </Field>
         </div>
       </section>
