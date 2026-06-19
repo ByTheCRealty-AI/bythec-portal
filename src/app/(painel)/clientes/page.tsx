@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, Badge, buttonClass, Card, NoAccess } from "@/components/ui";
-import { CLIENT_TYPE_LABEL, type Client, type ClientType } from "@/lib/types";
+import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
+import { CLIENT_TYPE_LABEL, type Client } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { Users, Plus, ChevronRight } from "lucide-react";
+import { Users, Plus } from "lucide-react";
 import Link from "next/link";
+import { ClientsTable } from "./ClientsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,6 @@ const FILTERS: Array<{ value: string; label: string }> = [
   { value: "", label: "All" },
   ...Object.entries(CLIENT_TYPE_LABEL).map(([value, label]) => ({ value, label })),
 ];
-
-function toneFor(t: ClientType): "gold" | "orange" | "neutral" {
-  if (t === "airbnb_owner") return "orange";
-  if (t === "landlord") return "gold";
-  return "neutral";
-}
 
 export default async function ClientesPage({
   searchParams,
@@ -107,50 +102,7 @@ export default async function ClientesPage({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
-              <tr>
-                <th className="px-5 py-3 font-bold">Name</th>
-                <th className="px-5 py-3 font-bold">Type</th>
-                <th className="px-5 py-3 font-bold">Contact</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((c, i) => (
-                <tr
-                  key={c.id}
-                  className={
-                    "border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
-                    (i % 2 === 1 ? "bg-black/[0.015]" : "")
-                  }
-                >
-                  <td className="px-5 py-3.5">
-                    <Link href={`/clientes/${c.id}`} className="font-semibold text-ink hover:text-primary">
-                      {c.name}
-                    </Link>
-                    {c.co_client_name && (
-                      <span className="block text-xs text-ink/45">& {c.co_client_name}</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Badge tone={toneFor(c.client_type)}>{CLIENT_TYPE_LABEL[c.client_type]}</Badge>
-                  </td>
-                  <td className="px-5 py-3.5 text-ink/65">
-                    {c.email ?? "—"}
-                    {c.phone && <span className="block text-xs text-ink/45">{c.phone}</span>}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <Link href={`/clientes/${c.id}`} className="inline-flex text-ink/40 hover:text-primary">
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ClientsTable clients={clients} />
       )}
     </>
   );
