@@ -52,10 +52,16 @@ export function Sidebar({
   caps,
   canManageUsers,
   user,
+  onNavigate,
+  className,
 }: {
   caps: Capability[];
   canManageUsers: boolean;
   user: SidebarUser;
+  // Chamado ao clicar num link de navegação — usado pelo drawer mobile pra fechar.
+  onNavigate?: () => void;
+  // Override do shell externo (ex.: static md+ vs. drawer mobile).
+  className?: string;
 }) {
   const pathname = usePathname();
   const capSet = new Set(caps);
@@ -63,7 +69,12 @@ export function Sidebar({
   const visible = NAV.filter((item) => !item.cap || capSet.has(item.cap));
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-black/[0.07] bg-white/70 px-4 py-6 backdrop-blur-sm">
+    <aside
+      className={cx(
+        "flex h-screen w-64 shrink-0 flex-col border-r border-black/[0.07] bg-white/70 px-4 py-6 backdrop-blur-sm",
+        className ?? "sticky top-0"
+      )}
+    >
       <div className="mb-8 flex items-center gap-2.5 px-2">
         <img src="/logo.png" alt="By the C Realty" className="h-10 w-10 object-contain" />
         <div>
@@ -81,6 +92,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cx(
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                 active
@@ -107,6 +119,7 @@ export function Sidebar({
             <div className="my-2 h-px bg-black/[0.06]" />
             <Link
               href="/users"
+              onClick={onNavigate}
               className={cx(
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                 pathname.startsWith("/users")

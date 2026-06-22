@@ -1,4 +1,5 @@
-import { Sidebar, type SidebarUser } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
+import type { SidebarUser } from "@/components/Sidebar";
 import { requireProfile } from "@/lib/auth/session";
 import {
   effectiveCaps,
@@ -29,11 +30,8 @@ export default async function PainelLayout({ children }: { children: React.React
   };
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar caps={caps} canManageUsers={canManageUsers(profile)} user={user} />
-      <main className="flex-1 px-8 py-8">
-        <div className="mx-auto max-w-6xl animate-fade-up">{children}</div>
-      </main>
-    </div>
+    <AppShell caps={caps} canManageUsers={canManageUsers(profile)} user={user}>
+      {children}
+    </AppShell>
   );
 }

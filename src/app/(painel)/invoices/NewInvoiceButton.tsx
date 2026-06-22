@@ -2,7 +2,8 @@
 
 // Botão "New invoice" com escolha de tipo. Service-only users (secretary) NÃO
 // veem a opção Seasonal (canSeasonal=false) → vão direto pro service.
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { buttonClass } from "@/components/ui";
 import { Plus, Sun, Wrench, X } from "lucide-react";
@@ -10,6 +11,10 @@ import { Plus, Sun, Wrench, X } from "lucide-react";
 export function NewInvoiceButton({ canSeasonal }: { canSeasonal: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Monta só no cliente: o modal usa createPortal(document.body) pra escapar do
+  // ancestral transformado (animate-fade-up) que vira containing block do fixed.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Sem acesso a seasonal: o botão leva direto pro service invoice.
   if (!canSeasonal) {
@@ -26,7 +31,7 @@ export function NewInvoiceButton({ canSeasonal }: { canSeasonal: boolean }) {
         <Plus className="h-4 w-4" /> New invoice
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
@@ -72,7 +77,8 @@ export function NewInvoiceButton({ canSeasonal }: { canSeasonal: boolean }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
