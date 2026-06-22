@@ -2,7 +2,14 @@
 
 Sistema de gestão que substitui o Bubble da **By the C Realty & Property Management** (Cape Cod, MA).
 Esta pasta é a **fundação** da Onda 2: schema completo do banco + painel interno com os módulos
-**Clientes** e **Propriedades** funcionais. Os demais módulos têm o schema modelado e placeholders na UI.
+**Clientes**, **Propriedades** e **Invoices** funcionais. Os demais módulos têm o schema modelado e
+placeholders na UI.
+
+> **Invoices** suporta dois tipos: **Service** (manutenção, itens Labor/Material) e **Seasonal**
+> (Airbnb/VRBO, fórmula travada de owner-payout). Numeração por tipo via trigger atômico no banco.
+> Secretárias (`invoices.service`) só veem/criam Service; `financials.full` vê tudo. O detalhe é o
+> invoice da marca, com Print / Save as PDF (print CSS dedicado). Formatos decodificados +
+> exemplos verificados em [`docs/invoice-formats.md`](docs/invoice-formats.md).
 
 > No futuro esta pasta vira um repositório próprio no GitHub do cliente (`info@bythecrealty.com`).
 > Por ora vive dentro do repo BA.
@@ -45,7 +52,10 @@ sistema/
 │       ├── 0002_finance.sql          # invoices, invoice_items, payments, expenses
 │       ├── 0003_operations.sql       # requests, providers, services, listings, notes, documents
 │       ├── 0004_users_and_rls.sql    # esqueleto antigo (substituído por 0005)
-│       └── 0005_auth_rbac.sql        # profiles + app_role + has_cap() + RLS por capacidade
+│       ├── 0005_auth_rbac.sql        # profiles + app_role + has_cap() + RLS por capacidade
+│       ├── 0006_profile_structured_address.sql
+│       ├── 0007_clients_structured_billing.sql
+│       └── 0008_invoice_numbering_and_commission.sql  # 2 sequences por tipo + trigger + commission %
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx              # root: fontes + globals
@@ -55,7 +65,8 @@ sistema/
 │   │       ├── page.tsx            # Overview (contadores)
 │   │       ├── clientes/           # MÓDULO FUNCIONAL (list, novo, [id], editar)
 │   │       ├── propriedades/       # MÓDULO FUNCIONAL (list, [id], editar)
-│   │       └── invoices|payments|expenses|requests|providers|listings/  # placeholders
+│   │       ├── invoices/           # MÓDULO FUNCIONAL (list, novo/servico, novo/temporada, [id], [id]/editar)
+│   │       └── payments|expenses|requests|providers|listings/  # placeholders
 │   ├── components/                 # Sidebar, Tabs, UnderConstruction, ui/
 │   ├── middleware.ts               # protege todas as rotas do painel (sessão)
 │   └── lib/
