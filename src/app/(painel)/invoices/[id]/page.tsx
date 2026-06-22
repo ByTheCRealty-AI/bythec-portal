@@ -58,7 +58,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         [client.billing_city, client.billing_state, client.billing_zip].filter(Boolean).join(" "),
         client.email,
         client.phone,
-      ].filter(Boolean)
+      ].filter((l): l is string => Boolean(l))
     : [];
 
   const serviceAddress =
