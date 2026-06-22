@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { money, date } from "@/lib/format";
-import { Anchor } from "lucide-react";
 import type { Invoice, InvoiceItem, Client, Property, SeasonalCommissionBase } from "@/lib/types";
 import { SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
 import { InvoiceBackButton, InvoiceActions } from "./InvoiceActions";
@@ -31,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 const COMPANY = {
   name: "By the C Realty and Property Management LLC",
-  brand: "By the C",
+  brand: "By the C Realty",
   email: "info@bythecrealty.com",
   location: "Cape Cod, MA",
   site: "bythecrealty.com",
@@ -107,13 +106,11 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         {/* Header */}
         <header className="mb-8 flex items-start justify-between gap-6 border-b border-black/[0.08] pb-6">
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white">
-              <Anchor className="h-5 w-5" strokeWidth={2.5} />
-            </div>
+            <img src="/logo.png" alt="By the C Realty" className="h-11 w-11 rounded-xl object-cover" />
             <div>
               <p className="h-display text-lg leading-tight text-ink">{COMPANY.brand}</p>
               <p className="text-xs leading-tight text-ink/55">
-                {isSeasonal ? "Realty and Property Management" : "Realty and Property Management LLC"}
+                and Property Management
               </p>
               <p className="mt-1 text-xs text-ink/45">{COMPANY.email} · {COMPANY.location}</p>
             </div>

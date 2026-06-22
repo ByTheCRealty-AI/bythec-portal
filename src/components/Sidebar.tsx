@@ -14,7 +14,6 @@ import {
   Wrench,
   HardHat,
   Building2,
-  Anchor,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -66,12 +65,10 @@ export function Sidebar({
   return (
     <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-black/[0.07] bg-white/70 px-4 py-6 backdrop-blur-sm">
       <div className="mb-8 flex items-center gap-2.5 px-2">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-glow">
-          <Anchor className="h-4 w-4" strokeWidth={2.5} />
-        </div>
+        <img src="/logo.png" alt="By the C Realty" className="h-9 w-9 rounded-xl object-cover shadow-glow" />
         <div>
-          <p className="h-display text-sm leading-tight text-ink">By the C</p>
-          <p className="text-[10px] leading-tight text-ink/45">Realty and Property Management</p>
+          <p className="h-display text-sm leading-tight text-ink">By the C Realty</p>
+          <p className="text-[10px] leading-tight text-ink/45">and Property Management</p>
         </div>
       </div>
 
