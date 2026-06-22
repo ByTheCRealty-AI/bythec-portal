@@ -5,8 +5,27 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { money, date } from "@/lib/format";
 import { Anchor } from "lucide-react";
-import type { Invoice, InvoiceItem, Client, Property } from "@/lib/types";
+import type { Invoice, InvoiceItem, Client, Property, SeasonalCommissionBase } from "@/lib/types";
+import { SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
 import { InvoiceBackButton, InvoiceActions } from "./InvoiceActions";
+
+// Texto curto da base da comissão (ex.: "10% of host payout"). Usa o que ficou
+// TRAVADO no invoice (commission_base/commission_rate); cai pra base da property
+// pra invoices antigos sem o campo.
+function commissionBasisLabel(
+  inv: Invoice & {
+    property: Pick<Property, "seasonal_commission_base"> | null;
+  }
+): string | null {
+  const base: SeasonalCommissionBase | null =
+    inv.commission_base ?? inv.property?.seasonal_commission_base ?? null;
+  if (!base) return null;
+  const baseText = SEASONAL_COMMISSION_BASE_LABEL[base].toLowerCase();
+  const rate = inv.commission_rate;
+  if (rate == null) return `of ${baseText}`;
+  const pct = Math.round(rate * 1000) / 10; // ex.: 0.10 -> 10
+  return `${pct}% of ${baseText}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +47,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2,seasonal_commission_rate), items:invoice_items(*)"
+      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2,seasonal_commission_rate,seasonal_commission_base), items:invoice_items(*)"
     )
     .eq("id", params.id)
     .single();
@@ -36,7 +55,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
   const invoice = data as unknown as Invoice & {
     client: Client | null;
-    property: Pick<Property, "id" | "address" | "address2" | "seasonal_commission_rate"> | null;
+    property: Pick<Property, "id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base"> | null;
     items: InvoiceItem[];
   };
 
@@ -263,6 +282,7 @@ function SeasonalBody({
           totalValue={invoice.total_received_by_owner ?? 0}
           accent="primary"
           commission={invoice.bythec_commission}
+          commissionBasis={commissionBasisLabel(invoice)}
         />
       </div>
     </>
@@ -276,6 +296,7 @@ function Column({
   totalValue,
   accent,
   commission,
+  commissionBasis,
 }: {
   title: string;
   items: InvoiceItem[];
@@ -283,17 +304,26 @@ function Column({
   totalValue: number;
   accent: "primary" | "secondary";
   commission?: number | null;
+  commissionBasis?: string | null;
 }) {
   return (
     <div className="rounded-xl border border-black/[0.07] bg-black/[0.012] p-5">
       <h3 className="h-display mb-3 text-sm text-ink">{title}</h3>
       <div className="space-y-1.5 text-sm">
-        {items.map((it) => (
-          <div key={it.id} className="flex justify-between gap-3 text-ink/75">
-            <span>{it.description}</span>
-            <span className={it.total < 0 ? "text-ink/55" : "text-ink/85"}>{money(it.total)}</span>
-          </div>
-        ))}
+        {items.map((it) => {
+          const isCommission = it.description.startsWith("By the C Commission");
+          return (
+            <div key={it.id} className="flex justify-between gap-3 text-ink/75">
+              <span>
+                {it.description}
+                {isCommission && commissionBasis && (
+                  <span className="ml-1 text-xs text-ink/40">({commissionBasis})</span>
+                )}
+              </span>
+              <span className={it.total < 0 ? "text-ink/55" : "text-ink/85"}>{money(it.total)}</span>
+            </div>
+          );
+        })}
         {items.length === 0 && <p className="text-xs text-ink/40">—</p>}
       </div>
       <div className="mt-4 flex justify-between border-t border-black/[0.1] pt-3 text-base font-semibold text-ink">

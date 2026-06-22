@@ -70,9 +70,15 @@ total_paid_by_guest =
   + occupancy_taxes
   ( + vrbo_property_damage  if VRBO )
 
-bythec_commission = round( commission_rate × total_paid_by_guest , 2 )
+bythec_commission = round( commission_rate × commission_BASE , 2 )
+  commission_BASE is PER-PROPERTY:
+    - 'host_payout'   → base = host_payout          (MOST homes)
+    - 'paid_by_guest' → base = total_paid_by_guest  (a few, e.g. Rainbow #335)
   commission_rate comes from the PROPERTY (properties.seasonal_commission_rate,
-  default 0.10) and is editable per invoice (one of the 2 always-asked unknowns).
+  default 0.10); commission_base comes from the PROPERTY
+  (properties.seasonal_commission_base, default 'host_payout'). BOTH are
+  pre-filled from the property and editable per invoice. What was actually used
+  is stored on the invoice (invoices.commission_base + invoices.commission_rate).
 
 total_received_by_owner =
     host_payout
@@ -82,27 +88,39 @@ total_received_by_owner =
   − sum( extra_deductions )
 ```
 
-The two always-asked unknowns (never invented):
-1. **By the C commission %** — defaults from the property, confirmed per invoice.
-2. **Cleaning fee destination** (`cleaning_goes_to`: owner keeps / By the C keeps).
+The always-asked unknowns (never invented):
+1. **By the C commission %** (`commission_rate`) — defaults from the property,
+   confirmed per invoice.
+2. **Commission base** (`commission_base`: Host payout / Total paid by guest) —
+   defaults from the property (`seasonal_commission_base`), confirmed per invoice.
+   Most homes use Host payout; a few (e.g. Rainbow #335) use Total paid by guest.
+3. **Cleaning fee destination** (`cleaning_goes_to`: owner keeps / By the C keeps).
 
-### Worked example A — #335 (Airbnb)
+### Worked example A — #335 Rainbow (Airbnb, base = paid_by_guest)
 - Inputs: room 1995, discount 0, cleaning 350, guest_service 0, occ_tax 409.20;
   host_payout 2345, host_service_fee 351.75, commission 10%,
+  **commission_base = paid_by_guest** (Rainbow exception),
   cleaning_goes_to = owner (NOT deducted), extra "Hot Tub Maintenance" 80.
 - **Total Paid by Guest** = 1995 − 0 + 350 + 0 + 409.20 = **2754.20**
-- **By the C Commission** = 10% × 2754.20 = **275.42**
+- **By the C Commission** = 10% × 2754.20 (paid by guest) = **275.42**
 - **Total Received by Owner** = 2345 − 351.75 − 275.42 − 0 − 80 = **1637.83**
 
-### Worked example B — #240 (Airbnb)
+### Worked example B — #240 (Airbnb, base = paid_by_guest)
 - Inputs: room 5313, discount 0, cleaning 350, guest_service 799.49,
   occ_tax 1127.70; host_payout 5663, host_service_fee 169.89, commission 10%,
+  **commission_base = paid_by_guest**,
   cleaning_goes_to = bythec (deducted 350), no extras.
 - **Total Paid by Guest** = 5313 + 350 + 799.49 + 1127.70 = **7590.19**
-- **By the C Commission** = 10% × 7590.19 = **759.02**
+- **By the C Commission** = 10% × 7590.19 (paid by guest) = **759.02**
 - **Total Received by Owner** = 5663 − 169.89 − 759.02 − 350 − 0 = **4384.09**
 
-Both are reproduced exactly by `computeSeasonal()`.
+### Worked example C — host_payout base (most homes, logic check)
+- Inputs: host_payout 2345, host_service_fee 351.75, commission 10%,
+  **commission_base = host_payout**, cleaning_goes_to = owner, no extras.
+- **By the C Commission** = 10% × 2345 (host payout) = **234.50**
+- **Total Received by Owner** = 2345 − 351.75 − 234.50 = **1758.75**
+
+All three are reproduced exactly by `computeSeasonal()`.
 
 ---
 

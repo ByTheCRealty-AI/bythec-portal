@@ -17,6 +17,16 @@ function num(fd: FormData, key: string): number | null {
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
+// Seasonal commission % (input em %) -> fração. Default 0.10 se vazio/inválido.
+function seasonalRate(fd: FormData): number {
+  const pct = num(fd, "seasonal_commission_pct");
+  if (pct === null || !Number.isFinite(pct)) return 0.1;
+  return pct / 100;
+}
+// Base do % seasonal. Default 'host_payout' (maioria das casas).
+function seasonalBase(fd: FormData): "host_payout" | "paid_by_guest" {
+  return str(fd, "seasonal_commission_base") === "paid_by_guest" ? "paid_by_guest" : "host_payout";
+}
 
 export async function updatePropriedadeAction(id: string, fd: FormData) {
   const supabase = createClient();
@@ -29,6 +39,8 @@ export async function updatePropriedadeAction(id: string, fd: FormData) {
       address_text: address ? address.toLowerCase() : null,
       property_type: str(fd, "property_type") as PropertyType, // mudar tipo carrega histórico
       commission_fee: num(fd, "commission_fee"),
+      seasonal_commission_rate: seasonalRate(fd),
+      seasonal_commission_base: seasonalBase(fd),
       rent_price: num(fd, "rent_price"),
       rent_due_day: num(fd, "rent_due_day"),
       rent_frequency: str(fd, "rent_frequency"),

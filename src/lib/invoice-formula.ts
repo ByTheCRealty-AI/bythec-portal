@@ -5,12 +5,22 @@
 // (actions.ts) and the client (live preview) BOTH import this so they can never
 // drift. See docs/invoice-formats.md for the full decoded layout + worked
 // examples. DO NOT change the math without re-checking both examples.
+//
+// COMMISSION BASE is PER-PROPERTY: most homes take the By the C % from the
+// Host Payout; a few (e.g. Rainbow #335) take it from the Total Paid by Guest.
+// `commission_base` carries that choice (default 'host_payout'), pre-filled from
+// the property and confirmable per invoice.
 // =============================================================================
 
 // Arredonda pra 2 casas evitando erro de ponto flutuante (ex.: 275.42, não 275.41999…).
 export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+// Base de cálculo da comissão By the C, POR PROPERTY (default 'host_payout').
+// MAIORIA das casas: % sobre o Host Payout. EXCEÇÃO (ex.: Rainbow #335): % sobre o
+// Total Paid by Guest. A base vem da property, mas é confirmável/editável por invoice.
+export type SeasonalCommissionBase = "host_payout" | "paid_by_guest";
 
 export interface SeasonalFormulaInput {
   // Paid by Guest
@@ -25,6 +35,7 @@ export interface SeasonalFormulaInput {
   host_payout: number; // "Host Payout" / "You earn"
   host_service_fee: number; // Platform Host Service Fee
   commission_rate: number; // fração (0.10 = 10%); vem da property, editável por invoice
+  commission_base: SeasonalCommissionBase; // base do %: host_payout (maioria) ou paid_by_guest (ex.: Rainbow). Vem da property, editável por invoice.
   cleaning_goes_to: "owner" | "bythec"; // flag POR INVOICE (deduz cleaning do owner?)
   extra_deductions: number[]; // deduções extras do owner (ex.: Hot Tub Maintenance)
 }
@@ -47,6 +58,7 @@ export function computeSeasonal(input: SeasonalFormulaInput): SeasonalFormulaRes
     host_payout,
     host_service_fee,
     commission_rate,
+    commission_base,
     cleaning_goes_to,
     extra_deductions,
   } = input;
@@ -61,8 +73,11 @@ export function computeSeasonal(input: SeasonalFormulaInput): SeasonalFormulaRes
       vrbo_property_damage
   );
 
-  // bythec_commission = round(commission_rate × total_paid_by_guest, 2)
-  const bythec_commission = round2(commission_rate * total_paid_by_guest);
+  // bythec_commission = round(commission_rate × base, 2)
+  // base é POR PROPERTY: 'host_payout' (maioria) ou 'paid_by_guest' (ex.: Rainbow #335).
+  const commissionBaseValue =
+    commission_base === "paid_by_guest" ? total_paid_by_guest : host_payout;
+  const bythec_commission = round2(commission_rate * commissionBaseValue);
 
   // total_received_by_owner =
   //   host_payout − host_service_fee − bythec_commission

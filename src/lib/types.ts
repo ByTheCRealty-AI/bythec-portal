@@ -1,6 +1,10 @@
 // Tipos do domínio By the C. Espelham as migrations em supabase/migrations.
 // Mantidos à mão nesta rodada; futuramente gerar via `supabase gen types typescript`.
 
+// Base do % da comissão seasonal (single source of truth na fórmula travada).
+export type { SeasonalCommissionBase } from "./invoice-formula";
+import type { SeasonalCommissionBase } from "./invoice-formula";
+
 export type ClientType =
   | "tenant"
   | "airbnb_owner"
@@ -51,6 +55,9 @@ export interface Property {
   commission_fee: number | null;
   // By the C seasonal commission rate (fraction, default 0.10). Editável por invoice.
   seasonal_commission_rate: number;
+  // Base do % da comissão seasonal POR PROPERTY: 'host_payout' (maioria) ou
+  // 'paid_by_guest' (ex.: Rainbow). Default 'host_payout'. Editável por invoice.
+  seasonal_commission_base: SeasonalCommissionBase;
   tenant_id: string | null;
   rent_price: number | null;
   rental_start: string | null;
@@ -130,6 +137,9 @@ export interface Invoice {
   rental_discount: number | null;
   total_paid_by_guest: number | null;
   bythec_commission: number | null;
+  // Auditoria do que foi usado no cálculo da comissão (travado no invoice).
+  commission_base: SeasonalCommissionBase | null;
+  commission_rate: number | null;
   total_received_by_owner: number | null;
   cleaning_goes_to: CleaningDestination | null;
   vrbo_commission: number | null;
@@ -147,7 +157,7 @@ export interface Invoice {
 
   // joins opcionais
   client?: Pick<Client, "id" | "name" | "email" | "phone" | "billing_address" | "billing_address2" | "billing_city" | "billing_state" | "billing_zip"> | null;
-  property?: Pick<Property, "id" | "address" | "address2" | "seasonal_commission_rate"> | null;
+  property?: Pick<Property, "id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base"> | null;
   items?: InvoiceItem[];
 }
 
@@ -176,6 +186,11 @@ export const INVOICE_ITEM_CATEGORY_LABEL: Record<InvoiceItemCategory, string> = 
 export const CLEANING_DESTINATION_LABEL: Record<CleaningDestination, string> = {
   owner: "Owner keeps cleaning fee",
   bythec: "By the C keeps cleaning fee",
+};
+
+export const SEASONAL_COMMISSION_BASE_LABEL: Record<SeasonalCommissionBase, string> = {
+  host_payout: "Host payout",
+  paid_by_guest: "Total paid by guest",
 };
 
 export const INVOICE_PLATFORMS = ["Airbnb", "VRBO"] as const;

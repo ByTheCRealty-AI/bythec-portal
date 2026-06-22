@@ -20,7 +20,7 @@ import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { computeSeasonal, round2 } from "@/lib/invoice-formula";
-import type { CleaningDestination, InvoiceItemCategory } from "@/lib/types";
+import type { CleaningDestination, InvoiceItemCategory, SeasonalCommissionBase } from "@/lib/types";
 
 // ---- Helpers de FormData ---------------------------------------------------
 function str(fd: FormData, key: string): string | null {
@@ -131,6 +131,8 @@ export async function createSeasonalInvoice(fd: FormData) {
   const host_payout = num(fd, "host_payout");
   const host_service_fee = num(fd, "host_service_fee");
   const commission_rate = num(fd, "commission_rate"); // já em fração (0.10)
+  const commission_base: SeasonalCommissionBase =
+    str(fd, "commission_base") === "paid_by_guest" ? "paid_by_guest" : "host_payout";
   const cleaning_goes_to = (str(fd, "cleaning_goes_to") as CleaningDestination | null) ?? "owner";
 
   // Deduções extras do owner.
@@ -154,6 +156,7 @@ export async function createSeasonalInvoice(fd: FormData) {
     host_payout,
     host_service_fee,
     commission_rate,
+    commission_base,
     cleaning_goes_to,
     extra_deductions: extras.map((e) => e.total),
   });
@@ -186,6 +189,8 @@ export async function createSeasonalInvoice(fd: FormData) {
       cleaning_goes_to,
       total_paid_by_guest: computed.total_paid_by_guest,
       bythec_commission: computed.bythec_commission,
+      commission_base,
+      commission_rate,
       total_received_by_owner: computed.total_received_by_owner,
     })
     .select("id")

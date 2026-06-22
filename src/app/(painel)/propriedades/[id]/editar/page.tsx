@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PageHeader, Field, inputClass, buttonClass } from "@/components/ui";
-import { PROPERTY_TYPE_LABEL, type Property } from "@/lib/types";
+import { PROPERTY_TYPE_LABEL, SEASONAL_COMMISSION_BASE_LABEL, type Property } from "@/lib/types";
 import { updatePropriedadeAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +35,22 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
             </Field>
             <Field label="Commission">
               <input name="commission_fee" type="number" step="0.01" defaultValue={p.commission_fee ?? ""} className={inputClass} />
+            </Field>
+            <Field label="Seasonal commission %" hint="By the C seasonal cut. Default 10%.">
+              <input
+                name="seasonal_commission_pct"
+                type="number"
+                step="0.1"
+                defaultValue={p.seasonal_commission_rate != null ? round1(p.seasonal_commission_rate * 100) : 10}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Commission based on" hint="Most homes: host payout. A few (e.g. Rainbow): total paid by guest.">
+              <select name="seasonal_commission_base" defaultValue={p.seasonal_commission_base ?? "host_payout"} className={inputClass}>
+                {Object.entries(SEASONAL_COMMISSION_BASE_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Monthly rent (USD)">
               <input name="rent_price" type="number" step="0.01" defaultValue={p.rent_price ?? ""} className={inputClass} />
@@ -69,4 +85,8 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
       </form>
     </>
   );
+}
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
 }

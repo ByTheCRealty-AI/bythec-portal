@@ -15,13 +15,18 @@ import { computeSeasonal } from "@/lib/invoice-formula";
 import {
   INVOICE_PLATFORMS,
   CLEANING_DESTINATION_LABEL,
+  SEASONAL_COMMISSION_BASE_LABEL,
   type Client,
   type Property,
   type CleaningDestination,
+  type SeasonalCommissionBase,
 } from "@/lib/types";
 import { Plus, Trash2 } from "lucide-react";
 
-type Prop = Pick<Property, "id" | "owner_id" | "address" | "address2" | "seasonal_commission_rate">;
+type Prop = Pick<
+  Property,
+  "id" | "owner_id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base"
+>;
 type Extra = { description: string; amount: string };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -54,6 +59,7 @@ export function SeasonalInvoiceForm({
   const [hostPayout, setHostPayout] = useState("");
   const [hostServiceFee, setHostServiceFee] = useState("");
   const [commissionPct, setCommissionPct] = useState("10"); // em %, default 10
+  const [commissionBase, setCommissionBase] = useState<SeasonalCommissionBase>("host_payout"); // base do %, default host payout
   const [extras, setExtras] = useState<Extra[]>([]);
 
   const clientProps = clientId ? properties.filter((p) => p.owner_id === clientId) : properties;
@@ -64,6 +70,9 @@ export function SeasonalInvoiceForm({
     const p = properties.find((x) => x.id === id);
     if (p && p.seasonal_commission_rate != null) {
       setCommissionPct(String(round1(p.seasonal_commission_rate * 100)));
+    }
+    if (p && p.seasonal_commission_base) {
+      setCommissionBase(p.seasonal_commission_base);
     }
   }
 
@@ -78,13 +87,14 @@ export function SeasonalInvoiceForm({
       host_payout: n(hostPayout),
       host_service_fee: n(hostServiceFee),
       commission_rate: n(commissionPct) / 100,
+      commission_base: commissionBase,
       cleaning_goes_to: cleaningGoesTo,
       extra_deductions: extras.map((e) => n(e.amount)),
     });
   }, [
     roomFee, rentalDiscount, cleaningFee, guestServiceFee, occupancyTaxes,
     vrboPropertyDamage, isVrbo, hostPayout, hostServiceFee, commissionPct,
-    cleaningGoesTo, extras,
+    commissionBase, cleaningGoesTo, extras,
   ]);
 
   function addExtra() {
@@ -101,6 +111,7 @@ export function SeasonalInvoiceForm({
     <form action={action} className="space-y-8">
       {/* hidden mirror of computed commission_rate fraction (server recomputes anyway) */}
       <input type="hidden" name="commission_rate" value={String(n(commissionPct) / 100)} />
+      <input type="hidden" name="commission_base" value={commissionBase} />
       <input type="hidden" name="cleaning_goes_to" value={cleaningGoesTo} />
       <input type="hidden" name="platform" value={platform} />
 
@@ -215,6 +226,13 @@ export function SeasonalInvoiceForm({
             <Field label="By the C Commission %" hint="Defaults from the property. Editable per invoice.">
               <input value={commissionPct} onChange={(e) => setCommissionPct(e.target.value)} type="number" step="0.1" className={inputClass} placeholder="10" />
             </Field>
+            <Field label="Commission based on" hint="Defaults from the property. Most homes: host payout. A few (e.g. Rainbow): total paid by guest.">
+              <select value={commissionBase} onChange={(e) => setCommissionBase(e.target.value as SeasonalCommissionBase)} className={selectClass}>
+                {Object.entries(SEASONAL_COMMISSION_BASE_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
+              </select>
+            </Field>
             <Field label="Cleaning fee destination">
               <select value={cleaningGoesTo} onChange={(e) => setCleaningGoesTo(e.target.value as CleaningDestination)} className={selectClass}>
                 {Object.entries(CLEANING_DESTINATION_LABEL).map(([v, label]) => (
@@ -269,7 +287,12 @@ export function SeasonalInvoiceForm({
 
           <div className="mt-5 space-y-1.5 border-t border-black/[0.08] pt-3 text-sm">
             <div className="flex justify-between text-ink/65">
-              <span>By the C Commission</span>
+              <span>
+                By the C Commission
+                <span className="ml-1 text-xs text-ink/40">
+                  ({commissionPct || "0"}% of {SEASONAL_COMMISSION_BASE_LABEL[commissionBase].toLowerCase()})
+                </span>
+              </span>
               <span className="font-semibold text-ink">{money(computed.bythec_commission)}</span>
             </div>
             <div className="flex justify-between text-base">

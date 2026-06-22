@@ -25,7 +25,7 @@ export default async function NewSeasonalInvoicePage() {
     supabase.from("clients").select("*").is("archived_at", null).order("name"),
     supabase
       .from("properties")
-      .select("id, owner_id, address, address2, seasonal_commission_rate")
+      .select("id, owner_id, address, address2, seasonal_commission_rate, seasonal_commission_base")
       .is("archived_at", null)
       .order("address"),
   ]);
@@ -39,7 +39,7 @@ export default async function NewSeasonalInvoicePage() {
       <SeasonalInvoiceForm
         action={createSeasonalInvoice}
         clients={(clientsData ?? []) as Client[]}
-        properties={(propsData ?? []) as Pick<Property, "id" | "owner_id" | "address" | "address2" | "seasonal_commission_rate">[]}
+        properties={(propsData ?? []) as Pick<Property, "id" | "owner_id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base">[]}
       />
     </>
   );

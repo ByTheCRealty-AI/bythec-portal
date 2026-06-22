@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
-import { PROPERTY_TYPE_LABEL, type PropertyType } from "@/lib/types";
+import { PROPERTY_TYPE_LABEL, SEASONAL_COMMISSION_BASE_LABEL, type PropertyType } from "@/lib/types";
 import { createPropriedadeAction } from "../actions";
 import { Plus } from "lucide-react";
 
@@ -72,6 +72,16 @@ export function PropriedadeForm({
         </Field>
         <Field label="Commission (% / amount per home)" hint="For vacation rentals, the % is confirmed with Andrea.">
           <input name="commission_fee" type="number" step="0.01" className={inputClass} placeholder="12.50" />
+        </Field>
+        <Field label="Seasonal commission %" hint="By the C seasonal cut. Default 10%.">
+          <input name="seasonal_commission_pct" type="number" step="0.1" defaultValue="10" className={inputClass} placeholder="10" />
+        </Field>
+        <Field label="Commission based on" hint="Most homes: host payout. A few (e.g. Rainbow): total paid by guest.">
+          <select name="seasonal_commission_base" defaultValue="host_payout" className={inputClass}>
+            {Object.entries(SEASONAL_COMMISSION_BASE_LABEL).map(([v, label]) => (
+              <option key={v} value={v}>{label}</option>
+            ))}
+          </select>
         </Field>
 
         {/* Datas de lease só para aluguel (vacation rental não tem). */}
