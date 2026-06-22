@@ -106,7 +106,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         {/* Header */}
         <header className="mb-8 flex items-start justify-between gap-6 border-b border-black/[0.08] pb-6">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="By the C Realty" className="h-11 w-11 rounded-xl object-cover" />
+            <img src="/logo.png" alt="By the C Realty" className="h-12 w-12 object-contain" />
             <div>
               <p className="h-display text-lg leading-tight text-ink">{COMPANY.brand}</p>
               <p className="text-xs leading-tight text-ink/55">

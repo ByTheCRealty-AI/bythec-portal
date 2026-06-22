@@ -65,7 +65,7 @@ export function Sidebar({
   return (
     <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-black/[0.07] bg-white/70 px-4 py-6 backdrop-blur-sm">
       <div className="mb-8 flex items-center gap-2.5 px-2">
-        <img src="/logo.png" alt="By the C Realty" className="h-9 w-9 rounded-xl object-cover shadow-glow" />
+        <img src="/logo.png" alt="By the C Realty" className="h-10 w-10 object-contain" />
         <div>
           <p className="h-display text-sm leading-tight text-ink">By the C Realty</p>
           <p className="text-[10px] leading-tight text-ink/45">and Property Management</p>

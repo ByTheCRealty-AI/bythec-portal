@@ -7,7 +7,7 @@ export default function SetPasswordPage() {
     <main className="grid min-h-screen place-items-center px-5 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src="/logo.png" alt="By the C Realty" className="mb-4 h-14 w-14 rounded-2xl object-cover shadow-glow" />
+          <img src="/logo.png" alt="By the C Realty" className="mb-4 h-16 w-16 object-contain" />
           <h1 className="h-display text-2xl text-ink">By the C Realty</h1>
           <p className="mt-1 text-sm font-medium text-ink/75">and Property Management</p>
         </div>
