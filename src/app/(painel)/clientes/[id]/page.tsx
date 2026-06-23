@@ -11,6 +11,7 @@ import {
   PROPERTY_TYPE_LABEL,
   type Client,
   type Property,
+  type Note,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
 import { Home, Pencil, FileText, StickyNote } from "lucide-react";
@@ -45,6 +46,15 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     .is("archived_at", null)
     .order("created_at", { ascending: true });
   const properties = (propsData ?? []) as Property[];
+
+  // Notes (polymorphic) attached to this client.
+  const { data: notesData } = await supabase
+    .from("notes")
+    .select("id, body, year, created_at, updated_at, parent_type, parent_id")
+    .eq("parent_type", "client")
+    .eq("parent_id", client.id)
+    .order("created_at", { ascending: false });
+  const notes = (notesData ?? []) as Note[];
 
   const archived = client.archived_at !== null;
 
@@ -146,7 +156,29 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     </div>
   );
 
-  // ---- Abas stub (Notes, Documents, Requests) ----
+  // ---- Aba Notes (timeline polimórfica) ----
+  const notesTab =
+    notes.length === 0 ? (
+      <EmptyState
+        icon={<StickyNote className="h-6 w-6" />}
+        title="No notes"
+        message="Notes attached to this client appear here, newest first."
+      />
+    ) : (
+      <ul className="space-y-3">
+        {notes.map((n) => (
+          <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
+            <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
+              <span>{date(n.created_at)}</span>
+              {n.year && <span className="text-ink/35">· {n.year}</span>}
+            </div>
+            <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
+          </li>
+        ))}
+      </ul>
+    );
+
+  // ---- Abas stub (Documents, Requests) ----
   const stub = (label: string, icon: React.ReactNode, msg: string) => (
     <EmptyState icon={icon} title={`${label} under construction`} message={msg} />
   );
@@ -172,7 +204,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         tabs={[
           { id: "details", label: "Details", content: detailsTab },
           { id: "properties", label: `Properties (${properties.length})`, content: propertiesTab },
-          { id: "notes", label: "Notes", content: stub("Notes", <StickyNote className="h-6 w-6" />, "Polymorphic notes per client. Schema ready; UI in upcoming rounds.") },
+          { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
           { id: "documents", label: "Documents", content: stub("Documents", <FileText className="h-6 w-6" />, "Multi-upload with filter by year. Schema ready; UI in upcoming rounds.") },
           { id: "requests", label: "Requests", content: stub("Requests", <Home className="h-6 w-6" />, "Linked tenant requests. Schema ready; UI in upcoming rounds.") },
         ]}

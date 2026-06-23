@@ -194,3 +194,75 @@ export const SEASONAL_COMMISSION_BASE_LABEL: Record<SeasonalCommissionBase, stri
 };
 
 export const INVOICE_PLATFORMS = ["Airbnb", "VRBO"] as const;
+
+// =============================================================================
+// Operations — Service providers, tenant requests, services, notes.
+// Read-only screens for now (Wave 2 / Phase 1-2). Mirror the live DB schema.
+// =============================================================================
+
+export type NotifyVia = "whatsapp" | "email";
+
+export interface ServiceProvider {
+  id: string;
+  name: string;
+  service_type: string | null;
+  phone: string | null;
+  email: string | null;
+  notify_via: NotifyVia | null;
+  notes: string | null;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export type RequestStatus = "open" | "done";
+
+export interface TenantRequest {
+  id: string;
+  property_id: string;
+  tenant_id: string | null;
+  date: string | null;
+  description: string | null;
+  status: RequestStatus;
+  done_at: string | null;
+  created_at: string;
+  // joins opcionais
+  property?: Pick<Property, "id" | "address"> | null;
+  tenant?: Pick<Client, "id" | "name"> | null;
+}
+
+export interface Service {
+  id: string;
+  property_id: string;
+  provider_id: string | null;
+  tenant_request_id: string | null;
+  service_request_date: string | null;
+  description: string | null;
+  status: RequestStatus;
+  done_at: string | null;
+  price: number | null;
+  created_at: string;
+  // join opcional
+  provider?: Pick<ServiceProvider, "id" | "name"> | null;
+}
+
+export type NoteParentType = "client" | "property" | "listing";
+
+export interface Note {
+  id: string;
+  parent_type: NoteParentType;
+  parent_id: string;
+  body: string | null;
+  year: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
+  open: "Open",
+  done: "Done",
+};
+
+export const NOTIFY_VIA_LABEL: Record<NotifyVia, string> = {
+  whatsapp: "WhatsApp",
+  email: "Email",
+};
