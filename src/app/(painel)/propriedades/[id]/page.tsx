@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { PageHeader, Badge, Card, buttonClass } from "@/components/ui";
+import { PageHeader, Badge, Card, buttonClass, EmptyState } from "@/components/ui";
+import { Tabs } from "@/components/Tabs";
 import { PropriedadeArchiveButton } from "../PropriedadeArchiveButton";
+import { BackButton } from "./BackButton";
 import {
   PROPERTY_TYPE_LABEL,
   type Property,
@@ -11,7 +13,7 @@ import {
   type TenantRequest,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
-import { Pencil, User, StickyNote, Wrench, HardHat } from "lucide-react";
+import { Pencil, User, StickyNote, Wrench, HardHat, FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +81,158 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const services = (servicesData ?? []) as unknown as Service[];
   const requests = (requestsData ?? []) as unknown as TenantRequest[];
 
+  // ---- Aba Overview (Details / Owner / Rent / short Notes summary) ----
+  const overviewTab = (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="h-display text-sm text-ink/70">Details</h3>
+          <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
+        </div>
+        <Row label="Address" value={p.address} />
+        <Row label="Unit / apt" value={p.address2} />
+        <Row label="Commission" value={p.commission_fee} />
+      </Card>
+
+      <Card>
+        <h3 className="h-display mb-3 text-sm text-ink/70">Owner</h3>
+        {p.owner ? (
+          <Link
+            href={`/clientes/${p.owner.id}`}
+            className="flex items-center gap-3 rounded-xl border border-black/[0.10] bg-black/[0.015] p-3 transition hover:border-primary/40 hover:bg-primary/[0.04]"
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+              <User className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-ink">{p.owner.name}</span>
+              <span className="block text-xs text-ink/50">{p.owner.email ?? "—"}</span>
+            </span>
+          </Link>
+        ) : (
+          <p className="text-sm text-ink/50">No owner.</p>
+        )}
+      </Card>
+
+      {isRental && (
+        <Card className="md:col-span-2">
+          <h3 className="h-display mb-3 text-sm text-ink/70">Rent</h3>
+          <div className="grid grid-cols-2 gap-x-8 sm:grid-cols-4">
+            <Row label="Monthly" value={money(p.rent_price)} />
+            <Row label="Due" value={p.rent_due_day ? `Day ${p.rent_due_day}` : null} />
+            <Row label="Start" value={date(p.rental_start)} />
+            <Row label="End" value={date(p.rental_end)} />
+          </div>
+        </Card>
+      )}
+
+      {p.notes && (
+        <Card className="md:col-span-2">
+          <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>
+          <p className="whitespace-pre-wrap text-sm text-ink/80">{p.notes}</p>
+        </Card>
+      )}
+    </div>
+  );
+
+  // ---- Aba Notes (timeline polimórfica) ----
+  const notesTab =
+    notes.length === 0 ? (
+      <EmptyState
+        icon={<StickyNote className="h-6 w-6" />}
+        title="No notes"
+        message="Notes attached to this property appear here, newest first."
+      />
+    ) : (
+      <ul className="space-y-3">
+        {notes.map((n) => (
+          <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
+            <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
+              <span>{date(n.created_at)}</span>
+              {n.year && <span className="text-ink/35">· {n.year}</span>}
+            </div>
+            <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
+          </li>
+        ))}
+      </ul>
+    );
+
+  // ---- Aba Services (histórico) ----
+  const servicesTab =
+    services.length === 0 ? (
+      <EmptyState
+        icon={<HardHat className="h-6 w-6" />}
+        title="No services"
+        message="Services recorded for this property appear here, newest first."
+      />
+    ) : (
+      <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
+            <tr>
+              <th className="px-4 py-3 font-bold">Date</th>
+              <th className="px-4 py-3 font-bold">Description</th>
+              <th className="px-4 py-3 font-bold">Provider</th>
+              <th className="px-4 py-3 font-bold text-right">Price</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {services.map((s, i) => (
+              <tr
+                key={s.id}
+                className={"border-t border-black/[0.05] " + (i % 2 === 1 ? "bg-black/[0.015]" : "")}
+              >
+                <td className="whitespace-nowrap px-4 py-3 text-ink/65">
+                  {date(s.service_request_date ?? s.created_at)}
+                </td>
+                <td className="px-4 py-3 text-ink/85">{s.description || "—"}</td>
+                <td className="px-4 py-3 text-ink/65">{s.provider?.name ?? "—"}</td>
+                <td className="px-4 py-3 text-right text-ink/85">{money(s.price)}</td>
+                <td className="px-4 py-3">
+                  <StatusBadge status={s.status} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+  // ---- Aba Requests (tenant requests) ----
+  const requestsTab =
+    requests.length === 0 ? (
+      <EmptyState
+        icon={<Wrench className="h-6 w-6" />}
+        title="No tenant requests"
+        message="Maintenance and tenant requests linked to this property appear here."
+      />
+    ) : (
+      <ul className="divide-y divide-black/[0.06] rounded-2xl border border-black/[0.08] bg-white px-5 shadow-card">
+        {requests.map((r) => (
+          <li key={r.id} className="flex items-start justify-between gap-4 py-3.5">
+            <div className="min-w-0">
+              <p className="text-sm text-ink/85">{r.description || "—"}</p>
+              <p className="mt-0.5 text-xs text-ink/45">{date(r.date ?? r.created_at)}</p>
+            </div>
+            <StatusBadge status={r.status} />
+          </li>
+        ))}
+      </ul>
+    );
+
+  // ---- Aba stub (Documents) — mesmo estilo do stub do detalhe de Clients ----
+  const documentsTab = (
+    <EmptyState
+      icon={<FileText className="h-6 w-6" />}
+      title="Documents under construction"
+      message="Multi-upload with filter by year. Schema ready; UI in upcoming rounds."
+    />
+  );
+
   return (
     <>
+      <BackButton />
       <PageHeader
         title={p.address}
         subtitle={p.address2 ?? PROPERTY_TYPE_LABEL[p.property_type]}
@@ -95,148 +247,15 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         }
       />
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="h-display text-sm text-ink/70">Details</h3>
-            <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
-          </div>
-          <Row label="Address" value={p.address} />
-          <Row label="Unit / apt" value={p.address2} />
-          <Row label="Commission" value={p.commission_fee} />
-        </Card>
-
-        <Card>
-          <h3 className="h-display mb-3 text-sm text-ink/70">Owner</h3>
-          {p.owner ? (
-            <Link
-              href={`/clientes/${p.owner.id}`}
-              className="flex items-center gap-3 rounded-xl border border-black/[0.10] bg-black/[0.015] p-3 transition hover:border-primary/40 hover:bg-primary/[0.04]"
-            >
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
-                <User className="h-4 w-4" />
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-ink">{p.owner.name}</span>
-                <span className="block text-xs text-ink/50">{p.owner.email ?? "—"}</span>
-              </span>
-            </Link>
-          ) : (
-            <p className="text-sm text-ink/50">No owner.</p>
-          )}
-        </Card>
-
-        {isRental && (
-          <Card className="md:col-span-2">
-            <h3 className="h-display mb-3 text-sm text-ink/70">Rent</h3>
-            <div className="grid grid-cols-2 gap-x-8 sm:grid-cols-4">
-              <Row label="Monthly" value={money(p.rent_price)} />
-              <Row label="Due" value={p.rent_due_day ? `Day ${p.rent_due_day}` : null} />
-              <Row label="Start" value={date(p.rental_start)} />
-              <Row label="End" value={date(p.rental_end)} />
-            </div>
-          </Card>
-        )}
-
-        {p.notes && (
-          <Card className="md:col-span-2">
-            <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>
-            <p className="whitespace-pre-wrap text-sm text-ink/80">{p.notes}</p>
-          </Card>
-        )}
-
-        {/* Tenant requests for this property (mini-list) */}
-        <Card className="md:col-span-2">
-          <div className="mb-3 flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-primary" />
-            <h3 className="h-display text-sm text-ink/70">Tenant requests ({requests.length})</h3>
-          </div>
-          {requests.length === 0 ? (
-            <p className="text-sm text-ink/45">No tenant requests for this property.</p>
-          ) : (
-            <ul className="divide-y divide-black/[0.06]">
-              {requests.map((r) => (
-                <li key={r.id} className="flex items-start justify-between gap-4 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-sm text-ink/85">{r.description || "—"}</p>
-                    <p className="mt-0.5 text-xs text-ink/45">{date(r.date ?? r.created_at)}</p>
-                  </div>
-                  <StatusBadge status={r.status} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        {/* Services history */}
-        <Card className="md:col-span-2">
-          <div className="mb-3 flex items-center gap-2">
-            <HardHat className="h-4 w-4 text-primary" />
-            <h3 className="h-display text-sm text-ink/70">Services ({services.length})</h3>
-          </div>
-          {services.length === 0 ? (
-            <p className="text-sm text-ink/45">No services recorded for this property.</p>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-black/[0.08]">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
-                  <tr>
-                    <th className="px-4 py-2.5 font-bold">Date</th>
-                    <th className="px-4 py-2.5 font-bold">Description</th>
-                    <th className="px-4 py-2.5 font-bold">Provider</th>
-                    <th className="px-4 py-2.5 font-bold text-right">Price</th>
-                    <th className="px-4 py-2.5 font-bold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.map((s, i) => (
-                    <tr
-                      key={s.id}
-                      className={"border-t border-black/[0.05] " + (i % 2 === 1 ? "bg-black/[0.015]" : "")}
-                    >
-                      <td className="whitespace-nowrap px-4 py-2.5 text-ink/65">
-                        {date(s.service_request_date ?? s.created_at)}
-                      </td>
-                      <td className="px-4 py-2.5 text-ink/85">{s.description || "—"}</td>
-                      <td className="px-4 py-2.5 text-ink/65">{s.provider?.name ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-right text-ink/85">{money(s.price)}</td>
-                      <td className="px-4 py-2.5">
-                        <StatusBadge status={s.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        {/* Notes timeline (polymorphic) */}
-        <Card className="md:col-span-2">
-          <div className="mb-3 flex items-center gap-2">
-            <StickyNote className="h-4 w-4 text-primary" />
-            <h3 className="h-display text-sm text-ink/70">Notes timeline ({notes.length})</h3>
-          </div>
-          {notes.length === 0 ? (
-            <p className="text-sm text-ink/45">No notes for this property yet.</p>
-          ) : (
-            <ul className="space-y-3">
-              {notes.map((n) => (
-                <li
-                  key={n.id}
-                  className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-3.5"
-                >
-                  <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
-                    <span>{date(n.created_at)}</span>
-                    {n.year && <span className="text-ink/35">· {n.year}</span>}
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+      <Tabs
+        tabs={[
+          { id: "overview", label: "Overview", content: overviewTab },
+          { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
+          { id: "services", label: `Services (${services.length})`, content: servicesTab },
+          { id: "requests", label: `Requests (${requests.length})`, content: requestsTab },
+          { id: "documents", label: "Documents", content: documentsTab },
+        ]}
+      />
     </>
   );
 }

@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, Badge, buttonClass, Card, NoAccess } from "@/components/ui";
-import { PROPERTY_TYPE_LABEL, type Property, type PropertyType } from "@/lib/types";
-import { money } from "@/lib/format";
+import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
+import { PROPERTY_TYPE_LABEL, type Property } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { Home, ChevronRight, Plus } from "lucide-react";
+import { Home, Plus } from "lucide-react";
 import Link from "next/link";
+import { PropertiesTable } from "./PropertiesTable";
 
 export const dynamic = "force-dynamic";
 
@@ -33,13 +33,11 @@ const FILTERS = [
   ...Object.entries(PROPERTY_TYPE_LABEL).map(([value, label]) => ({ value, label })),
 ];
 
-function toneFor(t: PropertyType): "gold" | "orange" | "neutral" {
-  if (t === "vacation_rental") return "orange";
-  if (t === "for_sale") return "gold";
-  return "neutral";
-}
-
-export default async function PropriedadesPage({ searchParams }: { searchParams: { tipo?: string } }) {
+export default async function PropriedadesPage({
+  searchParams,
+}: {
+  searchParams: { tipo?: string; q?: string };
+}) {
   const profile = await getProfile();
   if (!can(profile, "properties.edit")) {
     return (
@@ -57,10 +55,10 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
     <>
       <PageHeader
         title="Properties"
-        subtitle="Every property has an owner. Add it from the client's record."
+        subtitle="Every property has an owner. Add a new one or attach it from the client's record."
         action={
-          <Link href="/clientes" className={buttonClass("ghost")}>
-            <Plus className="h-4 w-4" /> Via client
+          <Link href="/propriedades/novo" className={buttonClass("primary")}>
+            <Plus className="h-4 w-4" /> New property
           </Link>
         }
       />
@@ -97,59 +95,15 @@ export default async function PropriedadesPage({ searchParams }: { searchParams:
         <EmptyState
           icon={<Home className="h-6 w-6" />}
           title="No properties"
-          message="A property is created attached to a client. Open a client and add their home."
+          message="Add a property and pick its owner, or open a client and attach their home."
           cta={
-            <Link href="/clientes" className={buttonClass("primary")}>
-              Go to Clients
+            <Link href="/propriedades/novo" className={buttonClass("primary")}>
+              <Plus className="h-4 w-4" /> New property
             </Link>
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
-              <tr>
-                <th className="px-5 py-3 font-bold">Address</th>
-                <th className="px-5 py-3 font-bold">Type</th>
-                <th className="px-5 py-3 font-bold">Owner</th>
-                <th className="px-5 py-3 font-bold">Rent</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {properties.map((p, i) => (
-                <tr
-                  key={p.id}
-                  className={
-                    "border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
-                    (i % 2 === 1 ? "bg-black/[0.015]" : "")
-                  }
-                >
-                  <td className="px-5 py-3.5">
-                    <Link href={`/propriedades/${p.id}`} className="font-semibold text-ink hover:text-primary">
-                      {p.address}
-                    </Link>
-                    {p.address2 && <span className="block text-xs text-ink/45">{p.address2}</span>}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Badge tone={toneFor(p.property_type)}>{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
-                  </td>
-                  <td className="px-5 py-3.5 text-ink/65">
-                    {p.owner ? (
-                      <Link href={`/clientes/${p.owner.id}`} className="hover:text-primary">{p.owner.name}</Link>
-                    ) : "—"}
-                  </td>
-                  <td className="px-5 py-3.5 text-ink/70">{money(p.rent_price)}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <Link href={`/propriedades/${p.id}`} className="inline-flex text-ink/40 hover:text-primary">
-                      <ChevronRight className="h-4 w-4" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PropertiesTable properties={properties} initialQuery={searchParams.q ?? ""} />
       )}
     </>
   );

@@ -16,9 +16,14 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
 
   return (
     <>
-      <PageHeader title="Edit property" subtitle="Changing the type carries the history with it." />
-      <form action={action} className="space-y-6">
+      <PageHeader
+        title={`Edit — ${p.address}`}
+        subtitle="Editing never erases history. Changing the type carries the history with it."
+      />
+      <form action={action} className="space-y-8">
+        {/* Identificação da propriedade */}
         <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Property</h2>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Address *" hint="From our records, with unit number — never from Google.">
               <input name="address" required defaultValue={p.address} className={inputClass} />
@@ -33,6 +38,13 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
                 ))}
               </select>
             </Field>
+          </div>
+        </section>
+
+        {/* Comissão */}
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Commission</h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Commission">
               <input name="commission_fee" type="number" step="0.01" defaultValue={p.commission_fee ?? ""} className={inputClass} />
             </Field>
@@ -52,6 +64,13 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
                 ))}
               </select>
             </Field>
+          </div>
+        </section>
+
+        {/* Aluguel */}
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Lease and rent</h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Monthly rent (USD)">
               <input name="rent_price" type="number" step="0.01" defaultValue={p.rent_price ?? ""} className={inputClass} />
             </Field>
@@ -72,13 +91,17 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
               </select>
             </Field>
           </div>
-          <div className="mt-5">
-            <Field label="Notes">
-              <textarea name="notes" rows={3} defaultValue={p.notes ?? ""} className={inputClass} />
-            </Field>
-          </div>
         </section>
-        <div className="flex gap-3">
+
+        {/* Notas */}
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Notes</h2>
+          <Field label="Internal notes">
+            <textarea name="notes" rows={3} defaultValue={p.notes ?? ""} className={inputClass} />
+          </Field>
+        </section>
+
+        <div className="flex items-center gap-3">
           <button type="submit" className={buttonClass("primary")}>Save changes</button>
           <Link href={`/propriedades/${p.id}`} className={buttonClass("ghost")}>Cancel</Link>
         </div>
