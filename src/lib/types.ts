@@ -286,6 +286,17 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
 export type PaymentStatus = "due" | "received";
 export type PaymentKind = "monthly" | "last_month" | "security_deposit";
 
+// Receipt files tied to a payment (one or more). IMPORTANT: file_url is EITHER a
+// full external URL (legacy Bubble-imported receipts start with "http") OR a
+// Supabase storage object path inside the `documents` bucket (future uploads).
+// The viewer branches on `file_url.startsWith("http")` — see PaymentReceipt.tsx.
+export interface PaymentAttachment {
+  id: string;
+  file_url: string;
+  file_name: string | null;
+  content_type: string | null;
+}
+
 export interface Payment {
   id: string;
   property_id: string;
@@ -303,6 +314,8 @@ export interface Payment {
   // joins opcionais
   property?: Pick<Property, "id" | "address" | "address2" | "property_type"> | null;
   tenant?: Pick<Client, "id" | "name"> | null;
+  // Imported receipts (one per payment for the Bubble batch). May be empty.
+  attachments?: PaymentAttachment[] | null;
 }
 
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {

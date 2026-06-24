@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Search, CheckCircle2, Undo2, Loader2 } from "lucide-react";
 import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
 import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
+import { PaymentReceipt } from "./PaymentReceipt";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -323,6 +324,13 @@ export function PaymentRow({
       <td className="px-5 py-3.5">
         <StatusBadge payment={payment} />
       </td>
+      <td className="px-5 py-3.5">
+        {payment.attachments && payment.attachments.length > 0 ? (
+          <PaymentReceipt attachment={payment.attachments[0]} />
+        ) : (
+          <span className="text-ink/30">—</span>
+        )}
+      </td>
       {canManage && (
         <td className="px-5 py-3.5">
           <div className="flex items-center justify-end gap-2">
@@ -378,8 +386,8 @@ export function PaymentsTable({
     return true;
   });
 
-  // Address, Tenant, Kind, Month, Due, Amount, Commission, Status (+ actions)
-  const colSpan = canManage ? 9 : 8;
+  // Address, Tenant, Kind, Month, Due, Amount, Commission, Status, Receipt (+ actions)
+  const colSpan = canManage ? 10 : 9;
 
   return (
     <>
@@ -451,6 +459,7 @@ export function PaymentsTable({
                 <th className="px-5 py-3 font-bold">Amount</th>
                 <th className="px-5 py-3 font-bold">Commission</th>
                 <th className="px-5 py-3 font-bold">Status</th>
+                <th className="px-5 py-3 font-bold">Receipt</th>
                 {canManage && <th className="px-5 py-3" />}
               </tr>
             </thead>

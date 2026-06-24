@@ -23,7 +23,7 @@ async function loadPayments() {
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name)"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type)"
       )
       .is("archived_at", null)
       .order("month", { ascending: false, nullsFirst: false })

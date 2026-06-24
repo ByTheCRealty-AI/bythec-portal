@@ -20,8 +20,8 @@ export function PropertyPaymentsTable({
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
 }) {
-  // Kind, Month, Due, Amount, Commission, Status (+ actions). Sem Property/Tenant.
-  const colSpan = canManage ? 7 : 6;
+  // Kind, Month, Due, Amount, Commission, Status, Receipt (+ actions). Sem Property/Tenant.
+  const colSpan = canManage ? 8 : 7;
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-black/[0.08] bg-white shadow-card">
@@ -34,6 +34,7 @@ export function PropertyPaymentsTable({
             <th className="px-5 py-3 font-bold">Amount</th>
             <th className="px-5 py-3 font-bold">Commission</th>
             <th className="px-5 py-3 font-bold">Status</th>
+            <th className="px-5 py-3 font-bold">Receipt</th>
             {canManage && <th className="px-5 py-3" />}
           </tr>
         </thead>
