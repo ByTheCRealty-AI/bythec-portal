@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ClientType, PropertyType, DealSide } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete } from "@/lib/auth/capabilities";
+import { canDelete, can } from "@/lib/auth/capabilities";
 
 // Helpers de leitura de FormData -> valor limpo (string vazia -> null).
 function str(fd: FormData, key: string): string | null {
@@ -135,6 +135,33 @@ export async function deleteClienteAction(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/clientes");
   redirect("/clientes");
+}
+
+// ---- Notes (timeline polimórfica, parent_type='client') --------------------
+
+// Cria nota presa ao cliente, direto da aba Notes do detalhe. Re-checa a
+// capacidade clients.edit no servidor (defesa em profundidade; o RLS reforça).
+// body é obrigatório; year opcional cai no ano corrente.
+export async function addClientNoteAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to add notes to clients.");
+  }
+  const clientId = str(fd, "parent_id");
+  if (!clientId) throw new Error("Missing client reference.");
+  const body = str(fd, "body");
+  if (!body) throw new Error("The note cannot be empty.");
+  const year = num(fd, "year") ?? new Date().getFullYear();
+
+  const supabase = createClient();
+  const { error } = await supabase.from("notes").insert({
+    parent_type: "client",
+    parent_id: clientId,
+    body,
+    year,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/clientes/${clientId}`);
 }
 
 // ---- Propriedades (penduradas no cliente) ----------------------------------

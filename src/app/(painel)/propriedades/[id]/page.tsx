@@ -7,7 +7,11 @@ import { PropriedadeArchiveButton } from "../PropriedadeArchiveButton";
 import { PropriedadeDeleteButton } from "../PropriedadeDeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete } from "@/lib/auth/capabilities";
+import { canDelete, can } from "@/lib/auth/capabilities";
+import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
+import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
+import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
+import { addPropertyNoteAction, addServiceAction, addRequestAction } from "../actions";
 import {
   PROPERTY_TYPE_LABEL,
   type Property,
@@ -65,8 +69,18 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const profile = await getProfile();
   const showDelete = canDelete(profile);
 
-  // Notes (polymorphic), services and tenant requests for this property.
-  const [{ data: notesData }, { data: servicesData }, { data: requestsData }] = await Promise.all([
+  // Gates dos forms inline (o RLS reforça no banco; aqui só guarda a UI).
+  const canEditProperty = can(profile, "properties.edit");
+  const canEditOps = can(profile, "operations.edit");
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Notes (polymorphic), services, tenant requests e providers ativos (dropdown).
+  const [
+    { data: notesData },
+    { data: servicesData },
+    { data: requestsData },
+    { data: providersData },
+  ] = await Promise.all([
     supabase
       .from("notes")
       .select("id, body, year, created_at, updated_at, parent_type, parent_id")
@@ -85,11 +99,17 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .select("id, date, description, status, created_at")
       .eq("property_id", p.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("service_providers")
+      .select("id, name")
+      .is("archived_at", null) // TRAVADO: só providers ativos no dropdown
+      .order("name", { ascending: true }),
   ]);
 
   const notes = (notesData ?? []) as Note[];
   const services = (servicesData ?? []) as unknown as Service[];
   const requests = (requestsData ?? []) as unknown as TenantRequest[];
+  const providers = (providersData ?? []) as { id: string; name: string }[];
 
   // ---- Aba Overview (Details / Owner / Rent / short Notes summary) ----
   const overviewTab = (
@@ -167,30 +187,36 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     </div>
   );
 
-  // ---- Aba Notes (timeline polimórfica) ----
-  const notesTab =
-    notes.length === 0 ? (
-      <EmptyState
-        icon={<StickyNote className="h-6 w-6" />}
-        title="No notes"
-        message="Notes attached to this property appear here, newest first."
-      />
-    ) : (
-      <ul className="space-y-3">
-        {notes.map((n) => (
-          <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
-            <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
-              <span>{date(n.created_at)}</span>
-              {n.year && <span className="text-ink/35">· {n.year}</span>}
-            </div>
-            <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
-          </li>
-        ))}
-      </ul>
-    );
+  // ---- Aba Notes (timeline polimórfica + add inline) ----
+  const notesTab = (
+    <div className="space-y-5">
+      {canEditProperty && (
+        <NoteAddForm parentType="property" parentId={p.id} action={addPropertyNoteAction} />
+      )}
+      {notes.length === 0 ? (
+        <EmptyState
+          icon={<StickyNote className="h-6 w-6" />}
+          title="No notes"
+          message="Notes attached to this property appear here, newest first."
+        />
+      ) : (
+        <ul className="space-y-3">
+          {notes.map((n) => (
+            <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
+              <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
+                <span>{date(n.created_at)}</span>
+                {n.year && <span className="text-ink/35">· {n.year}</span>}
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
-  // ---- Aba Services (histórico) ----
-  const servicesTab =
+  // ---- Aba Services (histórico + add inline) ----
+  const servicesList =
     services.length === 0 ? (
       <EmptyState
         icon={<HardHat className="h-6 w-6" />}
@@ -231,8 +257,22 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       </div>
     );
 
-  // ---- Aba Requests (tenant requests) ----
-  const requestsTab =
+  const servicesTab = (
+    <div className="space-y-5">
+      {canEditOps && (
+        <ServiceAddForm
+          propertyId={p.id}
+          providers={providers}
+          action={addServiceAction}
+          today={today}
+        />
+      )}
+      {servicesList}
+    </div>
+  );
+
+  // ---- Aba Requests (tenant requests + add inline) ----
+  const requestsList =
     requests.length === 0 ? (
       <EmptyState
         icon={<Wrench className="h-6 w-6" />}
@@ -252,6 +292,21 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         ))}
       </ul>
     );
+
+  const requestsTab = (
+    <div className="space-y-5">
+      {canEditOps && (
+        <RequestAddForm
+          propertyId={p.id}
+          tenantId={p.tenant?.id ?? null}
+          tenantName={p.tenant?.name ?? null}
+          action={addRequestAction}
+          today={today}
+        />
+      )}
+      {requestsList}
+    </div>
+  );
 
   // ---- Aba stub (Documents) — mesmo estilo do stub do detalhe de Clients ----
   const documentsTab = (

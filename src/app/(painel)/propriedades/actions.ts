@@ -3,9 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { PropertyType } from "@/lib/types";
+import type { PropertyType, RequestStatus } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete } from "@/lib/auth/capabilities";
+import { canDelete, can } from "@/lib/auth/capabilities";
 
 function str(fd: FormData, key: string): string | null {
   const v = fd.get(key);
@@ -129,4 +129,90 @@ export async function deletePropriedadeAction(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/propriedades");
   redirect("/propriedades");
+}
+
+// ---- Inline adds from the property detail tabs -----------------------------
+// Todas re-checam a capacidade no servidor (defesa em profundidade; o RLS
+// reforça de verdade no banco) e revalidam a rota do detalhe pra a nova linha
+// aparecer na hora, sem redirect (o usuário continua na mesma aba).
+
+// Hoje em YYYY-MM-DD (string "date" do Postgres), default de campos de data.
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Nota presa à propriedade (parent_type='property'). body obrigatório; year
+// opcional cai no ano corrente. Gate: properties.edit.
+export async function addPropertyNoteAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to add notes to properties.");
+  }
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const body = str(fd, "body");
+  if (!body) throw new Error("The note cannot be empty.");
+  const year = num(fd, "year") ?? new Date().getFullYear();
+
+  const supabase = createClient();
+  const { error } = await supabase.from("notes").insert({
+    parent_type: "property",
+    parent_id: propertyId,
+    body,
+    year,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// Serviço registrado na propriedade. description obrigatória; date default hoje;
+// status default 'open'; price e provider opcionais. Gate: operations.edit.
+export async function addServiceAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to record services.");
+  }
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const description = str(fd, "description");
+  if (!description) throw new Error("A description is required.");
+  const status = (str(fd, "status") === "done" ? "done" : "open") as RequestStatus;
+
+  const supabase = createClient();
+  const { error } = await supabase.from("services").insert({
+    property_id: propertyId,
+    service_request_date: str(fd, "service_request_date") ?? today(),
+    description,
+    status,
+    price: num(fd, "price"),
+    provider_id: str(fd, "provider_id"),
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// Tenant request da propriedade. description obrigatória; date default hoje;
+// status default 'open'. tenant_id é preenchido automaticamente com o inquilino
+// atual da propriedade (passado num hidden field pela página). Gate: operations.edit.
+export async function addRequestAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to add tenant requests.");
+  }
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const description = str(fd, "description");
+  if (!description) throw new Error("A description is required.");
+  const status = (str(fd, "status") === "done" ? "done" : "open") as RequestStatus;
+
+  const supabase = createClient();
+  const { error } = await supabase.from("tenant_requests").insert({
+    property_id: propertyId,
+    tenant_id: str(fd, "tenant_id"), // inquilino atual (auto, via hidden field); null se vago
+    date: str(fd, "date") ?? today(),
+    description,
+    status,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
 }

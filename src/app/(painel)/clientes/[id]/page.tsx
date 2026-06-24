@@ -8,7 +8,9 @@ import { ArchiveButton } from "./ArchiveButton";
 import { DeleteButton } from "./DeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete } from "@/lib/auth/capabilities";
+import { canDelete, can } from "@/lib/auth/capabilities";
+import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
+import { addClientNoteAction } from "../actions";
 import {
   CLIENT_TYPE_LABEL,
   PROPERTY_TYPE_LABEL,
@@ -73,6 +75,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
   const profile = await getProfile();
   const showDelete = canDelete(profile);
+  const canEditClient = can(profile, "clients.edit");
 
   // Compõe o endereço de cobrança estruturado em uma linha legível, pulando
   // partes vazias. Ex.: "123 Main St, Apt 4B · Hyannis, MA 02601".
@@ -191,27 +194,33 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     </div>
   );
 
-  // ---- Aba Notes (timeline polimórfica) ----
-  const notesTab =
-    notes.length === 0 ? (
-      <EmptyState
-        icon={<StickyNote className="h-6 w-6" />}
-        title="No notes"
-        message="Notes attached to this client appear here, newest first."
-      />
-    ) : (
-      <ul className="space-y-3">
-        {notes.map((n) => (
-          <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
-            <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
-              <span>{date(n.created_at)}</span>
-              {n.year && <span className="text-ink/35">· {n.year}</span>}
-            </div>
-            <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
-          </li>
-        ))}
-      </ul>
-    );
+  // ---- Aba Notes (timeline polimórfica + add inline) ----
+  const notesTab = (
+    <div className="space-y-5">
+      {canEditClient && (
+        <NoteAddForm parentType="client" parentId={client.id} action={addClientNoteAction} />
+      )}
+      {notes.length === 0 ? (
+        <EmptyState
+          icon={<StickyNote className="h-6 w-6" />}
+          title="No notes"
+          message="Notes attached to this client appear here, newest first."
+        />
+      ) : (
+        <ul className="space-y-3">
+          {notes.map((n) => (
+            <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
+              <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
+                <span>{date(n.created_at)}</span>
+                {n.year && <span className="text-ink/35">· {n.year}</span>}
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
   // ---- Abas stub (Documents, Requests) ----
   const stub = (label: string, icon: React.ReactNode, msg: string) => (
