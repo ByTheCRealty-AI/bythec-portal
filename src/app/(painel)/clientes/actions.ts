@@ -164,6 +164,52 @@ export async function addClientNoteAction(fd: FormData) {
   revalidatePath(`/clientes/${clientId}`);
 }
 
+// Atualiza nota presa ao cliente, inline na aba Notes. Mesma capacidade da add
+// (clients.edit), re-checada no servidor (RLS reforça no banco).
+export async function updateClientNoteAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to edit notes on clients.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing note reference.");
+  const clientId = str(fd, "parent_id");
+  if (!clientId) throw new Error("Missing client reference.");
+  const body = str(fd, "body");
+  if (!body) throw new Error("The note cannot be empty.");
+  const year = num(fd, "year") ?? new Date().getFullYear();
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("notes")
+    .update({ body, year })
+    .eq("id", id)
+    .eq("parent_type", "client");
+  if (error) throw new Error(error.message);
+  revalidatePath(`/clientes/${clientId}`);
+}
+
+// HARD DELETE da nota do cliente (remove a linha). Mesma capacidade da add.
+export async function deleteClientNoteAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to delete notes on clients.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing note reference.");
+  const clientId = str(fd, "parent_id");
+  if (!clientId) throw new Error("Missing client reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("notes")
+    .delete()
+    .eq("id", id)
+    .eq("parent_type", "client");
+  if (error) throw new Error(error.message);
+  revalidatePath(`/clientes/${clientId}`);
+}
+
 // ---- Documents (timeline polimórfica, parent_type='client') ----------------
 
 // Documento preso ao cliente. O ARQUIVO já foi subido no browser (Storage RLS
@@ -191,6 +237,32 @@ export async function addDocumentAction(fd: FormData) {
     content_type: str(fd, "content_type"),
     year,
   });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/clientes/${clientId}`);
+}
+
+// HARD DELETE de documento do cliente: remove o OBJECT do Storage e DEPOIS
+// apaga a linha. Mesma capacidade da add (clients.edit OU operations.edit).
+export async function deleteClientDocumentAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to delete documents on clients.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing document reference.");
+  const clientId = str(fd, "parent_id");
+  if (!clientId) throw new Error("Missing client reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing file reference.");
+
+  const supabase = createClient();
+  const { error: storageError } = await supabase.storage.from("documents").remove([fileUrl]);
+  if (storageError) throw new Error(`Could not remove the file: ${storageError.message}`);
+  const { error } = await supabase
+    .from("documents")
+    .delete()
+    .eq("id", id)
+    .eq("parent_type", "client");
   if (error) throw new Error(error.message);
   revalidatePath(`/clientes/${clientId}`);
 }

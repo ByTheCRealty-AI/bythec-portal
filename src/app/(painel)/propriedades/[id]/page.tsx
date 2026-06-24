@@ -13,7 +13,22 @@ import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
-import { addPropertyNoteAction, addServiceAction, addRequestAction, addDocumentAction } from "../actions";
+import { NoteRow } from "@/components/inline-forms/NoteRow";
+import { ServiceRow } from "@/components/inline-forms/ServiceRow";
+import { RequestRow } from "@/components/inline-forms/RequestRow";
+import {
+  addPropertyNoteAction,
+  addServiceAction,
+  addRequestAction,
+  addDocumentAction,
+  updatePropertyNoteAction,
+  deletePropertyNoteAction,
+  updateServiceAction,
+  deleteServiceAction,
+  updateRequestAction,
+  deleteRequestAction,
+  deletePropertyDocumentAction,
+} from "../actions";
 import {
   PROPERTY_TYPE_LABEL,
   type Property,
@@ -31,21 +46,6 @@ type PropertyRow = Property & {
   owner: { id: string; name: string; email: string | null } | null;
   tenant: { id: string; name: string; email: string | null } | null;
 };
-
-function StatusBadge({ status }: { status: "open" | "done" }) {
-  if (status === "done") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-        Done
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
-      Open
-    </span>
-  );
-}
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -214,13 +214,14 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       ) : (
         <ul className="space-y-3">
           {notes.map((n) => (
-            <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
-              <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
-                <span>{date(n.created_at)}</span>
-                {n.year && <span className="text-ink/35">· {n.year}</span>}
-              </div>
-              <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
-            </li>
+            <NoteRow
+              key={n.id}
+              note={n}
+              parentId={p.id}
+              canEdit={canEditProperty}
+              updateAction={updatePropertyNoteAction}
+              deleteAction={deletePropertyNoteAction}
+            />
           ))}
         </ul>
       )}
@@ -245,24 +246,21 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               <th className="px-4 py-3 font-bold">Provider</th>
               <th className="px-4 py-3 font-bold text-right">Price</th>
               <th className="px-4 py-3 font-bold">Status</th>
+              {canEditOps && <th className="px-4 py-3 text-right font-bold">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {services.map((s, i) => (
-              <tr
+              <ServiceRow
                 key={s.id}
-                className={"border-t border-black/[0.05] " + (i % 2 === 1 ? "bg-black/[0.015]" : "")}
-              >
-                <td className="whitespace-nowrap px-4 py-3 text-ink/65">
-                  {date(s.service_request_date ?? s.created_at)}
-                </td>
-                <td className="px-4 py-3 text-ink/85">{s.description || "—"}</td>
-                <td className="px-4 py-3 text-ink/65">{s.provider?.name ?? "—"}</td>
-                <td className="px-4 py-3 text-right text-ink/85">{money(s.price)}</td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={s.status} />
-                </td>
-              </tr>
+                service={s}
+                propertyId={p.id}
+                providers={providers}
+                canEdit={canEditOps}
+                zebra={i % 2 === 1}
+                updateAction={updateServiceAction}
+                deleteAction={deleteServiceAction}
+              />
             ))}
           </tbody>
         </table>
@@ -294,13 +292,14 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     ) : (
       <ul className="divide-y divide-black/[0.06] rounded-2xl border border-black/[0.08] bg-white px-5 shadow-card">
         {requests.map((r) => (
-          <li key={r.id} className="flex items-start justify-between gap-4 py-3.5">
-            <div className="min-w-0">
-              <p className="text-sm text-ink/85">{r.description || "—"}</p>
-              <p className="mt-0.5 text-xs text-ink/45">{date(r.date ?? r.created_at)}</p>
-            </div>
-            <StatusBadge status={r.status} />
-          </li>
+          <RequestRow
+            key={r.id}
+            request={r}
+            propertyId={p.id}
+            canEdit={canEditOps}
+            updateAction={updateRequestAction}
+            deleteAction={deleteRequestAction}
+          />
         ))}
       </ul>
     );
@@ -337,7 +336,12 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       ) : (
         <ul className="space-y-3">
           {documents.map((d) => (
-            <DocumentRow key={d.id} doc={d} />
+            <DocumentRow
+              key={d.id}
+              doc={d}
+              canDelete={canUploadDocs}
+              deleteAction={deletePropertyDocumentAction}
+            />
           ))}
         </ul>
       )}

@@ -12,7 +12,14 @@ import { canDelete, can } from "@/lib/auth/capabilities";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
-import { addClientNoteAction, addDocumentAction } from "../actions";
+import { NoteRow } from "@/components/inline-forms/NoteRow";
+import {
+  addClientNoteAction,
+  addDocumentAction,
+  updateClientNoteAction,
+  deleteClientNoteAction,
+  deleteClientDocumentAction,
+} from "../actions";
 import {
   CLIENT_TYPE_LABEL,
   PROPERTY_TYPE_LABEL,
@@ -223,13 +230,14 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       ) : (
         <ul className="space-y-3">
           {notes.map((n) => (
-            <li key={n.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-4">
-              <div className="mb-1 flex items-center gap-2 text-xs text-ink/45">
-                <span>{date(n.created_at)}</span>
-                {n.year && <span className="text-ink/35">· {n.year}</span>}
-              </div>
-              <p className="whitespace-pre-wrap text-sm text-ink/80">{n.body || "—"}</p>
-            </li>
+            <NoteRow
+              key={n.id}
+              note={n}
+              parentId={client.id}
+              canEdit={canEditClient}
+              updateAction={updateClientNoteAction}
+              deleteAction={deleteClientNoteAction}
+            />
           ))}
         </ul>
       )}
@@ -253,7 +261,12 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       ) : (
         <ul className="space-y-3">
           {documents.map((d) => (
-            <DocumentRow key={d.id} doc={d} />
+            <DocumentRow
+              key={d.id}
+              doc={d}
+              canDelete={canUploadDocs}
+              deleteAction={deleteClientDocumentAction}
+            />
           ))}
         </ul>
       )}

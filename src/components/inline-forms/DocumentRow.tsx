@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { date } from "@/lib/format";
 import { FileText, FileImage, FileSpreadsheet, Download, Loader2 } from "lucide-react";
+import { DeleteControl } from "./InlineRowControls";
 import type { Document } from "@/lib/types";
 
 // Linha de documento na aba Documents. O bucket é PRIVADO, então o download gera
@@ -29,7 +30,16 @@ function typeLabel(contentType: string | null): string {
   return sub ? sub.toUpperCase() : "File";
 }
 
-export function DocumentRow({ doc }: { doc: Document }) {
+export function DocumentRow({
+  doc,
+  canDelete = false,
+  deleteAction,
+}: {
+  doc: Document;
+  canDelete?: boolean;
+  // Recebe a action correta (cliente OU propriedade). Só usada se canDelete.
+  deleteAction?: (fd: FormData) => void | Promise<void>;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,19 +79,28 @@ export function DocumentRow({ doc }: { doc: Document }) {
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={download}
-        disabled={busy}
-        className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-black/[0.10] bg-white px-3.5 py-2 text-sm text-ink/80 transition-all duration-200 hover:border-black/20 hover:bg-black/[0.03] disabled:opacity-60"
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Download className="h-4 w-4" />
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={download}
+          disabled={busy}
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-black/[0.10] bg-white px-3.5 py-2 text-sm text-ink/80 transition-all duration-200 hover:border-black/20 hover:bg-black/[0.03] disabled:opacity-60"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download
+        </button>
+        {canDelete && deleteAction && (
+          <DeleteControl
+            action={deleteAction}
+            hidden={{ id: doc.id, parent_id: doc.parent_id, file_url: doc.file_url }}
+            noun="document"
+          />
         )}
-        Download
-      </button>
+      </div>
     </li>
   );
 }

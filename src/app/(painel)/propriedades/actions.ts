@@ -245,3 +245,167 @@ export async function addRequestAction(fd: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
 }
+
+// ---- Inline edit + delete from the property detail tabs --------------------
+// Espelham as adds: re-checam a MESMA capacidade da add no servidor (defesa em
+// profundidade; o RLS reforça no banco), fazem HARD DELETE / UPDATE pelo id e
+// revalidam a rota do detalhe (sem redirect — o usuário continua na aba).
+
+// --- Notes (property) · gate: properties.edit ---
+export async function updatePropertyNoteAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to edit notes on properties.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing note reference.");
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const body = str(fd, "body");
+  if (!body) throw new Error("The note cannot be empty.");
+  const year = num(fd, "year") ?? new Date().getFullYear();
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("notes")
+    .update({ body, year })
+    .eq("id", id)
+    .eq("parent_type", "property");
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+export async function deletePropertyNoteAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to delete notes on properties.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing note reference.");
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("notes")
+    .delete()
+    .eq("id", id)
+    .eq("parent_type", "property");
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// --- Services · gate: operations.edit ---
+export async function updateServiceAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to edit services.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing service reference.");
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const description = str(fd, "description");
+  if (!description) throw new Error("A description is required.");
+  const status = (str(fd, "status") === "done" ? "done" : "open") as RequestStatus;
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("services")
+    .update({
+      service_request_date: str(fd, "service_request_date") ?? today(),
+      description,
+      status,
+      price: num(fd, "price"),
+      provider_id: str(fd, "provider_id"),
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+export async function deleteServiceAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to delete services.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing service reference.");
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase.from("services").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// --- Tenant requests · gate: operations.edit ---
+export async function updateRequestAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to edit tenant requests.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing request reference.");
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const description = str(fd, "description");
+  if (!description) throw new Error("A description is required.");
+  const status = (str(fd, "status") === "done" ? "done" : "open") as RequestStatus;
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("tenant_requests")
+    .update({
+      date: str(fd, "date") ?? today(),
+      description,
+      status,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+export async function deleteRequestAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to delete tenant requests.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing request reference.");
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase.from("tenant_requests").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// --- Documents (property) · gate: properties.edit OU operations.edit ---
+// HARD DELETE: remove o OBJECT do Storage e DEPOIS apaga a linha. Se a remoção
+// do storage falhar, paramos (não deixa órfão de linha apontando pra arquivo).
+export async function deletePropertyDocumentAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to delete documents on properties.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing document reference.");
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing file reference.");
+
+  const supabase = createClient();
+  const { error: storageError } = await supabase.storage.from("documents").remove([fileUrl]);
+  if (storageError) throw new Error(`Could not remove the file: ${storageError.message}`);
+  const { error } = await supabase
+    .from("documents")
+    .delete()
+    .eq("id", id)
+    .eq("parent_type", "property");
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
