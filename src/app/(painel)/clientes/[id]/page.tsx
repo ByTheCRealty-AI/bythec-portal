@@ -10,13 +10,16 @@ import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can } from "@/lib/auth/capabilities";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
-import { addClientNoteAction } from "../actions";
+import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
+import { DocumentRow } from "@/components/inline-forms/DocumentRow";
+import { addClientNoteAction, addDocumentAction } from "../actions";
 import {
   CLIENT_TYPE_LABEL,
   PROPERTY_TYPE_LABEL,
   type Client,
   type Property,
   type Note,
+  type Document,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
 import { Home, Pencil, FileText, StickyNote } from "lucide-react";
@@ -70,12 +73,23 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     .order("created_at", { ascending: false });
   const notes = (notesData ?? []) as Note[];
 
+  // Documents (polymorphic) attached to this client.
+  const { data: documentsData } = await supabase
+    .from("documents")
+    .select("id, parent_type, parent_id, file_url, file_name, content_type, year, created_at, archived_at")
+    .eq("parent_type", "client")
+    .eq("parent_id", client.id)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+  const documents = (documentsData ?? []) as Document[];
+
   const archived = client.archived_at !== null;
 
   // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
   const profile = await getProfile();
   const showDelete = canDelete(profile);
   const canEditClient = can(profile, "clients.edit");
+  const canEditOps = can(profile, "operations.edit");
 
   // Compõe o endereço de cobrança estruturado em uma linha legível, pulando
   // partes vazias. Ex.: "123 Main St, Apt 4B · Hyannis, MA 02601".
@@ -222,7 +236,31 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     </div>
   );
 
-  // ---- Abas stub (Documents, Requests) ----
+  // ---- Aba Documents (upload no browser + lista + download via signed URL) ----
+  // Gate: clients.edit OU operations.edit (RLS reforça no banco).
+  const canUploadDocs = canEditClient || canEditOps;
+  const documentsTab = (
+    <div className="space-y-5">
+      {canUploadDocs && (
+        <DocumentAddForm parentType="client" parentId={client.id} action={addDocumentAction} />
+      )}
+      {documents.length === 0 ? (
+        <EmptyState
+          icon={<FileText className="h-6 w-6" />}
+          title="No documents"
+          message="Upload contracts, IDs and other files for this client. Download anytime."
+        />
+      ) : (
+        <ul className="space-y-3">
+          {documents.map((d) => (
+            <DocumentRow key={d.id} doc={d} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  // ---- Aba stub (Requests) ----
   const stub = (label: string, icon: React.ReactNode, msg: string) => (
     <EmptyState icon={icon} title={`${label} under construction`} message={msg} />
   );
@@ -252,7 +290,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           { id: "details", label: "Details", content: detailsTab },
           { id: "properties", label: `Properties (${properties.length + rentedProperties.length})`, content: propertiesTab },
           { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
-          { id: "documents", label: "Documents", content: stub("Documents", <FileText className="h-6 w-6" />, "Multi-upload with filter by year. Schema ready; UI in upcoming rounds.") },
+          { id: "documents", label: `Documents (${documents.length})`, content: documentsTab },
           { id: "requests", label: "Requests", content: stub("Requests", <Home className="h-6 w-6" />, "Linked tenant requests. Schema ready; UI in upcoming rounds.") },
         ]}
       />

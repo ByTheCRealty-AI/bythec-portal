@@ -164,6 +164,37 @@ export async function addClientNoteAction(fd: FormData) {
   revalidatePath(`/clientes/${clientId}`);
 }
 
+// ---- Documents (timeline polimórfica, parent_type='client') ----------------
+
+// Documento preso ao cliente. O ARQUIVO já foi subido no browser (Storage RLS
+// com a sessão do usuário); aqui só gravamos a linha em public.documents com o
+// object PATH (bucket é privado — nunca URL pública). Gate: clients.edit OU
+// operations.edit (RLS reforça no banco).
+export async function addDocumentAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to add documents to clients.");
+  }
+  const clientId = str(fd, "parent_id");
+  if (!clientId) throw new Error("Missing client reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing uploaded file reference.");
+  const fileName = str(fd, "file_name") ?? "file";
+  const year = num(fd, "year") ?? new Date().getFullYear();
+
+  const supabase = createClient();
+  const { error } = await supabase.from("documents").insert({
+    parent_type: "client",
+    parent_id: clientId,
+    file_url: fileUrl,
+    file_name: fileName,
+    content_type: str(fd, "content_type"),
+    year,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/clientes/${clientId}`);
+}
+
 // ---- Propriedades (penduradas no cliente) ----------------------------------
 
 export async function createPropriedadeAction(ownerId: string, fd: FormData) {

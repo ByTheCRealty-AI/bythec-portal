@@ -191,6 +191,35 @@ export async function addServiceAction(fd: FormData) {
   revalidatePath(`/propriedades/${propertyId}`);
 }
 
+// Documento preso à propriedade (parent_type='property'). O ARQUIVO já foi
+// subido no browser (Storage RLS com a sessão do usuário); aqui só gravamos a
+// linha em public.documents com o object PATH (bucket é privado — nunca URL
+// pública). Gate: properties.edit OU operations.edit (RLS reforça no banco).
+export async function addDocumentAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to add documents to properties.");
+  }
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing uploaded file reference.");
+  const fileName = str(fd, "file_name") ?? "file";
+  const year = num(fd, "year") ?? new Date().getFullYear();
+
+  const supabase = createClient();
+  const { error } = await supabase.from("documents").insert({
+    parent_type: "property",
+    parent_id: propertyId,
+    file_url: fileUrl,
+    file_name: fileName,
+    content_type: str(fd, "content_type"),
+    year,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
 // Tenant request da propriedade. description obrigatória; date default hoje;
 // status default 'open'. tenant_id é preenchido automaticamente com o inquilino
 // atual da propriedade (passado num hidden field pela página). Gate: operations.edit.

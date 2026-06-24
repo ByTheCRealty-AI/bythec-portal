@@ -11,13 +11,16 @@ import { canDelete, can } from "@/lib/auth/capabilities";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
-import { addPropertyNoteAction, addServiceAction, addRequestAction } from "../actions";
+import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
+import { DocumentRow } from "@/components/inline-forms/DocumentRow";
+import { addPropertyNoteAction, addServiceAction, addRequestAction, addDocumentAction } from "../actions";
 import {
   PROPERTY_TYPE_LABEL,
   type Property,
   type Note,
   type Service,
   type TenantRequest,
+  type Document,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
 import { Pencil, User, StickyNote, Wrench, HardHat, FileText } from "lucide-react";
@@ -80,6 +83,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     { data: servicesData },
     { data: requestsData },
     { data: providersData },
+    { data: documentsData },
   ] = await Promise.all([
     supabase
       .from("notes")
@@ -104,12 +108,20 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .select("id, name")
       .is("archived_at", null) // TRAVADO: só providers ativos no dropdown
       .order("name", { ascending: true }),
+    supabase
+      .from("documents")
+      .select("id, parent_type, parent_id, file_url, file_name, content_type, year, created_at, archived_at")
+      .eq("parent_type", "property")
+      .eq("parent_id", p.id)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false }),
   ]);
 
   const notes = (notesData ?? []) as Note[];
   const services = (servicesData ?? []) as unknown as Service[];
   const requests = (requestsData ?? []) as unknown as TenantRequest[];
   const providers = (providersData ?? []) as { id: string; name: string }[];
+  const documents = (documentsData ?? []) as Document[];
 
   // ---- Aba Overview (Details / Owner / Rent / short Notes summary) ----
   const overviewTab = (
@@ -308,13 +320,28 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     </div>
   );
 
-  // ---- Aba stub (Documents) — mesmo estilo do stub do detalhe de Clients ----
+  // ---- Aba Documents (upload no browser + lista + download via signed URL) ----
+  // Gate: properties.edit OU operations.edit (RLS reforça no banco).
+  const canUploadDocs = canEditProperty || canEditOps;
   const documentsTab = (
-    <EmptyState
-      icon={<FileText className="h-6 w-6" />}
-      title="Documents under construction"
-      message="Multi-upload with filter by year. Schema ready; UI in upcoming rounds."
-    />
+    <div className="space-y-5">
+      {canUploadDocs && (
+        <DocumentAddForm parentType="property" parentId={p.id} action={addDocumentAction} />
+      )}
+      {documents.length === 0 ? (
+        <EmptyState
+          icon={<FileText className="h-6 w-6" />}
+          title="No documents"
+          message="Upload leases, inspections and other files for this property. Download anytime."
+        />
+      ) : (
+        <ul className="space-y-3">
+          {documents.map((d) => (
+            <DocumentRow key={d.id} doc={d} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 
   return (
@@ -343,7 +370,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
           { id: "services", label: `Services (${services.length})`, content: servicesTab },
           { id: "requests", label: `Requests (${requests.length})`, content: requestsTab },
-          { id: "documents", label: "Documents", content: documentsTab },
+          { id: "documents", label: `Documents (${documents.length})`, content: documentsTab },
         ]}
       />
     </>

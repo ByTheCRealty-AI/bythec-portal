@@ -257,6 +257,22 @@ export interface Note {
   updated_at: string;
 }
 
+// Documents (polymorphic). file_url stores the STORAGE OBJECT PATH (bucket is
+// private), never a public URL — downloads use a short-lived signed URL.
+export type DocumentParentType = "client" | "property" | "listing";
+
+export interface Document {
+  id: string;
+  parent_type: DocumentParentType;
+  parent_id: string;
+  file_url: string; // storage object path inside bucket `documents`
+  file_name: string;
+  content_type: string | null;
+  year: number | null;
+  created_at: string;
+  archived_at: string | null;
+}
+
 export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   open: "Open",
   done: "Done",
