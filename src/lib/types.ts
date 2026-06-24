@@ -278,6 +278,44 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   done: "Done",
 };
 
+// =============================================================================
+// Payments — aluguel year-round / off-season. REGIME DE CAIXA (due -> received).
+// Espelha a tabela `payments` na DB live (0002_finance + coluna `kind`).
+// =============================================================================
+
+export type PaymentStatus = "due" | "received";
+export type PaymentKind = "monthly" | "last_month" | "security_deposit";
+
+export interface Payment {
+  id: string;
+  property_id: string;
+  tenant_id: string | null;
+  kind: PaymentKind;
+  month: string | null; // mês de competência (1º dia do mês)
+  due_date: string | null;
+  rent_amount: number | null;
+  commission: number | null;
+  status: PaymentStatus;
+  received_at: string | null;
+  notes: string | null;
+  archived_at: string | null;
+  created_at: string;
+  // joins opcionais
+  property?: Pick<Property, "id" | "address" | "address2" | "property_type"> | null;
+  tenant?: Pick<Client, "id" | "name"> | null;
+}
+
+export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
+  due: "Due",
+  received: "Received",
+};
+
+export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
+  monthly: "Monthly",
+  last_month: "Last month",
+  security_deposit: "Security deposit",
+};
+
 export const NOTIFY_VIA_LABEL: Record<NotifyVia, string> = {
   whatsapp: "WhatsApp",
   email: "Email",
