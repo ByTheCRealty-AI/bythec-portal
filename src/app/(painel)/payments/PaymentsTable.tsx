@@ -100,18 +100,22 @@ function StatusToggle({
 }
 
 // Linha em modo edição: form inline espelhando o PaymentAddForm.
+// hideProperty: usado na aba da propriedade — o property_id é travado (hidden) e
+// o picker some (a propriedade é implícita).
 function EditRow({
   payment,
   properties,
   colSpan,
   updateAction,
   onDone,
+  hideProperty = false,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
   colSpan: number;
   updateAction: (fd: FormData) => void | Promise<void>;
   onDone: () => void;
+  hideProperty?: boolean;
 }) {
   return (
     <tr className="border-t border-black/[0.05] bg-primary/[0.03]">
@@ -125,29 +129,33 @@ function EditRow({
         >
           <input type="hidden" name="id" value={payment.id} />
 
-          <Field label="Property *">
-            <select
-              name="property_id"
-              required
-              defaultValue={payment.property_id}
-              className={inputClass}
-            >
-              {/* Garante que a propriedade atual aparece mesmo se arquivada/de outro tipo. */}
-              {payment.property &&
-                !properties.some((p) => p.id === payment.property_id) && (
-                  <option value={payment.property_id}>
-                    {payment.property.address}
-                    {payment.property.address2 ? ` · ${payment.property.address2}` : ""}
+          {hideProperty ? (
+            <input type="hidden" name="property_id" value={payment.property_id} />
+          ) : (
+            <Field label="Property *">
+              <select
+                name="property_id"
+                required
+                defaultValue={payment.property_id}
+                className={inputClass}
+              >
+                {/* Garante que a propriedade atual aparece mesmo se arquivada/de outro tipo. */}
+                {payment.property &&
+                  !properties.some((p) => p.id === payment.property_id) && (
+                    <option value={payment.property_id}>
+                      {payment.property.address}
+                      {payment.property.address2 ? ` · ${payment.property.address2}` : ""}
+                    </option>
+                  )}
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.address}
+                    {p.address2 ? ` · ${p.address2}` : ""}
                   </option>
-                )}
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.address}
-                  {p.address2 ? ` · ${p.address2}` : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Kind">
@@ -235,7 +243,9 @@ function EditRow({
   );
 }
 
-function PaymentRow({
+// Linha de pagamento. hideProperty: oculta as colunas Property + Tenant (usado
+// na aba da propriedade, onde a propriedade é implícita).
+export function PaymentRow({
   payment,
   properties,
   canManage,
@@ -244,6 +254,7 @@ function PaymentRow({
   setStatus,
   updateAction,
   deleteAction,
+  hideProperty = false,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
@@ -253,6 +264,7 @@ function PaymentRow({
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
+  hideProperty?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
 
@@ -264,6 +276,7 @@ function PaymentRow({
         colSpan={colSpan}
         updateAction={updateAction}
         onDone={() => setEditing(false)}
+        hideProperty={hideProperty}
       />
     );
   }
@@ -272,30 +285,34 @@ function PaymentRow({
 
   return (
     <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
-      <td className="px-5 py-3.5">
-        {payment.property ? (
-          <Link
-            href={`/propriedades/${payment.property.id}`}
-            className="font-semibold text-ink hover:text-primary"
-          >
-            {addr}
-          </Link>
-        ) : (
-          <span className="font-semibold text-ink/60">{addr}</span>
-        )}
-        {payment.property?.address2 && (
-          <span className="block text-xs text-ink/45">{payment.property.address2}</span>
-        )}
-      </td>
-      <td className="px-5 py-3.5 text-ink/65">
-        {payment.tenant ? (
-          <Link href={`/clientes/${payment.tenant.id}`} className="hover:text-primary">
-            {payment.tenant.name}
-          </Link>
-        ) : (
-          "—"
-        )}
-      </td>
+      {!hideProperty && (
+        <td className="px-5 py-3.5">
+          {payment.property ? (
+            <Link
+              href={`/propriedades/${payment.property.id}`}
+              className="font-semibold text-ink hover:text-primary"
+            >
+              {addr}
+            </Link>
+          ) : (
+            <span className="font-semibold text-ink/60">{addr}</span>
+          )}
+          {payment.property?.address2 && (
+            <span className="block text-xs text-ink/45">{payment.property.address2}</span>
+          )}
+        </td>
+      )}
+      {!hideProperty && (
+        <td className="px-5 py-3.5 text-ink/65">
+          {payment.tenant ? (
+            <Link href={`/clientes/${payment.tenant.id}`} className="hover:text-primary">
+              {payment.tenant.name}
+            </Link>
+          ) : (
+            "—"
+          )}
+        </td>
+      )}
       <td className="px-5 py-3.5">
         <Badge tone={kindTone(payment.kind)}>{PAYMENT_KIND_LABEL[payment.kind]}</Badge>
       </td>

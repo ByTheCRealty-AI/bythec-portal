@@ -76,6 +76,7 @@ export async function addPaymentAction(fd: FormData) {
   });
   if (error) throw new Error(error.message);
   revalidatePath("/payments");
+  revalidatePath("/propriedades/" + propertyId);
 }
 
 // Edição inline de um pagamento (espelha os campos da add). property_id não muda;
@@ -117,6 +118,7 @@ export async function updatePaymentAction(fd: FormData) {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/payments");
+  revalidatePath("/propriedades/" + propertyId);
 }
 
 // Toggle rápido de status por linha. Carimba received_at ao receber; limpa ao
@@ -125,6 +127,14 @@ export async function setPaymentStatusAction(id: string, status: PaymentStatus) 
   await assertCanManagePayments();
   if (!id) throw new Error("Missing payment reference.");
   const supabase = createClient();
+
+  // Busca o property_id pra revalidar também a aba da propriedade.
+  const { data: existing } = await supabase
+    .from("payments")
+    .select("property_id")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("payments")
     .update({
@@ -134,6 +144,8 @@ export async function setPaymentStatusAction(id: string, status: PaymentStatus) 
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/payments");
+  const propertyId = (existing as { property_id: string | null } | null)?.property_id;
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
 
 // HARD DELETE de um pagamento. Gate re-checado. Confirmação leve é na UI.
@@ -142,7 +154,17 @@ export async function deletePaymentAction(fd: FormData) {
   const id = str(fd, "id");
   if (!id) throw new Error("Missing payment reference.");
   const supabase = createClient();
+
+  // Busca o property_id ANTES de deletar pra revalidar a aba da propriedade.
+  const { data: existing } = await supabase
+    .from("payments")
+    .select("property_id")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase.from("payments").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/payments");
+  const propertyId = (existing as { property_id: string | null } | null)?.property_id;
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }

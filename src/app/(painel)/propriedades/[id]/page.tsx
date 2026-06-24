@@ -29,6 +29,14 @@ import {
   deleteRequestAction,
   deletePropertyDocumentAction,
 } from "../actions";
+import { PaymentAddForm } from "../../payments/PaymentAddForm";
+import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
+import {
+  addPaymentAction,
+  updatePaymentAction,
+  deletePaymentAction,
+  setPaymentStatusAction,
+} from "../../payments/actions";
 import {
   PROPERTY_TYPE_LABEL,
   type Property,
@@ -36,9 +44,10 @@ import {
   type Service,
   type TenantRequest,
   type Document,
+  type Payment,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
-import { Pencil, User, StickyNote, Wrench, HardHat, FileText } from "lucide-react";
+import { Pencil, User, StickyNote, Wrench, HardHat, FileText, Wallet } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -75,15 +84,19 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   // Gates dos forms inline (o RLS reforça no banco; aqui só guarda a UI).
   const canEditProperty = can(profile, "properties.edit");
   const canEditOps = can(profile, "operations.edit");
+  // Mesmo gate da tela /payments: payments.annual OU financials.full. Controla os
+  // botões de write da aba Payments (add/edit/delete/toggle). RLS reforça no banco.
+  const canPayments = can(profile, "payments.annual") || can(profile, "financials.full");
   const today = new Date().toISOString().slice(0, 10);
 
-  // Notes (polymorphic), services, tenant requests e providers ativos (dropdown).
+  // Notes (polymorphic), services, tenant requests, providers ativos e payments.
   const [
     { data: notesData },
     { data: servicesData },
     { data: requestsData },
     { data: providersData },
     { data: documentsData },
+    { data: paymentsData },
   ] = await Promise.all([
     supabase
       .from("notes")
@@ -115,6 +128,17 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .eq("parent_id", p.id)
       .is("archived_at", null)
       .order("created_at", { ascending: false }),
+    // Pagamentos desta propriedade (não-arquivados). Mês desc nulls last, depois
+    // criação desc — mesmo critério da tela /payments.
+    supabase
+      .from("payments")
+      .select(
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, archived_at, created_at"
+      )
+      .eq("property_id", p.id)
+      .is("archived_at", null)
+      .order("month", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   const notes = (notesData ?? []) as Note[];
@@ -122,6 +146,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const requests = (requestsData ?? []) as unknown as TenantRequest[];
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = (documentsData ?? []) as Document[];
+  const payments = (paymentsData ?? []) as unknown as Payment[];
 
   // ---- Aba Overview (Details / Owner / Rent / short Notes summary) ----
   const overviewTab = (
@@ -195,6 +220,39 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>
           <p className="whitespace-pre-wrap text-sm text-ink/80">{p.notes}</p>
         </Card>
+      )}
+    </div>
+  );
+
+  // ---- Aba Payments (histórico de aluguel desta propriedade + add inline) ----
+  // Propriedade FIXA: o add não tem picker; tenant + valor preenchem sozinhos no
+  // servidor / a partir do rent. Write gated por canPayments; senão, read-only.
+  const paymentsTab = (
+    <div className="space-y-5">
+      {canPayments && (
+        <PaymentAddForm
+          action={addPaymentAction}
+          fixedProperty={{ id: p.id, rent_price: p.rent_price }}
+        />
+      )}
+      {payments.length === 0 ? (
+        <EmptyState
+          icon={<Wallet className="h-6 w-6" />}
+          title="No payments"
+          message={
+            canPayments
+              ? "Record a rent payment for this property. Tenant and amount fill in automatically."
+              : "Rent payments for this property will appear here, newest first."
+          }
+        />
+      ) : (
+        <PropertyPaymentsTable
+          payments={payments}
+          canManage={canPayments}
+          setStatus={setPaymentStatusAction}
+          updateAction={updatePaymentAction}
+          deleteAction={deletePaymentAction}
+        />
       )}
     </div>
   );
@@ -371,6 +429,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       <Tabs
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
+          { id: "payments", label: `Payments (${payments.length})`, content: paymentsTab },
           { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
           { id: "services", label: `Services (${services.length})`, content: servicesTab },
           { id: "requests", label: `Requests (${requests.length})`, content: requestsTab },

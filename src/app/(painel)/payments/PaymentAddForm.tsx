@@ -18,23 +18,43 @@ export type PaymentPropertyOption = {
 const COMMISSION_HINT =
   "By the C year-round commission is 10% of monthly rent, counted when received.";
 
+// Propriedade fixa: usada no modo embutido (aba Payments da propriedade). Quando
+// passada, o picker some, o property_id vai num hidden, e o valor pré-preenche
+// com o rent dela. O tenant continua sendo resolvido server-side na action.
+export type FixedProperty = {
+  id: string;
+  rent_price: number | null;
+};
+
 // Form inline pra registrar um pagamento de aluguel. Mesmo padrão toggle/glass
 // das outras adds. Ao escolher a propriedade, pré-preenche o valor com o rent
 // dela (ainda editável). O tenant é resolvido server-side na action.
+//
+// Dois modos:
+//  - picker (default): mostra o select de propriedades elegíveis (tela /payments).
+//  - fixedProperty: propriedade travada (aba da propriedade), sem picker.
 export function PaymentAddForm({
-  properties,
+  properties = [],
   action,
+  fixedProperty,
 }: {
-  properties: PaymentPropertyOption[];
+  properties?: PaymentPropertyOption[];
   action: (fd: FormData) => void | Promise<void>;
+  fixedProperty?: FixedProperty;
 }) {
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(
+    fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : ""
+  );
 
   function onPickProperty(id: string) {
     const p = properties.find((x) => x.id === id);
     // Só pré-preenche; o usuário pode sobrescrever depois.
     setAmount(p?.rent_price != null ? String(p.rent_price) : "");
+  }
+
+  function resetAmount() {
+    setAmount(fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : "");
   }
 
   if (!open) {
@@ -50,7 +70,7 @@ export function PaymentAddForm({
       action={async (fd) => {
         await action(fd);
         setOpen(false);
-        setAmount("");
+        resetAmount();
       }}
       className="glass mb-6 space-y-5 p-6"
     >
@@ -59,25 +79,30 @@ export function PaymentAddForm({
         <span className="text-xs text-ink/45">Rent payment · cash basis</span>
       </div>
 
-      <Field label="Property *" hint="Year-round and off-season rentals only.">
-        <select
-          name="property_id"
-          required
-          defaultValue=""
-          onChange={(e) => onPickProperty(e.target.value)}
-          className={inputClass}
-        >
-          <option value="" disabled>
-            Select a property…
-          </option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.address}
-              {p.address2 ? ` · ${p.address2}` : ""}
+      {fixedProperty ? (
+        // Modo propriedade-fixa: sem picker; o property_id vai num hidden.
+        <input type="hidden" name="property_id" value={fixedProperty.id} />
+      ) : (
+        <Field label="Property *" hint="Year-round and off-season rentals only.">
+          <select
+            name="property_id"
+            required
+            defaultValue=""
+            onChange={(e) => onPickProperty(e.target.value)}
+            className={inputClass}
+          >
+            <option value="" disabled>
+              Select a property…
             </option>
-          ))}
-        </select>
-      </Field>
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.address}
+                {p.address2 ? ` · ${p.address2}` : ""}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <Field label="Kind">
@@ -145,7 +170,7 @@ export function PaymentAddForm({
           type="button"
           onClick={() => {
             setOpen(false);
-            setAmount("");
+            resetAmount();
           }}
           className={buttonClass("ghost")}
         >
