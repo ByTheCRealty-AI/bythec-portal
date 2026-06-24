@@ -9,7 +9,10 @@ import { PropertiesTable } from "./PropertiesTable";
 
 export const dynamic = "force-dynamic";
 
-type PropertyRow = Property & { owner: { id: string; name: string } | null };
+type PropertyRow = Property & {
+  owner: { id: string; name: string } | null;
+  tenant: { id: string; name: string } | null;
+};
 
 // archivedView=true (owner only): mostra arquivadas em vez de ativas, pra owner
 // alcançar o registro e poder hard-deletar. Default permanece intocado (ativas).
@@ -18,7 +21,7 @@ async function load(typeFilter?: string, archivedView = false) {
     const supabase = createClient();
     let q = supabase
       .from("properties")
-      .select("*, owner:owner_id (id, name)")
+      .select("*, owner:owner_id (id, name), tenant:tenant_id (id, name)")
       .order("address", { ascending: true });
     q = archivedView ? q.not("archived_at", "is", null) : q.is("archived_at", null);
     if (typeFilter) q = q.eq("property_type", typeFilter);

@@ -10,7 +10,10 @@ import { Badge } from "@/components/ui";
 import { money } from "@/lib/format";
 import { PROPERTY_TYPE_LABEL, type Property, type PropertyType } from "@/lib/types";
 
-type PropertyRow = Property & { owner: { id: string; name: string } | null };
+type PropertyRow = Property & {
+  owner: { id: string; name: string } | null;
+  tenant: { id: string; name: string } | null;
+};
 
 function toneFor(t: PropertyType): "gold" | "orange" | "neutral" {
   if (t === "vacation_rental") return "orange";
@@ -43,8 +46,8 @@ export function PropertiesTable({
   const term = query.trim().toLowerCase();
   const filtered = term
     ? properties.filter((p) => {
-        const hay = `${p.address ?? ""} ${p.address2 ?? ""} ${p.owner?.name ?? ""}`.toLowerCase();
-        // casa qualquer palavra digitada (endereço, unidade, ou nome do owner)
+        const hay = `${p.address ?? ""} ${p.address2 ?? ""} ${p.owner?.name ?? ""} ${p.tenant?.name ?? ""}`.toLowerCase();
+        // casa qualquer palavra digitada (endereço, unidade, nome do owner ou tenant)
         return term.split(/\s+/).every((word) => hay.includes(word));
       })
     : properties;
@@ -57,7 +60,7 @@ export function PropertiesTable({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by address or owner…"
+          placeholder="Search by address, owner or tenant…"
           className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-9 pr-3 text-sm text-ink placeholder:text-ink/40 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
         />
       </div>
@@ -74,6 +77,7 @@ export function PropertiesTable({
                 <th className="px-5 py-3 font-bold">Address</th>
                 <th className="px-5 py-3 font-bold">Type</th>
                 <th className="px-5 py-3 font-bold">Owner</th>
+                <th className="px-5 py-3 font-bold">Tenant</th>
                 <th className="px-5 py-3 font-bold">Rent</th>
                 <th className="px-5 py-3" />
               </tr>
@@ -119,6 +123,19 @@ export function PropertiesTable({
                         className="hover:text-primary"
                       >
                         {p.owner.name}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-ink/65">
+                    {p.tenant ? (
+                      <Link
+                        href={`/clientes/${p.tenant.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-primary"
+                      >
+                        {p.tenant.name}
                       </Link>
                     ) : (
                       "—"

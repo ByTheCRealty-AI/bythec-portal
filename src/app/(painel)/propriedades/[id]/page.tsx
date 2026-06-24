@@ -20,7 +20,10 @@ import { Pencil, User, StickyNote, Wrench, HardHat, FileText } from "lucide-reac
 
 export const dynamic = "force-dynamic";
 
-type PropertyRow = Property & { owner: { id: string; name: string; email: string | null } | null };
+type PropertyRow = Property & {
+  owner: { id: string; name: string; email: string | null } | null;
+  tenant: { id: string; name: string; email: string | null } | null;
+};
 
 function StatusBadge({ status }: { status: "open" | "done" }) {
   if (status === "done") {
@@ -50,7 +53,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const supabase = createClient();
   const { data, error } = await supabase
     .from("properties")
-    .select("*, owner:owner_id (id, name, email)")
+    .select("*, owner:owner_id (id, name, email), tenant:tenant_id (id, name, email)")
     .eq("id", params.id)
     .single();
   if (error || !data) notFound();
@@ -120,6 +123,28 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           <p className="text-sm text-ink/50">No owner.</p>
         )}
       </Card>
+
+      {isRental && (
+        <Card>
+          <h3 className="h-display mb-3 text-sm text-ink/70">Tenant</h3>
+          {p.tenant ? (
+            <Link
+              href={`/clientes/${p.tenant.id}`}
+              className="flex items-center gap-3 rounded-xl border border-black/[0.10] bg-black/[0.015] p-3 transition hover:border-primary/40 hover:bg-primary/[0.04]"
+            >
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+                <User className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-ink">{p.tenant.name}</span>
+                <span className="block text-xs text-ink/50">{p.tenant.email ?? "—"}</span>
+              </span>
+            </Link>
+          ) : (
+            <p className="text-sm text-ink/50">No tenant (vacant).</p>
+          )}
+        </Card>
+      )}
 
       {isRental && (
         <Card className="md:col-span-2">
