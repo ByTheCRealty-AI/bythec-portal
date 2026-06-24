@@ -4,7 +4,10 @@ import Link from "next/link";
 import { PageHeader, Badge, Card, buttonClass, EmptyState } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { PropriedadeArchiveButton } from "../PropriedadeArchiveButton";
+import { PropriedadeDeleteButton } from "../PropriedadeDeleteButton";
 import { BackButton } from "./BackButton";
+import { getProfile } from "@/lib/auth/session";
+import { canDelete } from "@/lib/auth/capabilities";
 import {
   PROPERTY_TYPE_LABEL,
   type Property,
@@ -54,6 +57,10 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const p = data as unknown as PropertyRow;
   const archived = p.archived_at !== null;
   const isRental = p.property_type === "year_round_rental" || p.property_type === "off_season_rental";
+
+  // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
+  const profile = await getProfile();
+  const showDelete = canDelete(profile);
 
   // Notes (polymorphic), services and tenant requests for this property.
   const [{ data: notesData }, { data: servicesData }, { data: requestsData }] = await Promise.all([
@@ -243,6 +250,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               <Pencil className="h-4 w-4" /> Edit
             </Link>
             <PropriedadeArchiveButton id={p.id} archived={archived} />
+            {showDelete && (
+              <PropriedadeDeleteButton id={p.id} address={p.address} archived={archived} />
+            )}
           </div>
         }
       />

@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { PropertyType } from "@/lib/types";
+import { getProfile } from "@/lib/auth/session";
+import { canDelete } from "@/lib/auth/capabilities";
 
 function str(fd: FormData, key: string): string | null {
   const v = fd.get(key);
@@ -109,4 +111,22 @@ export async function unarchivePropriedadeAction(id: string) {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${id}`);
+}
+
+// HARD DELETE (permanente, irreversível) — OWNER ONLY. Delega TODA a regra
+// (papel owner + precisa estar arquivada + cascade seguro) pra RPC server-side
+// admin_delete_property, que dá raise exception com mensagem humana. Aqui só:
+//  1) re-checa owner no servidor (defesa em profundidade; o banco também checa).
+//  2) chama a RPC e propaga a mensagem do banco pro modal (não engole o erro).
+//  3) em caso de sucesso, revalida e redireciona pra lista.
+export async function deletePropriedadeAction(id: string) {
+  const profile = await getProfile();
+  if (!canDelete(profile)) {
+    throw new Error("Only the owner can permanently delete records.");
+  }
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_delete_property", { p_id: id });
+  if (error) throw new Error(error.message);
+  revalidatePath("/propriedades");
+  redirect("/propriedades");
 }

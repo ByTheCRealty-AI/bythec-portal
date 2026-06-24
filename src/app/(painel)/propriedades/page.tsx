@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
 import { PROPERTY_TYPE_LABEL, type Property } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
-import { can } from "@/lib/auth/capabilities";
-import { Home, Plus } from "lucide-react";
+import { can, canDelete } from "@/lib/auth/capabilities";
+import { Home, Plus, Archive } from "lucide-react";
 import Link from "next/link";
 import { PropertiesTable } from "./PropertiesTable";
 
@@ -11,14 +11,16 @@ export const dynamic = "force-dynamic";
 
 type PropertyRow = Property & { owner: { id: string; name: string } | null };
 
-async function load(typeFilter?: string) {
+// archivedView=true (owner only): mostra arquivadas em vez de ativas, pra owner
+// alcançar o registro e poder hard-deletar. Default permanece intocado (ativas).
+async function load(typeFilter?: string, archivedView = false) {
   try {
     const supabase = createClient();
     let q = supabase
       .from("properties")
       .select("*, owner:owner_id (id, name)")
-      .is("archived_at", null)
       .order("address", { ascending: true });
+    q = archivedView ? q.not("archived_at", "is", null) : q.is("archived_at", null);
     if (typeFilter) q = q.eq("property_type", typeFilter);
     const { data, error } = await q;
     if (error) throw error;
@@ -36,7 +38,7 @@ const FILTERS = [
 export default async function PropriedadesPage({
   searchParams,
 }: {
-  searchParams: { tipo?: string; q?: string };
+  searchParams: { tipo?: string; q?: string; archived?: string };
 }) {
   const profile = await getProfile();
   if (!can(profile, "properties.edit")) {
@@ -48,8 +50,15 @@ export default async function PropriedadesPage({
     );
   }
 
+  // Toggle "Archived" é OWNER ONLY. Não-owner forçando ?archived=1 cai no default.
+  const isOwner = canDelete(profile);
   const active = searchParams.tipo ?? "";
-  const { ok, properties } = await load(active || undefined);
+  const archivedView = isOwner && searchParams.archived === "1";
+  const { ok, properties } = await load(active || undefined, archivedView);
+
+  // Preserva tipo + busca ao alternar entre Active/Archived.
+  const tipoQs = active ? `tipo=${active}&` : "";
+  const qQs = searchParams.q ? `q=${encodeURIComponent(searchParams.q)}&` : "";
 
   return (
     <>
@@ -63,13 +72,42 @@ export default async function PropriedadesPage({
         }
       />
 
+      {/* Owner only: alternar entre ativas e arquivadas */}
+      {isOwner && (
+        <div className="mb-4 flex gap-2">
+          <Link
+            href={`/propriedades?${tipoQs}${qQs}`.replace(/[?&]$/, "")}
+            className={
+              "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition " +
+              (!archivedView
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-black/10 bg-white text-ink/60 hover:text-ink hover:border-black/20")
+            }
+          >
+            Active
+          </Link>
+          <Link
+            href={`/propriedades?${tipoQs}${qQs}archived=1`}
+            className={
+              "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition " +
+              (archivedView
+                ? "border-ink/30 bg-black/[0.04] text-ink/80"
+                : "border-black/10 bg-white text-ink/60 hover:text-ink hover:border-black/20")
+            }
+          >
+            <Archive className="h-3.5 w-3.5" /> Archived
+          </Link>
+        </div>
+      )}
+
       <div className="mb-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => {
           const isActive = active === f.value;
+          const archQs = archivedView ? (f.value ? "&archived=1" : "?archived=1") : "";
           return (
             <Link
               key={f.value || "all"}
-              href={f.value ? `/propriedades?tipo=${f.value}` : "/propriedades"}
+              href={(f.value ? `/propriedades?tipo=${f.value}` : "/propriedades") + archQs}
               className={
                 "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition " +
                 (isActive
@@ -92,18 +130,35 @@ export default async function PropriedadesPage({
       )}
 
       {properties.length === 0 ? (
-        <EmptyState
-          icon={<Home className="h-6 w-6" />}
-          title="No properties"
-          message="Add a property and pick its owner, or open a client and attach their home."
-          cta={
-            <Link href="/propriedades/novo" className={buttonClass("primary")}>
-              <Plus className="h-4 w-4" /> New property
-            </Link>
-          }
-        />
+        archivedView ? (
+          <EmptyState
+            icon={<Archive className="h-6 w-6" />}
+            title="No archived properties"
+            message="Properties you archive show up here, ready to restore or permanently delete."
+            cta={
+              <Link href="/propriedades" className={buttonClass("ghost")}>
+                Back to active properties
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<Home className="h-6 w-6" />}
+            title="No properties"
+            message="Add a property and pick its owner, or open a client and attach their home."
+            cta={
+              <Link href="/propriedades/novo" className={buttonClass("primary")}>
+                <Plus className="h-4 w-4" /> New property
+              </Link>
+            }
+          />
+        )
       ) : (
-        <PropertiesTable properties={properties} initialQuery={searchParams.q ?? ""} />
+        <PropertiesTable
+          properties={properties}
+          initialQuery={searchParams.q ?? ""}
+          archivedView={archivedView}
+        />
       )}
     </>
   );

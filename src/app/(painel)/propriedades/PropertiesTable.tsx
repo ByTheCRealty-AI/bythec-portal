@@ -21,9 +21,11 @@ function toneFor(t: PropertyType): "gold" | "orange" | "neutral" {
 export function PropertiesTable({
   properties,
   initialQuery = "",
+  archivedView = false,
 }: {
   properties: PropertyRow[];
   initialQuery?: string;
+  archivedView?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
@@ -98,9 +100,12 @@ export function PropertiesTable({
                   }
                 >
                   <td className="px-5 py-3.5">
-                    <Link href={`/propriedades/${p.id}`} className="font-semibold text-ink hover:text-primary">
-                      {p.address}
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <Link href={`/propriedades/${p.id}`} className="font-semibold text-ink hover:text-primary">
+                        {p.address}
+                      </Link>
+                      {archivedView && p.archived_at && <Badge tone="muted">Archived</Badge>}
+                    </span>
                     {p.address2 && <span className="block text-xs text-ink/45">{p.address2}</span>}
                   </td>
                   <td className="px-5 py-3.5">

@@ -5,7 +5,10 @@ import { PageHeader, Badge, Card, buttonClass, EmptyState } from "@/components/u
 import { Tabs } from "@/components/Tabs";
 import { PropriedadeForm } from "./PropriedadeForm";
 import { ArchiveButton } from "./ArchiveButton";
+import { DeleteButton } from "./DeleteButton";
 import { BackButton } from "./BackButton";
+import { getProfile } from "@/lib/auth/session";
+import { canDelete } from "@/lib/auth/capabilities";
 import {
   CLIENT_TYPE_LABEL,
   PROPERTY_TYPE_LABEL,
@@ -57,6 +60,10 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   const notes = (notesData ?? []) as Note[];
 
   const archived = client.archived_at !== null;
+
+  // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
+  const profile = await getProfile();
+  const showDelete = canDelete(profile);
 
   // Compõe o endereço de cobrança estruturado em uma linha legível, pulando
   // partes vazias. Ex.: "123 Main St, Apt 4B · Hyannis, MA 02601".
@@ -196,6 +203,9 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
               <Pencil className="h-4 w-4" /> Edit
             </Link>
             <ArchiveButton id={client.id} archived={archived} />
+            {showDelete && (
+              <DeleteButton id={client.id} name={client.name} archived={archived} />
+            )}
           </div>
         }
       />

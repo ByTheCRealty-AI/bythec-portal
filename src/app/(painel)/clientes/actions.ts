@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ClientType, PropertyType, DealSide } from "@/lib/types";
+import { getProfile } from "@/lib/auth/session";
+import { canDelete } from "@/lib/auth/capabilities";
 
 // Helpers de leitura de FormData -> valor limpo (string vazia -> null).
 function str(fd: FormData, key: string): string | null {
@@ -115,6 +117,24 @@ export async function unarchiveClienteAction(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath(`/clientes/${id}`);
   revalidatePath("/clientes");
+}
+
+// HARD DELETE (permanente, irreversível) — OWNER ONLY. Delega TODA a regra
+// (papel owner + precisa estar arquivado + cascade seguro) pra RPC server-side
+// admin_delete_client, que dá raise exception com mensagem humana. Aqui só:
+//  1) re-checa owner no servidor (defesa em profundidade; o banco também checa).
+//  2) chama a RPC e propaga a mensagem do banco pro modal (não engole o erro).
+//  3) em caso de sucesso, revalida e redireciona pra lista.
+export async function deleteClienteAction(id: string) {
+  const profile = await getProfile();
+  if (!canDelete(profile)) {
+    throw new Error("Only the owner can permanently delete records.");
+  }
+  const supabase = createClient();
+  const { error } = await supabase.rpc("admin_delete_client", { c_id: id });
+  if (error) throw new Error(error.message);
+  revalidatePath("/clientes");
+  redirect("/clientes");
 }
 
 // ---- Propriedades (penduradas no cliente) ----------------------------------

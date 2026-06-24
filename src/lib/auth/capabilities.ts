@@ -169,6 +169,17 @@ export function canDeleteUsers(actor: ProfileLike): boolean {
   return can(actor, "users.delete") && actor.role === "owner";
 }
 
+// Pode PERMANENTEMENTE deletar clientes/propriedades (hard delete via RPC)?
+// OWNER ONLY — NÃO é uma capability concedível (não aparece em Users & Access,
+// não entra na union Capability). É amarrado ao papel `owner` direto, de
+// propósito: é a ação mais destrutiva do sistema. O banco (admin_delete_*)
+// reforça isso server-side; este helper só guarda a UI e as server actions.
+export function canDelete(
+  profile: Pick<ProfileLike, "role" | "active"> | null | undefined
+): boolean {
+  return !!profile && profile.active && profile.role === "owner";
+}
+
 export const ROLE_LABEL: Record<AppRole, string> = {
   owner: "Owner",
   manager: "Manager",

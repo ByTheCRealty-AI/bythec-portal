@@ -18,9 +18,11 @@ function toneFor(t: ClientType): "gold" | "orange" | "neutral" {
 export function ClientsTable({
   clients,
   initialQuery = "",
+  archivedView = false,
 }: {
   clients: Client[];
   initialQuery?: string;
+  archivedView?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
@@ -93,9 +95,12 @@ export function ClientsTable({
                   }
                 >
                   <td className="px-5 py-3.5">
-                    <Link href={`/clientes/${c.id}`} className="font-semibold text-ink hover:text-primary">
-                      {c.name}
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <Link href={`/clientes/${c.id}`} className="font-semibold text-ink hover:text-primary">
+                        {c.name}
+                      </Link>
+                      {archivedView && c.archived_at && <Badge tone="muted">Archived</Badge>}
+                    </span>
                     {c.co_client_name && (
                       <span className="block text-xs text-ink/45">&amp; {c.co_client_name}</span>
                     )}
