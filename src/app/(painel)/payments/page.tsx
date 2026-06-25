@@ -4,7 +4,7 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { Wallet } from "lucide-react";
 import type { Payment } from "@/lib/types";
-import { PaymentsTable } from "./PaymentsTable";
+import { PaymentsClient } from "./PaymentsClient";
 import { PaymentAddForm, type PaymentPropertyOption } from "./PaymentAddForm";
 import {
   addPaymentAction,
@@ -15,8 +15,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Pagamentos não-arquivados + joins de propriedade e inquilino. Ordena por mês
-// (mais recente primeiro, nulls por último) e depois por criação.
+// Aluguel mensal não-arquivado + joins de propriedade e inquilino. SÓ mensal:
+// kind in ('monthly','last_month') — security_deposit fica de fora desta tela
+// global (continua só na aba da propriedade). Ordena por mês (mais recente
+// primeiro, nulls por último) e depois por criação.
 async function loadPayments() {
   try {
     const supabase = createClient();
@@ -26,6 +28,7 @@ async function loadPayments() {
         "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type)"
       )
       .is("archived_at", null)
+      .in("kind", ["monthly", "last_month"])
       .order("month", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -74,7 +77,7 @@ export default async function PaymentsPage() {
     <>
       <PageHeader
         title="Payments"
-        subtitle="Rent payments on a cash basis. Mark a payment received the day the money lands."
+        subtitle="Monthly rent on a cash basis. Mark a payment received the day the money lands."
       />
 
       {!ok && (
@@ -85,21 +88,19 @@ export default async function PaymentsPage() {
         </Card>
       )}
 
-      <div className="mb-6">
-        <PaymentAddForm properties={properties} action={addPaymentAction} />
-      </div>
-
       {payments.length === 0 ? (
         <EmptyState
           icon={<Wallet className="h-6 w-6" />}
           title="No payments yet"
           message="Record a rent payment and tie it to a property. Tenant and amount fill in automatically."
+          cta={<PaymentAddForm properties={properties} action={addPaymentAction} />}
         />
       ) : (
-        <PaymentsTable
+        <PaymentsClient
           payments={payments}
           properties={properties}
           canManage={canManage}
+          addAction={addPaymentAction}
           setStatus={setPaymentStatusAction}
           updateAction={updatePaymentAction}
           deleteAction={deletePaymentAction}
