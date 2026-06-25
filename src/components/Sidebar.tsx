@@ -14,6 +14,7 @@ import {
   Wrench,
   HardHat,
   Building2,
+  Handshake,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -38,6 +39,7 @@ const NAV: Item[] = [
   { href: "/expenses", label: "Expenses", icon: Receipt, ready: false, cap: "financials.full" },
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "operations.edit" },
+  { href: "/sales", label: "Sales", icon: Handshake, ready: true, cap: "clients.edit" },
   { href: "/listings", label: "Listings", icon: Building2, ready: false, cap: "operations.edit" },
 ];
 

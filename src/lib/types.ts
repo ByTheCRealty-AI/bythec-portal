@@ -20,6 +20,68 @@ export type PropertyType =
 
 export type DealSide = "buyer" | "seller" | "both";
 
+// =============================================================================
+// Sales (brokerage side) — realtors, buyer/seller stages, listing status.
+// Mirrors the live DB: `realtors` table + clients.realtor_id/sales_stage and
+// properties.realtor_id/sale_status (added directly in the DB, no migration file).
+// =============================================================================
+
+export interface Realtor {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  profile_id: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+// Stage options are stored as free text in the DB (clients.sales_stage). We keep
+// the canonical lists + labels here so the UI dropdowns stay consistent.
+export type BuyerStage =
+  | "searching"
+  | "pre_approved"
+  | "offer_made"
+  | "under_contract"
+  | "closed";
+
+export type SellerStage =
+  | "prepping"
+  | "listed"
+  | "under_contract"
+  | "sold";
+
+export const BUYER_STAGE_LABEL: Record<BuyerStage, string> = {
+  searching: "Searching",
+  pre_approved: "Pre-approved",
+  offer_made: "Offer made",
+  under_contract: "Under contract",
+  closed: "Closed",
+};
+
+export const SELLER_STAGE_LABEL: Record<SellerStage, string> = {
+  prepping: "Prepping",
+  listed: "Listed",
+  under_contract: "Under contract",
+  sold: "Sold",
+};
+
+// Friendly label for ANY stored stage value (buyer or seller), with a graceful
+// fallback that humanizes unknown values instead of showing a raw enum string.
+export function stageLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  const all: Record<string, string> = { ...BUYER_STAGE_LABEL, ...SELLER_STAGE_LABEL };
+  return all[value] ?? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export type SaleStatus = "active" | "pending" | "sold";
+
+export const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
+  active: "Active",
+  pending: "Under contract",
+  sold: "Sold",
+};
+
 export interface Client {
   id: string;
   name: string;
@@ -43,6 +105,9 @@ export interface Client {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  // Sales (brokerage) — only set on buy/sell clients.
+  realtor_id: string | null;
+  sales_stage: string | null;
 }
 
 export interface Property {
@@ -69,6 +134,9 @@ export interface Property {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  // Sales (brokerage) — only meaningful on for_sale properties.
+  realtor_id: string | null;
+  sale_status: string | null;
   // join opcional
   owner?: Pick<Client, "id" | "name" | "email"> | null;
 }

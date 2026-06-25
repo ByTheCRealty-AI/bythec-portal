@@ -38,12 +38,17 @@ function seasonalBase(fd: FormData): "host_payout" | "paid_by_guest" {
 
 export async function createClienteAction(fd: FormData) {
   const supabase = createClient();
+  const clientType = str(fd, "client_type") as ClientType;
+  const isBuySell = clientType === "buy_sell_client";
   const { data, error } = await supabase
     .from("clients")
     .insert({
       name: str(fd, "name"),
-      client_type: str(fd, "client_type") as ClientType,
+      client_type: clientType,
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
+      // Sales fields only stored for buy/sell clients.
+      realtor_id: isBuySell ? str(fd, "realtor_id") : null,
+      sales_stage: isBuySell ? str(fd, "sales_stage") : null,
       email: str(fd, "email"),
       phone: str(fd, "phone"),
       notes: str(fd, "notes"),
@@ -68,12 +73,18 @@ export async function createClienteAction(fd: FormData) {
 
 export async function updateClienteAction(id: string, fd: FormData) {
   const supabase = createClient();
+  const clientType = str(fd, "client_type") as ClientType;
+  const isBuySell = clientType === "buy_sell_client";
   const { error } = await supabase
     .from("clients")
     .update({
       name: str(fd, "name"),
-      client_type: str(fd, "client_type") as ClientType,
+      client_type: clientType,
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
+      // Buy/sell: persist the sales fields from the form. Other types: clear them
+      // (a client that stops being buy/sell shouldn't keep a stale realtor/stage).
+      realtor_id: isBuySell ? str(fd, "realtor_id") : null,
+      sales_stage: isBuySell ? str(fd, "sales_stage") : null,
       email: str(fd, "email"),
       phone: str(fd, "phone"),
       notes: str(fd, "notes"),
