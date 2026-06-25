@@ -73,7 +73,11 @@ export async function inviteUserAction(fd: FormData): Promise<Result> {
     // O trigger lê estes metadados pra criar o profile com o papel certo +
     // dados pessoais. Mantemos um upsert abaixo como caminho confiável.
     data: { full_name: fullName, phone, role },
-    redirectTo: `${siteUrl()}/auth/callback`,
+    // Implicit flow: o Supabase manda a sessão no hash pra esta URL. Apontamos
+    // direto pra tela de criar senha (que é hash-aware). Se a allowlist do
+    // Supabase não tiver esta URL, o GoTrue cai pra Site URL (raiz) — e aí o
+    // AuthHashHandler no painel finaliza o fluxo do mesmo jeito.
+    redirectTo: `${siteUrl()}/auth/set-password`,
   });
 
   if (error) {

@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/AppShell";
+import { AuthHashHandler } from "@/components/AuthHashHandler";
 import type { SidebarUser } from "@/components/Sidebar";
 import { requireProfile } from "@/lib/auth/session";
 import {
@@ -31,6 +32,10 @@ export default async function PainelLayout({ children }: { children: React.React
 
   return (
     <AppShell caps={caps} canManageUsers={canManageUsers(profile)} user={user}>
+      {/* Rede de segurança: se um link de convite/recuperação cair numa rota do
+          painel com a sessão no hash, finaliza o fluxo (grava sessão do convidado
+          + manda pra criar senha). Cobre a colisão "dona logada testando convite". */}
+      <AuthHashHandler />
       {children}
     </AppShell>
   );

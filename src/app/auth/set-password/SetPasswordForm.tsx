@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Field, inputClass, buttonClass } from "@/components/ui";
@@ -12,6 +12,28 @@ export function SetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Auto-suficiência: se o link de convite cair DIRETO aqui com a sessão no hash
+  // (#access_token=...&refresh_token=...), gravamos a sessão antes do submit, pra
+  // o updateUser({password}) abaixo ter sessão válida. Idempotente.
+  useEffect(() => {
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    if (!hash || !hash.includes("access_token")) return;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!access_token || !refresh_token) return;
+    const supabase = createClient();
+    (async () => {
+      try {
+        await supabase.auth.setSession({ access_token, refresh_token });
+      } catch {
+        /* link inválido/expirado — o submit mostrará o erro */
+      } finally {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    })();
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
