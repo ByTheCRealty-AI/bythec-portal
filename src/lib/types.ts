@@ -74,12 +74,24 @@ export function stageLabel(value: string | null | undefined): string {
   return all[value] ?? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export type SaleStatus = "active" | "pending" | "sold";
+export type SaleStatus = "active" | "pending" | "sold" | "expired";
 
 export const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
   active: "Active",
   pending: "Under contract",
   sold: "Sold",
+  expired: "Expired",
+};
+
+// Deal outcome on a buy/sell client. Mirrors clients.deal_status check
+// constraint (active | closed | expired). active = live board; closed = won
+// (bought / home sold); expired = no deal (fell through / contract ended).
+export type DealStatus = "active" | "closed" | "expired";
+
+export const DEAL_STATUS_LABEL: Record<DealStatus, string> = {
+  active: "Active",
+  closed: "Closed",
+  expired: "Expired",
 };
 
 export interface Client {
@@ -108,6 +120,11 @@ export interface Client {
   // Sales (brokerage) — only set on buy/sell clients.
   realtor_id: string | null;
   sales_stage: string | null;
+  // Deal lifecycle. active = on the live board; closed/expired = history
+  // (shown in "Sold & Closed", not on the active board). deal_closed_at is
+  // stamped when the deal leaves active and cleared when reopened.
+  deal_status: DealStatus | null;
+  deal_closed_at: string | null;
 }
 
 export interface Property {

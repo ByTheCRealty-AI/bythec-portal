@@ -13,7 +13,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { ClientType, DealSide } from "@/lib/types";
+import type { ClientType, DealSide, DealStatus } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 
@@ -73,6 +73,40 @@ export async function updateSalesClientAction(fd: FormData) {
   if (fd.has("sales_stage")) patch.sales_stage = str(fd, "sales_stage");
   if (fd.has("realtor_id")) patch.realtor_id = str(fd, "realtor_id");
   if (Object.keys(patch).length === 0) return;
+
+  const supabase = createClient();
+  const { error } = await supabase.from("clients").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/sales");
+  revalidatePath("/clientes");
+  revalidatePath(`/clientes/${id}`);
+}
+
+// ---- Finish (or reopen) a buy/sell client's deal ---------------------------
+// active = live board; closed = won; expired = no deal. Leaving active stamps
+// deal_closed_at = today (en-CA gives the YYYY-MM-DD `date` Postgres wants in
+// America/New_York). Reopening (active) clears the stamp. Same `clients.edit`
+// gate as the other client edits.
+export async function setDealOutcomeAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to edit sales clients.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing client reference.");
+
+  const status = (str(fd, "deal_status") as DealStatus | null) ?? "active";
+  if (status !== "active" && status !== "closed" && status !== "expired") {
+    throw new Error("Invalid deal status.");
+  }
+
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  }); // YYYY-MM-DD
+  const patch: Record<string, string | null> = {
+    deal_status: status,
+    deal_closed_at: status === "active" ? null : today,
+  };
 
   const supabase = createClient();
   const { error } = await supabase.from("clients").update(patch).eq("id", id);

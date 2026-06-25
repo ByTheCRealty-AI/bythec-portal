@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Users, Home, AlertTriangle } from "lucide-react";
-import { money } from "@/lib/format";
+import { Users, Home, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { money, date } from "@/lib/format";
 import {
   DEAL_SIDE_LABEL,
   BUYER_STAGE_LABEL,
   SELLER_STAGE_LABEL,
   SALE_STATUS_LABEL,
+  DEAL_STATUS_LABEL,
   type Client,
   type Realtor,
 } from "@/lib/types";
@@ -17,6 +18,7 @@ import {
   updateSalesClientAction,
   setListingRealtorAction,
   setListingStatusAction,
+  setDealOutcomeAction,
 } from "./actions";
 
 export type ListingRow = {
@@ -37,16 +39,22 @@ const BUYER_STAGE_OPTS: Option[] = Object.entries(BUYER_STAGE_LABEL).map(([value
 const SELLER_STAGE_OPTS: Option[] = Object.entries(SELLER_STAGE_LABEL).map(([value, label]) => ({ value, label }));
 const SALE_STATUS_OPTS: Option[] = Object.entries(SALE_STATUS_LABEL).map(([value, label]) => ({ value, label }));
 const SIDE_OPTS: Option[] = Object.entries(DEAL_SIDE_LABEL).map(([value, label]) => ({ value, label }));
+// Outcome control on active rows: Active / Closed / Expired. Setting closed or
+// expired moves the deal to "Sold & Closed" and stamps deal_closed_at.
+const DEAL_STATUS_OPTS: Option[] = Object.entries(DEAL_STATUS_LABEL).map(([value, label]) => ({ value, label }));
 
-// Tabs (pills) over the three sections — matches the approved mockup. Default
+// Tabs (pills) over the four sections — matches the approved mockup. Default
 // shows Buyers; switching is purely client-side (no refetch).
-type Tab = "buyers" | "sellers" | "for_sale";
+type Tab = "buyers" | "sellers" | "for_sale" | "sold_closed";
 
 export function SalesSections({
   buyers,
   sellers,
   listings,
   unclassified,
+  finishedClients,
+  finishedListings,
+  finishedCount,
   realtors,
   canEditClients,
   canEditProps,
@@ -55,17 +63,24 @@ export function SalesSections({
   sellers: Client[];
   listings: ListingRow[];
   unclassified: Client[];
+  finishedClients: Client[];
+  finishedListings: ListingRow[];
+  finishedCount: number;
   realtors: Realtor[];
   canEditClients: boolean;
   canEditProps: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("buyers");
   const realtorOpts: Option[] = realtors.map((r) => ({ value: r.id, label: r.name }));
+  // Name lookup for the (read-only) finished view, which doesn't render selects.
+  const realtorName = (id: string | null): string =>
+    (id && realtors.find((r) => r.id === id)?.name) || "Unassigned";
 
   const tabs: Array<{ key: Tab; label: string; count: number }> = [
     { key: "buyers", label: "Buyers", count: buyers.length },
     { key: "sellers", label: "Sellers", count: sellers.length },
     { key: "for_sale", label: "For sale", count: listings.length },
+    { key: "sold_closed", label: "Sold & Closed", count: finishedCount },
   ];
 
   return (
@@ -142,7 +157,240 @@ export function SalesSections({
           )}
         </Section>
       )}
+
+      {tab === "sold_closed" && (
+        <FinishedSection
+          finishedClients={finishedClients}
+          finishedListings={finishedListings}
+          realtorName={realtorName}
+          canEditClients={canEditClients}
+          canEditProps={canEditProps}
+        />
+      )}
     </div>
+  );
+}
+
+// ---- "Sold & Closed" view ---------------------------------------------------
+// History, NOT archive. Groups finished items by outcome: Closed (won) vs
+// Expired (no deal). Each row can be reopened back onto the active board.
+function FinishedSection({
+  finishedClients,
+  finishedListings,
+  realtorName,
+  canEditClients,
+  canEditProps,
+}: {
+  finishedClients: Client[];
+  finishedListings: ListingRow[];
+  realtorName: (id: string | null) => string;
+  canEditClients: boolean;
+  canEditProps: boolean;
+}) {
+  const closedClients = finishedClients.filter((c) => c.deal_status === "closed");
+  const expiredClients = finishedClients.filter((c) => c.deal_status === "expired");
+  const closedListings = finishedListings.filter((p) => p.sale_status === "sold");
+  const expiredListings = finishedListings.filter((p) => p.sale_status === "expired");
+
+  const wonCount = closedClients.length + closedListings.length;
+  const expiredCount = expiredClients.length + expiredListings.length;
+
+  if (wonCount === 0 && expiredCount === 0) {
+    return (
+      <Section title="Sold & Closed" icon={<CheckCircle2 className="h-5 w-5" />}>
+        <EmptyRow message="Nothing finished yet. Mark a buyer, seller or listing as Closed or Expired to move it here." />
+      </Section>
+    );
+  }
+
+  return (
+    <Section title="Sold & Closed" icon={<CheckCircle2 className="h-5 w-5" />}>
+      <table className="w-full text-left text-sm">
+        <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
+          <tr>
+            <th className="px-5 py-3 font-bold">Name / Address</th>
+            <th className="px-5 py-3 font-bold">Side</th>
+            <th className="px-5 py-3 font-bold">Realtor</th>
+            <th className="px-5 py-3 font-bold">Outcome</th>
+            <th className="px-5 py-3 font-bold">Reopen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* Closed (won) group */}
+          {wonCount > 0 && <GroupHeader label="Closed (won)" count={wonCount} tone="won" />}
+          {closedClients.map((c, i) => (
+            <FinishedClientRow
+              key={c.id}
+              client={c}
+              tone="won"
+              striped={i % 2 === 1}
+              realtorName={realtorName}
+              canEdit={canEditClients}
+            />
+          ))}
+          {closedListings.map((p, i) => (
+            <FinishedListingRow
+              key={p.id}
+              listing={p}
+              tone="won"
+              striped={i % 2 === 1}
+              realtorName={realtorName}
+              canEdit={canEditProps}
+            />
+          ))}
+
+          {/* Expired (no deal) group */}
+          {expiredCount > 0 && <GroupHeader label="Expired (no deal)" count={expiredCount} tone="expired" />}
+          {expiredClients.map((c, i) => (
+            <FinishedClientRow
+              key={c.id}
+              client={c}
+              tone="expired"
+              striped={i % 2 === 1}
+              realtorName={realtorName}
+              canEdit={canEditClients}
+            />
+          ))}
+          {expiredListings.map((p, i) => (
+            <FinishedListingRow
+              key={p.id}
+              listing={p}
+              tone="expired"
+              striped={i % 2 === 1}
+              realtorName={realtorName}
+              canEdit={canEditProps}
+            />
+          ))}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
+
+function GroupHeader({ label, count, tone }: { label: string; count: number; tone: "won" | "expired" }) {
+  return (
+    <tr className="border-t border-black/[0.05]">
+      <td colSpan={5} className="bg-black/[0.02] px-5 py-2.5">
+        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink/55">
+          <OutcomeBadge tone={tone} label={tone === "won" ? "Closed" : "Expired"} />
+          {label}
+          <span className="text-ink/35">{count}</span>
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+// Closed = success/green (brand primary). Expired = muted/neutral. Uses the
+// project's semantic CSS-var colors (primary/ink) — no hard-coded hex.
+function OutcomeBadge({ tone, label }: { tone: "won" | "expired"; label: string }) {
+  const cls =
+    tone === "won"
+      ? "border-primary/30 bg-primary/10 text-primary"
+      : "border-black/10 bg-black/[0.04] text-ink/50";
+  return (
+    <span className={"inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold " + cls}>
+      {label}
+    </span>
+  );
+}
+
+function ReopenButton({ id, canEdit }: { id: string; canEdit: boolean }) {
+  if (!canEdit) return <span className="text-xs text-ink/35">—</span>;
+  return (
+    <form action={setDealOutcomeAction}>
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="deal_status" value="active" />
+      <button
+        type="submit"
+        className="rounded-lg border border-black/[0.12] bg-white px-2.5 py-1 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
+      >
+        Reopen
+      </button>
+    </form>
+  );
+}
+
+function FinishedClientRow({
+  client: c,
+  tone,
+  striped,
+  realtorName,
+  canEdit,
+}: {
+  client: Client;
+  tone: "won" | "expired";
+  striped: boolean;
+  realtorName: (id: string | null) => string;
+  canEdit: boolean;
+}) {
+  return (
+    <tr className={"border-t border-black/[0.05] " + (striped ? "bg-black/[0.015]" : "")}>
+      <td className="px-5 py-3.5">
+        <Link href={`/clientes/${c.id}`} className="font-semibold text-ink hover:text-primary">
+          {c.name}
+        </Link>
+        {c.co_client_name && <span className="block text-xs text-ink/45">&amp; {c.co_client_name}</span>}
+      </td>
+      <td className="px-5 py-3.5 text-ink/65">{c.deal_side ? DEAL_SIDE_LABEL[c.deal_side] : "—"}</td>
+      <td className="px-5 py-3.5 text-ink/65">{realtorName(c.realtor_id)}</td>
+      <td className="px-5 py-3.5">
+        <span className="inline-flex items-center gap-2">
+          <OutcomeBadge tone={tone} label={tone === "won" ? "Closed" : "Expired"} />
+          {c.deal_closed_at && <span className="text-xs text-ink/45">{date(c.deal_closed_at)}</span>}
+        </span>
+      </td>
+      <td className="px-5 py-3.5">
+        <ReopenButton id={c.id} canEdit={canEdit} />
+      </td>
+    </tr>
+  );
+}
+
+function FinishedListingRow({
+  listing: p,
+  tone,
+  striped,
+  realtorName,
+  canEdit,
+}: {
+  listing: ListingRow;
+  tone: "won" | "expired";
+  striped: boolean;
+  realtorName: (id: string | null) => string;
+  canEdit: boolean;
+}) {
+  // Reopening a listing means putting it back on the board as Active.
+  return (
+    <tr className={"border-t border-black/[0.05] " + (striped ? "bg-black/[0.015]" : "")}>
+      <td className="px-5 py-3.5">
+        <Link href={`/propriedades/${p.id}`} className="font-semibold text-ink hover:text-primary">
+          {p.address}
+        </Link>
+        {p.address2 && <span className="block text-xs text-ink/45">{p.address2}</span>}
+      </td>
+      <td className="px-5 py-3.5 text-ink/65">Listing</td>
+      <td className="px-5 py-3.5 text-ink/65">{realtorName(p.realtor_id)}</td>
+      <td className="px-5 py-3.5">
+        <OutcomeBadge tone={tone} label={tone === "won" ? "Closed" : "Expired"} />
+      </td>
+      <td className="px-5 py-3.5">
+        {canEdit ? (
+          <form action={setListingStatusAction}>
+            <input type="hidden" name="id" value={p.id} />
+            <input type="hidden" name="sale_status" value="active" />
+            <button
+              type="submit"
+              className="rounded-lg border border-black/[0.12] bg-white px-2.5 py-1 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
+            >
+              Reopen
+            </button>
+          </form>
+        ) : (
+          <span className="text-xs text-ink/35">—</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -193,6 +441,7 @@ function PeopleTable({
           {kind === "unclassified" && <th className="px-5 py-3 font-bold">Side</th>}
           <th className="px-5 py-3 font-bold">Stage</th>
           <th className="px-5 py-3 font-bold">Realtor</th>
+          <th className="px-5 py-3 font-bold">Outcome</th>
         </tr>
       </thead>
       <tbody>
@@ -245,6 +494,19 @@ function PeopleTable({
                 extra={{ id: c.id }}
                 action={updateSalesClientAction}
                 placeholder={REALTOR_PLACEHOLDER}
+                disabled={!canEdit}
+              />
+            </td>
+            <td className="px-5 py-3.5">
+              {/* Active / Closed / Expired. Setting closed or expired moves the
+                  deal to "Sold & Closed" and stamps deal_closed_at server-side. */}
+              <InlineSelect
+                name="deal_status"
+                value={c.deal_status ?? "active"}
+                options={DEAL_STATUS_OPTS}
+                extra={{ id: c.id }}
+                action={setDealOutcomeAction}
+                placeholder="Active"
                 disabled={!canEdit}
               />
             </td>

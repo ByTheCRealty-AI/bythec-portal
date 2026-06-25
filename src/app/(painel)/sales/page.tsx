@@ -92,17 +92,31 @@ export default async function SalesPage() {
 
   const { ok, clients, listings, realtors } = await load();
 
-  // Split buy/sell clients by side. "both" counts in both buyers and sellers.
-  const buyers = clients.filter((c) => c.deal_side === "buyer" || c.deal_side === "both");
-  const sellers = clients.filter((c) => c.deal_side === "seller" || c.deal_side === "both");
-  const unclassified = clients.filter((c) => !c.deal_side);
+  // Deal lifecycle split. The ACTIVE board only shows live deals; closed/expired
+  // become history in the "Sold & Closed" tab. Treat a null deal_status as active
+  // (legacy rows before the column default kicked in).
+  const activeClients = clients.filter((c) => (c.deal_status ?? "active") === "active");
+  const finishedClients = clients.filter((c) => c.deal_status === "closed" || c.deal_status === "expired");
 
-  // Metrics. "Under contract" = listings pending OR buy/sell clients whose stage
-  // says under_contract.
-  const forSale = listings.length;
+  // For-sale listings: active = active/pending/null; finished = sold/expired.
+  const activeListings = listings.filter(
+    (p) => p.sale_status === "active" || p.sale_status === "pending" || p.sale_status == null
+  );
+  const finishedListings = listings.filter((p) => p.sale_status === "sold" || p.sale_status === "expired");
+
+  // Split ACTIVE buy/sell clients by side. "both" counts in both buyers and sellers.
+  const buyers = activeClients.filter((c) => c.deal_side === "buyer" || c.deal_side === "both");
+  const sellers = activeClients.filter((c) => c.deal_side === "seller" || c.deal_side === "both");
+  const unclassified = activeClients.filter((c) => !c.deal_side);
+
+  // Metrics reflect the ACTIVE board. "Under contract" = active listings that are
+  // pending OR active buy/sell clients whose stage says under_contract.
+  const forSale = activeListings.length;
   const underContract =
-    listings.filter((p) => p.sale_status === "pending").length +
-    clients.filter((c) => c.sales_stage === "under_contract").length;
+    activeListings.filter((p) => p.sale_status === "pending").length +
+    activeClients.filter((c) => c.sales_stage === "under_contract").length;
+
+  const finishedCount = finishedClients.length + finishedListings.length;
 
   return (
     <>
@@ -156,7 +170,7 @@ export default async function SalesPage() {
         </div>
       )}
 
-      {ok && buyers.length === 0 && sellers.length === 0 && listings.length === 0 && unclassified.length === 0 ? (
+      {ok && clients.length === 0 && listings.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-black/[0.12] bg-black/[0.015] px-8 py-16 text-center">
           <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
             <Handshake className="h-6 w-6" />
@@ -171,8 +185,11 @@ export default async function SalesPage() {
         <SalesSections
           buyers={buyers}
           sellers={sellers}
-          listings={listings}
+          listings={activeListings}
           unclassified={unclassified}
+          finishedClients={finishedClients}
+          finishedListings={finishedListings}
+          finishedCount={finishedCount}
           realtors={realtors}
           canEditClients={canEditClients}
           canEditProps={canEditProps}
