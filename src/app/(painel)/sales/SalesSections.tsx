@@ -205,7 +205,7 @@ function FinishedSection({
 
   return (
     <Section title="Sold & Closed" icon={<CheckCircle2 className="h-5 w-5" />}>
-      <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
         <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
           <tr>
             <th className="px-5 py-3 font-bold">Name / Address</th>
@@ -262,7 +262,7 @@ function FinishedSection({
             />
           ))}
         </tbody>
-      </table>
+      </table></div>
     </Section>
   );
 }
@@ -433,7 +433,7 @@ function PeopleTable({
 }) {
   const stageOpts = kind === "seller" ? SELLER_STAGE_OPTS : BUYER_STAGE_OPTS;
   return (
-    <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
       <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
         <tr>
           <th className="px-5 py-3 font-bold">Name</th>
@@ -513,7 +513,7 @@ function PeopleTable({
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -527,7 +527,7 @@ function ListingsTable({
   canEdit: boolean;
 }) {
   return (
-    <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
       <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
         <tr>
           <th className="px-5 py-3 font-bold">Address</th>
@@ -584,6 +584,6 @@ function ListingsTable({
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
