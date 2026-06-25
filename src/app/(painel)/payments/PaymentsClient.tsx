@@ -174,13 +174,11 @@ function SummaryChip({
   tone,
   label,
   count,
-  total,
   icon,
 }: {
   tone: "danger" | "neutral";
   label: string;
   count: number;
-  total: number;
   icon: ReactNode;
 }) {
   return (
@@ -210,10 +208,7 @@ function SummaryChip({
           {label}
         </div>
         <div className="text-sm font-bold text-ink">
-          {count} {count === 1 ? "payment" : "payments"} ·{" "}
-          <span className={tone === "danger" ? "text-red-600" : "text-ink"}>
-            {money(total)}
-          </span>
+          {count} {count === 1 ? "payment" : "payments"}
         </div>
       </div>
     </div>
@@ -307,8 +302,6 @@ export function PaymentsClient({
     return { pastDue: past, dueThisMonth: month };
   }, [payments, firstOfMonth, currentMonthKey]);
 
-  const pastDueTotal = pastDue.reduce((s, p) => s + (p.rent_amount ?? 0), 0);
-  const dueThisMonthTotal = dueThisMonth.reduce((s, p) => s + (p.rent_amount ?? 0), 0);
   const dueCount = pastDue.length + dueThisMonth.length;
 
   // ---- Monthly tab: chips de mês distintos (mais recente primeiro).
@@ -425,14 +418,12 @@ export function PaymentsClient({
               tone="danger"
               label="Past due"
               count={pastDue.length}
-              total={pastDueTotal}
               icon={<AlertTriangle className="h-5 w-5" />}
             />
             <SummaryChip
               tone="neutral"
               label="Due this month"
               count={dueThisMonth.length}
-              total={dueThisMonthTotal}
               icon={<CalendarClock className="h-5 w-5" />}
             />
           </div>
@@ -570,8 +561,7 @@ export function PaymentsClient({
             </label>
             <span className="pb-2 text-xs text-ink/45">
               {pastPayments.length}{" "}
-              {pastPayments.length === 1 ? "payment" : "payments"} ·{" "}
-              {money(pastPayments.reduce((s, p) => s + (p.rent_amount ?? 0), 0))}
+              {pastPayments.length === 1 ? "payment" : "payments"}
             </span>
           </div>
 
