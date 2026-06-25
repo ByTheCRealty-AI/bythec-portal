@@ -369,7 +369,11 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
 // =============================================================================
 
 export type PaymentStatus = "due" | "received";
-export type PaymentKind = "monthly" | "last_month" | "security_deposit";
+export type PaymentKind =
+  | "monthly"
+  | "first_month"
+  | "last_month"
+  | "security_deposit";
 
 // Receipt files tied to a payment (one or more). IMPORTANT: file_url is EITHER a
 // full external URL (legacy Bubble-imported receipts start with "http") OR a
@@ -394,6 +398,13 @@ export interface Payment {
   status: PaymentStatus;
   received_at: string | null;
   notes: string | null;
+  // Security-deposit installment tracking. A single deposit is split into N
+  // monthly installments that share one `installment_group` UUID. Null on all
+  // single payments (monthly / first_month / last_month) and on legacy
+  // single-row deposits imported before the split feature.
+  installment_no: number | null;
+  installment_total: number | null;
+  installment_group: string | null;
   archived_at: string | null;
   created_at: string;
   // joins opcionais
@@ -410,6 +421,7 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
 
 export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
   monthly: "Monthly",
+  first_month: "First month",
   last_month: "Last month",
   security_deposit: "Security deposit",
 };

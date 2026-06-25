@@ -33,6 +33,7 @@ import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
 import {
   addPaymentAction,
+  addSecurityDepositAction,
   updatePaymentAction,
   deletePaymentAction,
   setPaymentStatusAction,
@@ -133,7 +134,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, archived_at, created_at, attachments:payment_attachments (id, file_url, file_name, content_type)"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, installment_no, installment_total, installment_group, archived_at, created_at, attachments:payment_attachments (id, file_url, file_name, content_type)"
       )
       .eq("property_id", p.id)
       .is("archived_at", null)
@@ -232,6 +233,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       {canPayments && (
         <PaymentAddForm
           action={addPaymentAction}
+          depositAction={addSecurityDepositAction}
           fixedProperty={{ id: p.id, rent_price: p.rent_price }}
         />
       )}

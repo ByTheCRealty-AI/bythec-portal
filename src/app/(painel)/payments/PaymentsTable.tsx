@@ -316,6 +316,11 @@ export function PaymentRow({
       )}
       <td className="px-5 py-3.5">
         <Badge tone={kindTone(payment.kind)}>{PAYMENT_KIND_LABEL[payment.kind]}</Badge>
+        {payment.kind === "security_deposit" && payment.installment_total && (
+          <span className="ml-2 text-xs font-semibold text-ink/45">
+            Installment {payment.installment_no ?? "?"}/{payment.installment_total}
+          </span>
+        )}
       </td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(payment.month)}</td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(payment.due_date)}</td>

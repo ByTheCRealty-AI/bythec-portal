@@ -32,8 +32,32 @@ async function assertCanManagePayments() {
 // Normaliza kind do form pro enum travado. Default 'monthly'.
 function kindOf(fd: FormData): PaymentKind {
   const k = str(fd, "kind");
-  if (k === "last_month" || k === "security_deposit") return k;
+  if (k === "first_month" || k === "last_month" || k === "security_deposit") return k;
   return "monthly";
+}
+
+// Primeiro dia do mês (YYYY-MM-01) a partir de um YYYY-MM-DD. Usa as partes da
+// string direto pra não escorregar fuso. Null/invalid → null.
+function firstOfMonth(ymd: string | null): string | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}/.test(ymd)) return null;
+  return `${ymd.slice(0, 7)}-01`;
+}
+
+// Soma `monthsToAdd` meses a um YYYY-MM-DD mantendo o dia (clamped ao último dia
+// do mês de destino). Pura aritmética de calendário em UTC pra ser determinística
+// e livre de fuso. Null/invalid → null.
+function addMonths(ymd: string | null, monthsToAdd: number): string | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}/.test(ymd)) return null;
+  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
+  const baseMonth0 = (m - 1) + monthsToAdd;
+  const targetYear = y + Math.floor(baseMonth0 / 12);
+  const targetMonth0 = ((baseMonth0 % 12) + 12) % 12;
+  // Último dia do mês de destino (dia 0 do mês seguinte).
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth0 + 1, 0)).getUTCDate();
+  const day = Math.min(d, lastDay);
+  const mm = String(targetMonth0 + 1).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${targetYear}-${mm}-${dd}`;
 }
 
 // Normaliza status do form. Default 'due'.
@@ -102,6 +126,81 @@ export async function addPaymentAction(fd: FormData) {
   revalidatePath("/payments");
   revalidatePath("/propriedades/" + propertyId);
   if (softError) throw new Error(softError);
+}
+
+// Cria um SECURITY DEPOSIT dividido em N parcelas mensais. Mesmo gate dos demais.
+// O total é repartido em DÓLARES INTEIROS, com o resto distribuído nas parcelas
+// MAIS CEDO (ex.: $2.300/3 → 767, 767, 766). Todas as parcelas compartilham um
+// `installment_group` (UUID), e cada uma carrega installment_no/total. Regime de
+// caixa preservado: nascem 'due' (nada de received_at). O tenant é resolvido no
+// servidor a partir da propriedade — nunca confiado do cliente.
+export async function addSecurityDepositAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("A property is required to record a deposit.");
+
+  const total = num(fd, "deposit_total");
+  if (total === null || total <= 0) {
+    throw new Error("Enter a total deposit amount greater than zero.");
+  }
+
+  // Número de parcelas: 1..24, default 3. Inteiro positivo.
+  const rawN = num(fd, "installment_total");
+  const n = rawN === null ? 3 : Math.floor(rawN);
+  if (!Number.isFinite(n) || n < 1 || n > 24) {
+    throw new Error("Number of installments must be between 1 and 24.");
+  }
+
+  const firstDue = str(fd, "first_due_date");
+  if (!firstDue || !/^\d{4}-\d{2}-\d{2}/.test(firstDue)) {
+    throw new Error("A valid first due date is required.");
+  }
+
+  // Inquilino atual da propriedade (server-side; não confiar no cliente).
+  const { data: prop, error: propErr } = await supabase
+    .from("properties")
+    .select("id, tenant_id")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (propErr) throw new Error(propErr.message);
+  if (!prop) throw new Error("That property could not be found.");
+  const tenantId = (prop as { tenant_id: string | null }).tenant_id;
+
+  // Split em dólares inteiros: o resto vai nas parcelas mais cedo.
+  // base = floor(total/n); rem = total - base*n; amount(i) = base + (i<=rem ? 1 : 0)
+  const totalWhole = Math.round(total); // dólares inteiros (sem centavos)
+  const base = Math.floor(totalWhole / n);
+  const rem = totalWhole - base * n; // 0..n-1
+
+  const group = crypto.randomUUID();
+  const rows = Array.from({ length: n }, (_, idx) => {
+    const i = idx + 1; // 1-based
+    const amount = base + (i <= rem ? 1 : 0);
+    const dueDate = addMonths(firstDue, idx);
+    return {
+      property_id: propertyId,
+      tenant_id: tenantId,
+      kind: "security_deposit" as const,
+      month: firstOfMonth(dueDate),
+      due_date: dueDate,
+      rent_amount: amount,
+      commission: null,
+      status: "due" as const,
+      received_at: null,
+      installment_no: i,
+      installment_total: n,
+      installment_group: group,
+      notes: str(fd, "notes"),
+    };
+  });
+
+  const { error } = await supabase.from("payments").insert(rows);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  revalidatePath("/propriedades/" + propertyId);
 }
 
 // Edição inline de um pagamento (espelha os campos da add). property_id não muda;

@@ -1,9 +1,11 @@
 "use client";
 
-// Tela global /payments redesenhada em 3 abas (Due / Monthly / Past payments).
-// Mostra SÓ aluguel mensal: kind in ('monthly','last_month'). Security deposit
-// fica fora daqui (continua na aba da propriedade). last_month aparece inline
-// como um aluguel comum, só com uma tag "Last month" pra distinguir.
+// Tela global /payments redesenhada em 4 abas (Due / Monthly / Past payments /
+// Security deposit). As três primeiras mostram SÓ aluguel: kind in
+// ('monthly','first_month','last_month'). first_month e last_month aparecem inline
+// como um aluguel comum, só com uma tag ("First month" / "Last month") pra
+// distinguir. A aba Security deposit mostra SÓ security_deposit, agrupado por
+// installment_group (um depósito = N parcelas).
 //
 // Filtragem 100% client-side (~900 linhas é tranquilo). As server actions
 // (mark received / edit / delete / add) são reusadas das rows existentes.
@@ -17,14 +19,24 @@ import {
   CheckCircle2,
   Loader2,
   AlertTriangle,
+  ShieldCheck,
+  Pencil,
 } from "lucide-react";
 import { money, date, cx } from "@/lib/format";
-import type { Payment, PaymentStatus } from "@/lib/types";
+import { Field, inputClass, buttonClass } from "@/components/ui";
+import type { Payment, PaymentKind, PaymentStatus } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
 import { PaymentRow } from "./PaymentsTable";
 
-type TabKey = "due" | "monthly" | "past";
+type TabKey = "due" | "monthly" | "past" | "deposit";
+
+// Rent kinds shown in the Due / Monthly / Past tabs (security_deposit excluded —
+// it has its own tab).
+const RENT_KINDS: PaymentKind[] = ["monthly", "first_month", "last_month"];
+function isRentKind(p: Payment): boolean {
+  return RENT_KINDS.includes(p.kind);
+}
 
 // ---- helpers de data (America/New_York) ------------------------------------
 
@@ -84,11 +96,14 @@ function paymentMonthKey(p: Payment): string | null {
   return monthKeyOf(p.month) ?? monthKeyOf(p.due_date);
 }
 
-// Tag "Last month" reusável.
-function LastMonthTag() {
+// Tag pra distinguir first_month / last_month inline nas abas de aluguel.
+// monthly não recebe tag (é o caso padrão).
+function KindTag({ kind }: { kind: PaymentKind }) {
+  if (kind !== "first_month" && kind !== "last_month") return null;
+  const label = kind === "first_month" ? "First month" : "Last month";
   return (
     <span className="ml-2 inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-secondary">
-      Last month
+      {label}
     </span>
   );
 }
@@ -236,7 +251,7 @@ function DueRow({
         <span className={cx(danger ? "font-semibold text-red-600" : "text-ink/65")}>
           {date(p.due_date)}
         </span>
-        {p.kind === "last_month" && <LastMonthTag />}
+        <KindTag kind={p.kind} />
       </td>
       <td className="px-5 py-3.5 text-right">
         <MarkReceived id={p.id} setStatus={setStatus} />
@@ -255,7 +270,7 @@ function PastRow({ p, zebra }: { p: Payment; zebra: boolean }) {
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">
         {date(paid)}
-        {p.kind === "last_month" && <LastMonthTag />}
+        <KindTag kind={p.kind} />
       </td>
     </tr>
   );
@@ -267,6 +282,7 @@ export function PaymentsClient({
   properties,
   canManage,
   addAction,
+  depositAction,
   setStatus,
   updateAction,
   deleteAction,
@@ -275,11 +291,19 @@ export function PaymentsClient({
   properties: PaymentPropertyOption[];
   canManage: boolean;
   addAction: (fd: FormData) => void | Promise<void>;
+  depositAction: (fd: FormData) => void | Promise<void>;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
+
+  // Rent (Due/Monthly/Past) vs deposits (own tab). Split once, up front.
+  const rentPayments = useMemo(() => payments.filter(isRentKind), [payments]);
+  const depositPayments = useMemo(
+    () => payments.filter((p) => p.kind === "security_deposit"),
+    [payments]
+  );
 
   const today = useMemo(() => nyToday(), []);
   const currentMonthKey = `${today.year}-${String(today.month0 + 1).padStart(2, "0")}`;
@@ -289,7 +313,7 @@ export function PaymentsClient({
   const { pastDue, dueThisMonth } = useMemo(() => {
     const past: Payment[] = [];
     const month: Payment[] = [];
-    for (const p of payments) {
+    for (const p of rentPayments) {
       if (p.status !== "due") continue;
       const ymd = ymdOf(p.due_date);
       if (!ymd) continue; // dateless dues nunca aparecem na aba Due
@@ -300,19 +324,19 @@ export function PaymentsClient({
     past.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? "")); // mais antigo primeiro
     month.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? ""));
     return { pastDue: past, dueThisMonth: month };
-  }, [payments, firstOfMonth, currentMonthKey]);
+  }, [rentPayments, firstOfMonth, currentMonthKey]);
 
   const dueCount = pastDue.length + dueThisMonth.length;
 
   // ---- Monthly tab: chips de mês distintos (mais recente primeiro).
   const monthKeys = useMemo(() => {
     const set = new Set<string>();
-    for (const p of payments) {
+    for (const p of rentPayments) {
       const k = paymentMonthKey(p);
       if (k) set.add(k);
     }
     return Array.from(set).sort((a, b) => b.localeCompare(a)); // desc
-  }, [payments]);
+  }, [rentPayments]);
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(() => {
     if (monthKeys.includes(currentMonthKey)) return currentMonthKey;
@@ -321,14 +345,14 @@ export function PaymentsClient({
 
   const monthlyRows = useMemo(() => {
     if (!selectedMonth) return [] as Payment[];
-    return payments
+    return rentPayments
       .filter((p) => paymentMonthKey(p) === selectedMonth)
       .sort((a, b) => {
         // due primeiro, depois received; dentro, por due_date asc.
         if (a.status !== b.status) return a.status === "due" ? -1 : 1;
         return (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? "");
       });
-  }, [payments, selectedMonth]);
+  }, [rentPayments, selectedMonth]);
 
   // ---- Past payments tab: received-only, filtro por range de mês.
   const defaultFrom = useMemo(() => {
@@ -343,7 +367,7 @@ export function PaymentsClient({
   const [toMonth, setToMonth] = useState(currentMonthKey);
 
   const pastPayments = useMemo(() => {
-    return payments
+    return rentPayments
       .filter((p) => p.status === "received")
       .filter((p) => {
         const ref = monthKeyOf(p.received_at) ?? monthKeyOf(p.due_date);
@@ -357,12 +381,59 @@ export function PaymentsClient({
         const rb = ymdOf(b.received_at) ?? ymdOf(b.due_date) ?? "";
         return rb.localeCompare(ra); // mais novo primeiro
       });
-  }, [payments, fromMonth, toMonth]);
+  }, [rentPayments, fromMonth, toMonth]);
+
+  // ---- Security deposit tab: agrupa por installment_group. Depósitos legados
+  // sem grupo (linha única) viram um "grupo" próprio com a key do próprio id.
+  const depositGroups = useMemo(() => {
+    const map = new Map<string, Payment[]>();
+    for (const p of depositPayments) {
+      const key = p.installment_group ?? `single:${p.id}`;
+      const arr = map.get(key);
+      if (arr) arr.push(p);
+      else map.set(key, [p]);
+    }
+    const groups = Array.from(map.entries()).map(([key, items]) => {
+      // Parcelas em ordem: por installment_no quando houver, senão por due_date.
+      const sorted = [...items].sort((a, b) => {
+        const an = a.installment_no ?? 0;
+        const bn = b.installment_no ?? 0;
+        if (an !== bn) return an - bn;
+        return (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? "");
+      });
+      const total = sorted.reduce((sum, p) => sum + (p.rent_amount ?? 0), 0);
+      const received = sorted.filter((p) => p.status === "received");
+      const receivedTotal = received.reduce((sum, p) => sum + (p.rent_amount ?? 0), 0);
+      return {
+        key,
+        items: sorted,
+        total,
+        receivedCount: received.length,
+        receivedTotal,
+        // Pra ordenar grupos: due_date da primeira parcela.
+        sortRef: ymdOf(sorted[0]?.due_date) ?? "",
+      };
+    });
+    // Grupos com parcela em aberto primeiro; dentro, mais recente por due_date.
+    groups.sort((a, b) => {
+      const aOpen = a.receivedCount < a.items.length;
+      const bOpen = b.receivedCount < b.items.length;
+      if (aOpen !== bOpen) return aOpen ? -1 : 1;
+      return b.sortRef.localeCompare(a.sortRef);
+    });
+    return groups;
+  }, [depositPayments]);
 
   const tabs: Array<{ key: TabKey; label: string; icon: ReactNode; badge?: number }> = [
     { key: "due", label: "Due", icon: <CalendarClock className="h-4 w-4" />, badge: dueCount },
     { key: "monthly", label: "Monthly", icon: <CalendarDays className="h-4 w-4" /> },
     { key: "past", label: "Past payments", icon: <History className="h-4 w-4" /> },
+    {
+      key: "deposit",
+      label: "Security deposit",
+      icon: <ShieldCheck className="h-4 w-4" />,
+      badge: depositGroups.length,
+    },
   ];
 
   // colSpan da PaymentRow (aba Monthly): Address, Tenant, Kind, Month, Due,
@@ -406,7 +477,11 @@ export function PaymentsClient({
         </div>
 
         {canManage && (
-          <PaymentAddForm properties={properties} action={addAction} />
+          <PaymentAddForm
+            properties={properties}
+            action={addAction}
+            depositAction={depositAction}
+          />
         )}
       </div>
 
@@ -590,7 +665,298 @@ export function PaymentsClient({
           )}
         </div>
       )}
+
+      {/* ---- SECURITY DEPOSIT TAB ---- */}
+      {tab === "deposit" && (
+        <div>
+          {depositGroups.length === 0 ? (
+            <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-12 text-center text-sm text-ink/55 shadow-card">
+              No security deposits yet. Add one with “Add payment” and pick the
+              Security deposit kind to split it into installments.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {depositGroups.map((g) => (
+                <DepositGroupCard
+                  key={g.key}
+                  group={g}
+                  canManage={canManage}
+                  setStatus={setStatus}
+                  updateAction={updateAction}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </>
+  );
+}
+
+// ---- Security deposit: card por grupo (um depósito) ------------------------
+type DepositGroup = {
+  key: string;
+  items: Payment[];
+  total: number;
+  receivedCount: number;
+  receivedTotal: number;
+  sortRef: string;
+};
+
+function DepositGroupCard({
+  group,
+  canManage,
+  setStatus,
+  updateAction,
+}: {
+  group: DepositGroup;
+  canManage: boolean;
+  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  updateAction: (fd: FormData) => void | Promise<void>;
+}) {
+  const first = group.items[0];
+  const totalInstallments = first?.installment_total ?? group.items.length;
+  const complete = group.receivedCount >= group.items.length;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
+      {/* Cabeçalho do depósito: propriedade / inquilino / total / progresso */}
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/[0.06] bg-black/[0.015] px-5 py-4">
+        <div>
+          {first?.property ? (
+            <Link
+              href={`/propriedades/${first.property.id}`}
+              className="font-bold text-ink hover:text-primary"
+            >
+              {first.property.address}
+            </Link>
+          ) : (
+            <span className="font-bold text-ink/60">—</span>
+          )}
+          {first?.property?.address2 && (
+            <span className="block text-xs text-ink/45">{first.property.address2}</span>
+          )}
+          <span className="mt-0.5 block text-sm text-ink/60">
+            {first?.tenant ? (
+              <Link href={`/clientes/${first.tenant.id}`} className="hover:text-primary">
+                {first.tenant.name}
+              </Link>
+            ) : (
+              "—"
+            )}
+          </span>
+        </div>
+        <div className="text-right">
+          <div className="text-lg font-bold text-ink">{money(group.total)}</div>
+          <div
+            className={cx(
+              "mt-0.5 text-xs font-semibold",
+              complete ? "text-primary" : "text-ink/55"
+            )}
+          >
+            {group.receivedCount} of {group.items.length} received ·{" "}
+            {money(group.receivedTotal)} of {money(group.total)}
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de parcelas */}
+      <table className="w-full text-left text-sm">
+        <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
+          <tr>
+            <th className="px-5 py-3 font-bold">Installment</th>
+            <th className="px-5 py-3 font-bold">Amount</th>
+            <th className="px-5 py-3 font-bold">Due date</th>
+            <th className="px-5 py-3 font-bold">Status</th>
+            {canManage && <th className="px-5 py-3 text-right font-bold">Action</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {group.items.map((p, i) => (
+            <DepositInstallmentRow
+              key={p.id}
+              p={p}
+              totalInstallments={totalInstallments}
+              indexInGroup={i}
+              zebra={i % 2 === 1}
+              canManage={canManage}
+              setStatus={setStatus}
+              updateAction={updateAction}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Uma parcela de depósito. Mark received (reusa setStatus) + edição inline de
+// valor/data (reusa updateAction). A edição manda os campos que a action espera
+// (id, property_id, kind, status, due_date, month, rent_amount) preservando o
+// agrupamento — installment_no/total/group não mudam (não são tocados na update).
+function DepositInstallmentRow({
+  p,
+  totalInstallments,
+  indexInGroup,
+  zebra,
+  canManage,
+  setStatus,
+  updateAction,
+}: {
+  p: Payment;
+  totalInstallments: number;
+  indexInGroup: number;
+  zebra: boolean;
+  canManage: boolean;
+  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  updateAction: (fd: FormData) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const no = p.installment_no ?? indexInGroup + 1;
+  const total = p.installment_total ?? totalInstallments;
+
+  if (editing && canManage) {
+    return (
+      <tr className="border-t border-black/[0.05] bg-primary/[0.03]">
+        <td colSpan={5} className="px-5 py-4">
+          <form
+            action={async (fd) => {
+              await updateAction(fd);
+              setEditing(false);
+            }}
+            className="space-y-4"
+          >
+            <input type="hidden" name="id" value={p.id} />
+            <input type="hidden" name="property_id" value={p.property_id} />
+            <input type="hidden" name="kind" value="security_deposit" />
+            <input type="hidden" name="status" value={p.status} />
+            <input type="hidden" name="month" value={p.month ?? ""} />
+            <input type="hidden" name="notes" value={p.notes ?? ""} />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Amount (USD)">
+                <input
+                  name="rent_amount"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  defaultValue={p.rent_amount ?? ""}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Due date">
+                <input
+                  name="due_date"
+                  type="date"
+                  defaultValue={p.due_date ?? ""}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            <div className="flex gap-3">
+              <button type="submit" className={buttonClass("primary")}>
+                Save installment
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className={buttonClass("ghost")}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr
+      className={cx(
+        "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
+        zebra && "bg-black/[0.015]"
+      )}
+    >
+      <td className="px-5 py-3.5 font-semibold text-ink/85">
+        Installment {no} of {total}
+      </td>
+      <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
+      <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(p.due_date)}</td>
+      <td className="px-5 py-3.5">
+        {p.status === "received" ? (
+          <span className="inline-flex flex-col items-start gap-0.5">
+            <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+              Received
+            </span>
+            {p.received_at && (
+              <span className="text-[11px] text-ink/45">{date(p.received_at)}</span>
+            )}
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+            Due
+          </span>
+        )}
+      </td>
+      {canManage && (
+        <td className="px-5 py-3.5">
+          <div className="flex items-center justify-end gap-2">
+            {p.status === "due" ? (
+              <MarkReceived id={p.id} setStatus={setStatus} />
+            ) : (
+              <MarkDeposit id={p.id} setStatus={setStatus} />
+            )}
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+}
+
+// Reverter uma parcela recebida pra due (regime de caixa). Espelha MarkReceived.
+function MarkDeposit({
+  id,
+  setStatus,
+}: {
+  id: string;
+  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+}) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  function run() {
+    setError(null);
+    start(async () => {
+      try {
+        await setStatus(id, "due");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not update. Try again.");
+      }
+    });
+  }
+  return (
+    <span className="inline-flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={run}
+        disabled={pending}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-secondary/40 hover:bg-secondary/[0.05] hover:text-secondary disabled:opacity-60"
+      >
+        {pending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5" />
+        )}
+        Mark due
+      </button>
+      {error && <span className="text-[11px] text-red-600">{error}</span>}
+    </span>
   );
 }
 

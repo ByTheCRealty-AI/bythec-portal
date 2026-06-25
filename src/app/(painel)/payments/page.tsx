@@ -8,6 +8,7 @@ import { PaymentsClient } from "./PaymentsClient";
 import { PaymentAddForm, type PaymentPropertyOption } from "./PaymentAddForm";
 import {
   addPaymentAction,
+  addSecurityDepositAction,
   updatePaymentAction,
   deletePaymentAction,
   setPaymentStatusAction,
@@ -15,20 +16,21 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Aluguel mensal não-arquivado + joins de propriedade e inquilino. SÓ mensal:
-// kind in ('monthly','last_month') — security_deposit fica de fora desta tela
-// global (continua só na aba da propriedade). Ordena por mês (mais recente
-// primeiro, nulls por último) e depois por criação.
+// Pagamentos não-arquivados + joins de propriedade e inquilino. Carrega aluguel
+// (monthly / first_month / last_month) E security_deposit — a separação por aba é
+// feita no cliente (PaymentsClient): Due/Monthly/Past só veem rent kinds; a aba
+// Security deposit vê só security_deposit. Ordena por mês (mais recente primeiro,
+// nulls por último) e depois por criação.
 async function loadPayments() {
   try {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type)"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type)"
       )
       .is("archived_at", null)
-      .in("kind", ["monthly", "last_month"])
+      .in("kind", ["monthly", "first_month", "last_month", "security_deposit"])
       .order("month", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -93,7 +95,13 @@ export default async function PaymentsPage() {
           icon={<Wallet className="h-6 w-6" />}
           title="No payments yet"
           message="Record a rent payment and tie it to a property. Tenant and amount fill in automatically."
-          cta={<PaymentAddForm properties={properties} action={addPaymentAction} />}
+          cta={
+            <PaymentAddForm
+              properties={properties}
+              action={addPaymentAction}
+              depositAction={addSecurityDepositAction}
+            />
+          }
         />
       ) : (
         <PaymentsClient
@@ -101,6 +109,7 @@ export default async function PaymentsPage() {
           properties={properties}
           canManage={canManage}
           addAction={addPaymentAction}
+          depositAction={addSecurityDepositAction}
           setStatus={setPaymentStatusAction}
           updateAction={updatePaymentAction}
           deleteAction={deletePaymentAction}
