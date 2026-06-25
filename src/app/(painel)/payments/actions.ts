@@ -62,21 +62,46 @@ export async function addPaymentAction(fd: FormData) {
 
   const status = statusOf(fd);
 
-  const { error } = await supabase.from("payments").insert({
-    property_id: propertyId,
-    tenant_id: (prop as { tenant_id: string | null }).tenant_id, // auto, do servidor
-    kind: kindOf(fd),
-    month: str(fd, "month"),
-    due_date: str(fd, "due_date"),
-    rent_amount: num(fd, "rent_amount") ?? 0,
-    commission: num(fd, "commission"),
-    status,
-    received_at: status === "received" ? new Date().toISOString() : null,
-    notes: str(fd, "notes"),
-  });
+  // Insere o pagamento e recupera o id (necessário pra anexar o recibo, se houver).
+  const { data: created, error } = await supabase
+    .from("payments")
+    .insert({
+      property_id: propertyId,
+      tenant_id: (prop as { tenant_id: string | null }).tenant_id, // auto, do servidor
+      kind: kindOf(fd),
+      month: str(fd, "month"),
+      due_date: str(fd, "due_date"),
+      rent_amount: num(fd, "rent_amount") ?? 0,
+      commission: num(fd, "commission"),
+      status,
+      received_at: status === "received" ? new Date().toISOString() : null,
+      notes: str(fd, "notes"),
+    })
+    .select("id")
+    .single();
+  // Se o pagamento falha, não há linha nem órfão de arquivo — apenas aborta.
   if (error) throw new Error(error.message);
+
+  // Recibo (opcional): o arquivo já foi subido client-side pro bucket privado
+  // `documents`; aqui só persistimos a referência. Falha aqui NÃO derruba o
+  // pagamento — soft error: o pagamento fica, e a falha é sinalizada.
+  const receiptUrl = str(fd, "receipt_file_url");
+  let softError: string | null = null;
+  if (receiptUrl && created?.id) {
+    const { error: attErr } = await supabase.from("payment_attachments").insert({
+      payment_id: created.id,
+      file_url: receiptUrl,
+      file_name: str(fd, "receipt_file_name"),
+      content_type: str(fd, "receipt_content_type"),
+    });
+    if (attErr) {
+      softError = `Payment saved, but the receipt could not be attached: ${attErr.message}`;
+    }
+  }
+
   revalidatePath("/payments");
   revalidatePath("/propriedades/" + propertyId);
+  if (softError) throw new Error(softError);
 }
 
 // Edição inline de um pagamento (espelha os campos da add). property_id não muda;

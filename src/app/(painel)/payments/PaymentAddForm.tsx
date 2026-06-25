@@ -1,9 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { PAYMENT_KIND_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/types";
+
+// Limite e sanitização do nome — mesmo padrão do DocumentAddForm. O recibo é
+// OPCIONAL: se não houver arquivo, o fluxo segue idêntico ao de hoje.
+const MAX_RECEIPT_BYTES = 25 * 1024 * 1024; // 25 MB
+
+function safeName(name: string): string {
+  const cleaned = name
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[._-]+/, "");
+  return cleaned || "file";
+}
 
 // Propriedade elegível pra receber pagamentos (year-round / off-season). O rent
 // pré-preenche o valor ao escolher; o tenant é derivado no servidor (não vem do
@@ -43,6 +57,9 @@ export function PaymentAddForm({
   fixedProperty?: FixedProperty;
 }) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [amount, setAmount] = useState(
     fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : ""
   );
@@ -57,6 +74,63 @@ export function PaymentAddForm({
     setAmount(fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : "");
   }
 
+  function reset() {
+    setError(null);
+    setBusy(false);
+    setOpen(false);
+    resetAmount();
+  }
+
+  // Submit custom: se houver recibo, sobe pro bucket privado `documents`
+  // (client-side, pra o Storage RLS usar a sessão do usuário) ANTES de chamar a
+  // action. O object PATH resultante vai em hidden inputs; a action grava a linha
+  // em payment_attachments. Sem arquivo = fluxo idêntico ao de hoje.
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+
+    const form = e.currentTarget;
+    const file = fileRef.current?.files?.[0] ?? null;
+
+    setBusy(true);
+    try {
+      if (file) {
+        if (file.size > MAX_RECEIPT_BYTES) {
+          setError("Receipt is too large. Maximum size is 25 MB.");
+          setBusy(false);
+          return;
+        }
+        const supabase = createClient();
+        const path = `payment-receipts/${crypto.randomUUID()}-${safeName(file.name)}`;
+        const { error: upErr } = await supabase.storage
+          .from("documents")
+          .upload(path, file, {
+            upsert: false,
+            contentType: file.type || "application/octet-stream",
+          });
+        if (upErr) {
+          setError(`Receipt upload failed: ${upErr.message}`);
+          setBusy(false);
+          return;
+        }
+        // Carrega os campos do recibo no FormData enviado à action.
+        (form.elements.namedItem("receipt_file_url") as HTMLInputElement).value = path;
+        (form.elements.namedItem("receipt_file_name") as HTMLInputElement).value = file.name;
+        (form.elements.namedItem("receipt_content_type") as HTMLInputElement).value =
+          file.type || "";
+      }
+
+      const fd = new FormData(form);
+      // O binário já foi pro Storage client-side; não reenviar na server action.
+      fd.delete("receipt");
+      await action(fd);
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setBusy(false);
+    }
+  }
+
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className={buttonClass("primary")}>
@@ -66,14 +140,12 @@ export function PaymentAddForm({
   }
 
   return (
-    <form
-      action={async (fd) => {
-        await action(fd);
-        setOpen(false);
-        resetAmount();
-      }}
-      className="glass mb-6 space-y-5 p-6"
-    >
+    <form onSubmit={handleSubmit} className="glass mb-6 space-y-5 p-6">
+      {/* Recibo (opcional): preenchidos client-side após o upload. */}
+      <input type="hidden" name="receipt_file_url" defaultValue="" />
+      <input type="hidden" name="receipt_file_name" defaultValue="" />
+      <input type="hidden" name="receipt_content_type" defaultValue="" />
+
       <div className="flex items-center justify-between">
         <h3 className="h-display text-base text-ink">New payment</h3>
         <span className="text-xs text-ink/45">Rent payment · cash basis</span>
@@ -162,16 +234,36 @@ export function PaymentAddForm({
         />
       </Field>
 
+      <Field label="Receipt (optional)" hint="Up to 25 MB. Image or PDF.">
+        <input
+          ref={fileRef}
+          name="receipt"
+          type="file"
+          accept="image/*,application/pdf"
+          className={inputClass}
+        />
+      </Field>
+
+      {error && (
+        <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">
+          {error}
+        </p>
+      )}
+
       <div className="flex gap-3">
-        <button type="submit" className={buttonClass("primary")}>
-          Add payment
+        <button type="submit" disabled={busy} className={buttonClass("primary")}>
+          {busy ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Adding…
+            </>
+          ) : (
+            "Add payment"
+          )}
         </button>
         <button
           type="button"
-          onClick={() => {
-            setOpen(false);
-            resetAmount();
-          }}
+          onClick={reset}
+          disabled={busy}
           className={buttonClass("ghost")}
         >
           Cancel
