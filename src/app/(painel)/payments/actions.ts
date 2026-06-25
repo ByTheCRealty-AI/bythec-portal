@@ -203,6 +203,92 @@ export async function addSecurityDepositAction(fd: FormData) {
   revalidatePath("/propriedades/" + propertyId);
 }
 
+// Re-divide o TOTAL de um security deposit já existente entre as parcelas que ele
+// já tem (mesmo número de parcelas, mesmas datas, mesmo grupo, mesmos status). Usado
+// quando o total foi digitado errado na criação. Mesmo split em dólares inteiros do
+// add (resto vai nas parcelas mais cedo). Aceita grupo (`installment_group`) OU uma
+// linha legada única (`id`). NÃO mexe em received_at/status/datas — só nos valores.
+export async function updateDepositTotalAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const group = str(fd, "installment_group");
+  const singleId = str(fd, "id");
+  if (!group && !singleId) throw new Error("Missing deposit reference.");
+
+  const total = num(fd, "deposit_total");
+  if (total === null || total <= 0) {
+    throw new Error("Enter a total deposit amount greater than zero.");
+  }
+
+  // Linhas do depósito (grupo inteiro, ou a linha legada única).
+  const base$ = supabase
+    .from("payments")
+    .select("id, property_id, installment_no")
+    .eq("kind", "security_deposit");
+  const { data: rows, error: fetchErr } = group
+    ? await base$.eq("installment_group", group)
+    : await base$.eq("id", singleId as string);
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (!rows || rows.length === 0) throw new Error("That deposit could not be found.");
+
+  // Ordena por installment_no (nulls no fim) e re-divide em dólares inteiros: o
+  // resto vai nas parcelas mais cedo — idêntico ao add.
+  const ordered = [...rows].sort(
+    (a, b) =>
+      ((a as { installment_no: number | null }).installment_no ?? 0) -
+      ((b as { installment_no: number | null }).installment_no ?? 0)
+  );
+  const n = ordered.length;
+  const totalWhole = Math.round(total);
+  const base = Math.floor(totalWhole / n);
+  const rem = totalWhole - base * n; // 0..n-1 → primeiras `rem` parcelas levam +1
+
+  for (let i = 0; i < n; i++) {
+    const amount = base + (i < rem ? 1 : 0);
+    const { error } = await supabase
+      .from("payments")
+      .update({ rent_amount: amount })
+      .eq("id", (ordered[i] as { id: string }).id);
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/payments");
+  const propertyId = (ordered[0] as { property_id: string | null }).property_id;
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// HARD DELETE de um security deposit inteiro: todas as parcelas do grupo (ou a
+// linha legada única). Os recibos anexados caem por ON DELETE CASCADE em
+// payment_attachments. Gate re-checado; confirmação leve é na UI.
+export async function deleteDepositGroupAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const group = str(fd, "installment_group");
+  const singleId = str(fd, "id");
+  if (!group && !singleId) throw new Error("Missing deposit reference.");
+
+  // property_id (de qualquer parcela) ANTES de deletar, pra revalidar a aba da casa.
+  const probe = supabase
+    .from("payments")
+    .select("property_id")
+    .eq("kind", "security_deposit");
+  const { data: existing } = group
+    ? await probe.eq("installment_group", group).limit(1).maybeSingle()
+    : await probe.eq("id", singleId as string).maybeSingle();
+
+  const del = supabase.from("payments").delete().eq("kind", "security_deposit");
+  const { error } = group
+    ? await del.eq("installment_group", group)
+    : await del.eq("id", singleId as string);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  const propertyId = (existing as { property_id: string | null } | null)?.property_id;
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
 // Edição inline de um pagamento (espelha os campos da add). property_id não muda;
 // o tenant é re-derivado da propriedade no servidor. received_at acompanha o
 // status: vira now() ao receber, null ao voltar pra due.

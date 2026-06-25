@@ -12,6 +12,8 @@ import {
   updatePaymentAction,
   deletePaymentAction,
   setPaymentStatusAction,
+  updateDepositTotalAction,
+  deleteDepositGroupAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -113,6 +115,8 @@ export default async function PaymentsPage() {
           setStatus={setPaymentStatusAction}
           updateAction={updatePaymentAction}
           deleteAction={deletePaymentAction}
+          updateDepositTotalAction={updateDepositTotalAction}
+          deleteDepositGroupAction={deleteDepositGroupAction}
         />
       )}
     </>

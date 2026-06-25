@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   ShieldCheck,
   Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 import { money, date, cx } from "@/lib/format";
 import { Field, inputClass, buttonClass } from "@/components/ui";
@@ -286,6 +288,8 @@ export function PaymentsClient({
   setStatus,
   updateAction,
   deleteAction,
+  updateDepositTotalAction,
+  deleteDepositGroupAction,
 }: {
   payments: Payment[];
   properties: PaymentPropertyOption[];
@@ -295,6 +299,8 @@ export function PaymentsClient({
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
+  updateDepositTotalAction: (fd: FormData) => void | Promise<void>;
+  deleteDepositGroupAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
 
@@ -683,6 +689,8 @@ export function PaymentsClient({
                   canManage={canManage}
                   setStatus={setStatus}
                   updateAction={updateAction}
+                  updateDepositTotalAction={updateDepositTotalAction}
+                  deleteDepositGroupAction={deleteDepositGroupAction}
                 />
               ))}
             </div>
@@ -708,15 +716,27 @@ function DepositGroupCard({
   canManage,
   setStatus,
   updateAction,
+  updateDepositTotalAction,
+  deleteDepositGroupAction,
 }: {
   group: DepositGroup;
   canManage: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
+  updateDepositTotalAction: (fd: FormData) => void | Promise<void>;
+  deleteDepositGroupAction: (fd: FormData) => void | Promise<void>;
 }) {
   const first = group.items[0];
   const totalInstallments = first?.installment_total ?? group.items.length;
   const complete = group.receivedCount >= group.items.length;
+
+  // Identidade do depósito pras actions de grupo: UUID do grupo quando houver,
+  // senão a linha legada única (id). Sempre manda os dois campos; a action usa o
+  // que vier preenchido.
+  const groupId = first?.installment_group ?? null;
+  const singleId = groupId ? null : first?.id ?? null;
+
+  const [editingTotal, setEditingTotal] = useState(false);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
@@ -746,19 +766,79 @@ function DepositGroupCard({
             )}
           </span>
         </div>
-        <div className="text-right">
-          <div className="text-lg font-bold text-ink">{money(group.total)}</div>
-          <div
-            className={cx(
-              "mt-0.5 text-xs font-semibold",
-              complete ? "text-primary" : "text-ink/55"
-            )}
-          >
-            {group.receivedCount} of {group.items.length} received ·{" "}
-            {money(group.receivedTotal)} of {money(group.total)}
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-right">
+            <div className="text-lg font-bold text-ink">{money(group.total)}</div>
+            <div
+              className={cx(
+                "mt-0.5 text-xs font-semibold",
+                complete ? "text-primary" : "text-ink/55"
+              )}
+            >
+              {group.receivedCount} of {group.items.length} received ·{" "}
+              {money(group.receivedTotal)} of {money(group.total)}
+            </div>
           </div>
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingTotal((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit total
+              </button>
+              <DeleteDeposit
+                groupId={groupId}
+                singleId={singleId}
+                deleteDepositGroupAction={deleteDepositGroupAction}
+              />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Editor do total: re-divide entre as parcelas existentes (mesmas datas). */}
+      {editingTotal && canManage && (
+        <div className="border-b border-black/[0.06] bg-primary/[0.03] px-5 py-4">
+          <form
+            action={async (fd) => {
+              await updateDepositTotalAction(fd);
+              setEditingTotal(false);
+            }}
+            className="flex flex-wrap items-end gap-3"
+          >
+            {groupId && <input type="hidden" name="installment_group" value={groupId} />}
+            {singleId && <input type="hidden" name="id" value={singleId} />}
+            <Field label="New total (USD)">
+              <input
+                name="deposit_total"
+                type="number"
+                step="0.01"
+                min={0}
+                defaultValue={group.total || ""}
+                autoFocus
+                className={inputClass}
+              />
+            </Field>
+            <button type="submit" className={buttonClass("primary")}>
+              Save total
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingTotal(false)}
+              className={buttonClass("ghost")}
+            >
+              Cancel
+            </button>
+            <span className="w-full text-xs text-ink/45">
+              The new total is re-split across the {group.items.length}{" "}
+              {group.items.length === 1 ? "installment" : "installments"}, keeping the
+              same due dates.
+            </span>
+          </form>
+        </div>
+      )}
 
       {/* Lista de parcelas */}
       <table className="w-full text-left text-sm">
@@ -956,6 +1036,79 @@ function MarkDeposit({
         Mark due
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+    </span>
+  );
+}
+
+// Deleta o depósito inteiro (todas as parcelas do grupo). Dois passos: o primeiro
+// clique pede confirmação inline, o segundo manda. Reusa a action de grupo.
+function DeleteDeposit({
+  groupId,
+  singleId,
+  deleteDepositGroupAction,
+}: {
+  groupId: string | null;
+  singleId: string | null;
+  deleteDepositGroupAction: (fd: FormData) => void | Promise<void>;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function run() {
+    setError(null);
+    const fd = new FormData();
+    if (groupId) fd.set("installment_group", groupId);
+    if (singleId) fd.set("id", singleId);
+    start(async () => {
+      try {
+        await deleteDepositGroupAction(fd);
+        // Sucesso: o revalidate remonta a lista sem este card.
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not delete. Try again.");
+        setConfirming(false);
+      }
+    });
+  }
+
+  if (!confirming) {
+    return (
+      <span className="inline-flex flex-col items-end gap-1">
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 transition-all duration-200 hover:border-red-300 hover:bg-red-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </button>
+        {error && <span className="text-[11px] text-red-600">{error}</span>}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        type="button"
+        onClick={run}
+        disabled={pending}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-all duration-200 hover:bg-red-700 disabled:opacity-60"
+      >
+        {pending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Trash2 className="h-3.5 w-3.5" />
+        )}
+        Delete whole deposit
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirming(false)}
+        disabled={pending}
+        className="inline-flex items-center gap-1 rounded-lg border border-black/[0.10] bg-white px-2 py-1.5 text-xs font-semibold text-ink/60 hover:bg-black/[0.03] disabled:opacity-60"
+      >
+        <X className="h-3.5 w-3.5" /> Cancel
+      </button>
     </span>
   );
 }
