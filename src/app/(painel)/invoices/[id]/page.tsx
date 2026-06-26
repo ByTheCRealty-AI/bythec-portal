@@ -4,9 +4,11 @@ import { Badge } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { money, date } from "@/lib/format";
-import type { Invoice, InvoiceItem, Client, Property, SeasonalCommissionBase } from "@/lib/types";
+import type { Invoice, InvoiceItem, InvoiceAttachment, Client, Property, SeasonalCommissionBase } from "@/lib/types";
 import { SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
 import { InvoiceBackButton, InvoiceActions } from "./InvoiceActions";
+import { InvoiceDocuments } from "../InvoiceDocuments";
+import { addInvoiceAttachmentAction, deleteInvoiceAttachmentAction } from "../actions";
 
 // Texto curto da base da comissão (ex.: "10% of host payout"). Usa o que ficou
 // TRAVADO no invoice (commission_base/commission_rate); cai pra base da property
@@ -47,7 +49,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2,seasonal_commission_rate,seasonal_commission_base), items:invoice_items(*)"
+      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2,seasonal_commission_rate,seasonal_commission_base), items:invoice_items(*), attachments:invoice_attachments(id,invoice_id,file_url,file_name,content_type,created_at)"
     )
     .eq("id", params.id)
     .single();
@@ -57,6 +59,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
     client: Client | null;
     property: Pick<Property, "id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base"> | null;
     items: InvoiceItem[];
+    attachments: InvoiceAttachment[] | null;
   };
 
   // Bloqueia abrir um tipo que a pessoa não tem acesso (RLS já bloqueia o SELECT,
@@ -147,6 +150,17 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           {COMPANY.name}
         </footer>
       </article>
+
+      {/* Anexos + download combinado (recibos). Escondido na impressão. */}
+      <div className="mx-auto max-w-3xl">
+        <InvoiceDocuments
+          invoiceId={invoice.id}
+          attachments={invoice.attachments ?? []}
+          canManage={isSeasonal ? seasonalAccess : serviceAccess}
+          addAction={addInvoiceAttachmentAction}
+          deleteAction={deleteInvoiceAttachmentAction}
+        />
+      </div>
 
       {/* Print CSS: a impressão mostra só a folha do invoice (oculta sidebar/botões). */}
       <style>{`

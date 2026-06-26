@@ -314,3 +314,57 @@ export async function unarchiveInvoice(id: string) {
   revalidatePath(`/invoices/${id}`);
   revalidatePath("/invoices");
 }
+
+// ---- INVOICE ATTACHMENTS (recibos pro PDF combinado) -----------------------
+// Acesso por kind da invoice: full vê tudo; invoices.service só service;
+// invoices.seasonal só seasonal. Espelha o RLS de invoice_attachments.
+async function assertCanAccessInvoice(invoiceId: string): Promise<{ kind: string }> {
+  const profile = await getProfile();
+  const supabase = createClient();
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("kind")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (!inv) throw new Error("Invoice not found.");
+  const kind = (inv as { kind: string }).kind;
+  const ok =
+    can(profile, "financials.full") ||
+    (kind === "service" && can(profile, "invoices.service")) ||
+    (kind === "seasonal" && can(profile, "invoices.seasonal"));
+  if (!ok) throw new Error("You do not have access to this invoice.");
+  return { kind };
+}
+
+// Anexa um recibo (já subido client-side pro bucket `documents`) à invoice.
+export async function addInvoiceAttachmentAction(fd: FormData) {
+  const invoiceId = str(fd, "invoice_id");
+  if (!invoiceId) throw new Error("Missing invoice reference.");
+  await assertCanAccessInvoice(invoiceId);
+
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing file.");
+
+  const supabase = createClient();
+  const { error } = await supabase.from("invoice_attachments").insert({
+    invoice_id: invoiceId,
+    file_url: fileUrl,
+    file_name: str(fd, "file_name"),
+    content_type: str(fd, "content_type"),
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${invoiceId}`);
+}
+
+// Remove um anexo da invoice (some o registro; o arquivo no bucket é inofensivo).
+export async function deleteInvoiceAttachmentAction(fd: FormData) {
+  const invoiceId = str(fd, "invoice_id");
+  const id = str(fd, "id");
+  if (!invoiceId || !id) throw new Error("Missing reference.");
+  await assertCanAccessInvoice(invoiceId);
+
+  const supabase = createClient();
+  const { error } = await supabase.from("invoice_attachments").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${invoiceId}`);
+}

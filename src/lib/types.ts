@@ -244,6 +244,18 @@ export interface Invoice {
   client?: Pick<Client, "id" | "name" | "email" | "phone" | "billing_address" | "billing_address2" | "billing_city" | "billing_state" | "billing_zip"> | null;
   property?: Pick<Property, "id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base"> | null;
   items?: InvoiceItem[];
+  attachments?: InvoiceAttachment[] | null;
+}
+
+// Anexos (recibos Airbnb/VRBO/Stripe…) de uma invoice. file_url é object path no
+// bucket privado `documents`. Entram no PDF combinado (invoice + recibos).
+export interface InvoiceAttachment {
+  id: string;
+  invoice_id: string;
+  file_url: string;
+  file_name: string | null;
+  content_type: string | null;
+  created_at: string;
 }
 
 export interface InvoiceItem {
