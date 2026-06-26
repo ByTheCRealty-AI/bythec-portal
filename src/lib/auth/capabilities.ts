@@ -30,6 +30,7 @@ export type Capability =
   | "operations.edit" // requests / providers / listings
   | "financials.full" // todos os invoices/payments/expenses/commissions/payouts (ver + editar)
   | "invoices.service" // criar/ver SOMENTE invoices de serviço
+  | "invoices.seasonal" // criar/ver SOMENTE invoices de temporada (Airbnb/VRBO)
   | "payments.annual" // gerir pagamentos de aluguel year-round
   | "users.create"
   | "users.delete"
@@ -41,6 +42,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "operations.edit",
   "financials.full",
   "invoices.service",
+  "invoices.seasonal",
   "payments.annual",
   "users.create",
   "users.delete",
@@ -54,6 +56,7 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "operations.edit": "Operations — requests, providers & listings",
   "financials.full": "Financials — full access (all invoices, payments, expenses, commissions, payouts)",
   "invoices.service": "Service invoices — create & view (service type only)",
+  "invoices.seasonal": "Seasonal invoices — create & view (Airbnb / VRBO)",
   "payments.annual": "Year-round payments — manage rent payments",
   "users.create": "Users — invite & create logins",
   "users.delete": "Users — delete logins",
@@ -75,6 +78,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "operations.edit",
     "financials.full",
     "invoices.service",
+    "invoices.seasonal",
     "payments.annual",
     "users.create",
     "users.manage_access",
@@ -85,6 +89,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "properties.edit",
     "operations.edit",
     "invoices.service",
+    "invoices.seasonal", // vê/cria TODAS as invoices; NÃO vê commissions/payouts/expenses
     "payments.annual",
     // SEM financials.full, SEM gestão de usuários
   ],

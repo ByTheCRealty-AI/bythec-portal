@@ -39,8 +39,9 @@ const COMPANY = {
 export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
   const profile = await getProfile();
   const full = can(profile, "financials.full");
-  const serviceOnly = !full && can(profile, "invoices.service");
-  if (!full && !serviceOnly) redirect("/?denied=invoices");
+  const seasonalAccess = full || can(profile, "invoices.seasonal");
+  const serviceAccess = full || can(profile, "invoices.service");
+  if (!seasonalAccess && !serviceAccess) redirect("/?denied=invoices");
 
   const supabase = createClient();
   const { data, error } = await supabase
@@ -58,9 +59,10 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
     items: InvoiceItem[];
   };
 
-  // Service-only users não podem abrir seasonal (RLS já bloqueia o SELECT, mas
-  // reforçamos pra não vazar layout).
-  if (serviceOnly && invoice.kind === "seasonal") redirect("/invoices");
+  // Bloqueia abrir um tipo que a pessoa não tem acesso (RLS já bloqueia o SELECT,
+  // mas reforçamos pra não vazar layout).
+  if (invoice.kind === "seasonal" && !seasonalAccess) redirect("/invoices");
+  if (invoice.kind === "service" && !serviceAccess) redirect("/invoices");
 
   const archived = invoice.archived_at !== null;
   const isSeasonal = invoice.kind === "seasonal";

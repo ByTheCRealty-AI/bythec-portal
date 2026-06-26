@@ -10,12 +10,12 @@ export const dynamic = "force-dynamic";
 
 export default async function NewSeasonalInvoicePage() {
   const profile = await getProfile();
-  // Seasonal exige financials.full (RLS confirma).
-  if (!can(profile, "financials.full")) {
+  // Seasonal exige financials.full OU o cap específico invoices.seasonal (RLS confirma).
+  if (!can(profile, "financials.full") && !can(profile, "invoices.seasonal")) {
     return (
       <>
         <PageHeader title="New seasonal invoice" />
-        <NoAccess message="Seasonal invoices require full financial access." />
+        <NoAccess message="You do not have access to seasonal invoices." />
       </>
     );
   }

@@ -113,9 +113,9 @@ export async function createServiceInvoice(fd: FormData) {
 // ---- SEASONAL invoice ------------------------------------------------------
 export async function createSeasonalInvoice(fd: FormData) {
   const profile = await getProfile();
-  // Seasonal exige financials.full (RLS confirma). invoices.service NÃO basta.
-  if (!can(profile, "financials.full")) {
-    throw new Error("Seasonal invoices require full financial access.");
+  // Seasonal exige financials.full OU invoices.seasonal (RLS confirma).
+  if (!can(profile, "financials.full") && !can(profile, "invoices.seasonal")) {
+    throw new Error("You do not have access to seasonal invoices.");
   }
 
   const supabase = createClient();
@@ -245,8 +245,8 @@ export async function updateInvoice(id: string, fd: FormData) {
   const { data: inv } = await supabase.from("invoices").select("kind").eq("id", id).single();
   if (!inv) throw new Error("Invoice not found.");
   const isSeasonal = inv.kind === "seasonal";
-  if (isSeasonal && !can(profile, "financials.full")) {
-    throw new Error("Seasonal invoices require full financial access.");
+  if (isSeasonal && !can(profile, "financials.full") && !can(profile, "invoices.seasonal")) {
+    throw new Error("You do not have access to seasonal invoices.");
   }
   if (!isSeasonal && !can(profile, "financials.full") && !can(profile, "invoices.service")) {
     throw new Error("You do not have access to edit this invoice.");

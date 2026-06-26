@@ -12,8 +12,9 @@ export const dynamic = "force-dynamic";
 export default async function EditInvoicePage({ params }: { params: { id: string } }) {
   const profile = await getProfile();
   const full = can(profile, "financials.full");
-  const serviceOnly = !full && can(profile, "invoices.service");
-  if (!full && !serviceOnly) {
+  const seasonalAccess = full || can(profile, "invoices.seasonal");
+  const serviceAccess = full || can(profile, "invoices.service");
+  if (!seasonalAccess && !serviceAccess) {
     return (
       <>
         <PageHeader title="Edit invoice" />
@@ -27,7 +28,8 @@ export default async function EditInvoicePage({ params }: { params: { id: string
   if (error || !data) notFound();
   const invoice = data as Invoice;
 
-  if (serviceOnly && invoice.kind === "seasonal") redirect("/invoices");
+  if (invoice.kind === "seasonal" && !seasonalAccess) redirect("/invoices");
+  if (invoice.kind === "service" && !serviceAccess) redirect("/invoices");
 
   const action = updateInvoice.bind(null, invoice.id);
   const numberLabel =

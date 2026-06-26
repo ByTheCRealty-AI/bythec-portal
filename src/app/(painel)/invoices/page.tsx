@@ -33,9 +33,12 @@ export default async function InvoicesPage({
 }) {
   const profile = await getProfile();
   const full = can(profile, "financials.full");
-  const serviceOnly = !full && can(profile, "invoices.service");
+  // Acesso por tipo de invoice. financials.full cobre os dois; os caps específicos
+  // liberam só o seu tipo (secretária agora tem ambos → vê todas as invoices).
+  const seasonalAccess = full || can(profile, "invoices.seasonal");
+  const serviceAccess = full || can(profile, "invoices.service");
 
-  if (!full && !serviceOnly) {
+  if (!seasonalAccess && !serviceAccess) {
     return (
       <>
         <PageHeader title="Invoices" />
@@ -46,9 +49,14 @@ export default async function InvoicesPage({
 
   const { ok, invoices } = await load();
 
-  // Service-only users (secretary) só veem invoices de serviço. O RLS já filtra
-  // no banco; reforçamos no app por clareza/defesa.
-  const visible = serviceOnly ? invoices.filter((i) => i.kind === "service") : invoices;
+  // Mostra só os tipos que a pessoa pode ver. O RLS já filtra no banco; reforçamos
+  // no app por clareza/defesa.
+  const visible = invoices.filter(
+    (i) =>
+      (i.kind === "seasonal" && seasonalAccess) || (i.kind === "service" && serviceAccess)
+  );
+  // Quem só vê service (sem seasonal) recebe o copy enxuto de serviço.
+  const serviceOnly = serviceAccess && !seasonalAccess;
 
   const rows: InvoiceRow[] = visible.map((i) => ({
     id: i.id,
@@ -74,7 +82,7 @@ export default async function InvoicesPage({
             ? "Service invoices for maintenance and long-term work."
             : "Seasonal (Airbnb / VRBO) and service invoices."
         }
-        action={<NewInvoiceButton canSeasonal={full} />}
+        action={<NewInvoiceButton canSeasonal={seasonalAccess} />}
       />
 
       {!ok && (
@@ -94,12 +102,12 @@ export default async function InvoicesPage({
               ? "Create the first service invoice for a maintenance job."
               : "Create the first invoice. Seasonal follows the locked Airbnb / VRBO formula."
           }
-          cta={<NewInvoiceButton canSeasonal={full} />}
+          cta={<NewInvoiceButton canSeasonal={seasonalAccess} />}
         />
       ) : (
         <InvoicesTable
           rows={rows}
-          canSeasonal={full}
+          canSeasonal={seasonalAccess}
           initialFilter={searchParams.filter ?? ""}
           initialQuery={searchParams.q ?? ""}
         />
