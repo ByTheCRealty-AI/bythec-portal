@@ -151,7 +151,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
       {/* Print CSS: a impressão mostra só a folha do invoice (oculta sidebar/botões). */}
       <style>{`
         @media print {
-          @page { margin: 12mm; }
+          @page { margin: 16mm; }
           html, body { background: #fff !important; }
           aside, .print-hide { display: none !important; }
           main { padding: 0 !important; }
@@ -165,17 +165,39 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            font-size: 12.5px;
           }
-          /* As duas tabelas (Paid by Guest / Owner) lado a lado, ocupando a
-             largura inteira da página — não empilham nem encolhem. */
+          /* Aumenta tudo pra preencher a folha (a fatura é curta — não pode ficar
+             minúscula no topo de uma página em branco). */
+          #invoice-sheet > header { margin-bottom: 3rem !important; padding-bottom: 2rem !important; }
+          #invoice-sheet > header img { height: 64px !important; width: 64px !important; }
+          /* Bloco Invoice to / Reservation maior e mais arejado. */
+          #invoice-sheet .mb-6 { margin-bottom: 3rem !important; }
+          #invoice-sheet .mb-6 .text-sm { font-size: 16px !important; line-height: 1.8 !important; }
+
+          /* As duas tabelas (Paid by Guest / Owner) lado a lado, largura inteira,
+             maiores e com mais respiro. */
           #invoice-sheet .seasonal-cols {
             display: grid !important;
             grid-template-columns: 1fr 1fr !important;
-            gap: 20px !important;
+            gap: 2.5rem !important;
             width: 100% !important;
           }
-          #invoice-sheet .seasonal-cols > div { break-inside: avoid; }
+          #invoice-sheet .seasonal-cols > div {
+            padding: 2rem !important;
+            break-inside: avoid;
+          }
+          #invoice-sheet .seasonal-cols h3 { font-size: 1.25rem !important; margin-bottom: 1.25rem !important; }
+          #invoice-sheet .seasonal-cols .text-sm { font-size: 16px !important; }
+          #invoice-sheet .seasonal-cols .text-sm > div { padding: 8px 0 !important; }
+          #invoice-sheet .seasonal-cols .text-base {
+            font-size: 1.4rem !important;
+            margin-top: 1.5rem !important;
+            padding-top: 1.25rem !important;
+          }
+
+          /* Notes + rodapé empurrados pro fim da página. */
+          #invoice-sheet > div:last-of-type { font-size: 15px !important; }
+          #invoice-sheet > footer { margin-top: 3.5rem !important; padding-top: 1.75rem !important; font-size: 12px !important; }
         }
       `}</style>
     </>
