@@ -144,7 +144,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         )}
 
         <footer className="mt-8 border-t border-black/[0.08] pt-4 text-center text-xs text-ink/40">
-          {COMPANY.name} · {COMPANY.site}
+          {COMPANY.name}
         </footer>
       </article>
 
