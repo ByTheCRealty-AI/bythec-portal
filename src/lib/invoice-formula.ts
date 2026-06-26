@@ -38,6 +38,9 @@ export interface SeasonalFormulaInput {
   commission_base: SeasonalCommissionBase; // base do %: host_payout (maioria) ou paid_by_guest (ex.: Rainbow). Vem da property, editável por invoice.
   cleaning_goes_to: "owner" | "bythec"; // flag POR INVOICE (deduz cleaning do owner?)
   extra_deductions: number[]; // deduções extras do owner (ex.: Hot Tub Maintenance)
+  // Pagamentos extras do GUEST (ex.: pet fee, extra guest, late checkout). SOMAM no
+  // Total Paid by Guest. Default [] → não muda os invoices verificados (#335/#240).
+  extra_charges?: number[];
 }
 
 export interface SeasonalFormulaResult {
@@ -61,16 +64,25 @@ export function computeSeasonal(input: SeasonalFormulaInput): SeasonalFormulaRes
     commission_base,
     cleaning_goes_to,
     extra_deductions,
+    extra_charges,
   } = input;
 
-  // total_paid_by_guest = room − discount + cleaning + guest_service + occ_tax (+ vrbo property damage)
+  // Soma dos pagamentos extras do guest (default 0 quando não há).
+  const extra_charges_sum = (extra_charges ?? []).reduce(
+    (acc, v) => acc + (Number.isFinite(v) ? v : 0),
+    0
+  );
+
+  // total_paid_by_guest = room − discount + cleaning + guest_service + occ_tax
+  //   (+ vrbo property damage) (+ extra charges do guest)
   const total_paid_by_guest = round2(
     room_fee -
       rental_discount +
       cleaning_fee +
       guest_service_fee +
       occupancy_taxes +
-      vrbo_property_damage
+      vrbo_property_damage +
+      extra_charges_sum
   );
 
   // bythec_commission = round(commission_rate × base, 2)

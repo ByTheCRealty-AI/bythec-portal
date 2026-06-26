@@ -54,6 +54,8 @@ export function SeasonalInvoiceForm({
   const [guestServiceFee, setGuestServiceFee] = useState("");
   const [occupancyTaxes, setOccupancyTaxes] = useState("");
   const [vrboPropertyDamage, setVrboPropertyDamage] = useState("");
+  // Pagamentos extras do guest (pet fee, extra guest, late checkout…). Somam no total.
+  const [guestExtras, setGuestExtras] = useState<Extra[]>([]);
 
   // Owner side
   const [hostPayout, setHostPayout] = useState("");
@@ -90,11 +92,12 @@ export function SeasonalInvoiceForm({
       commission_base: commissionBase,
       cleaning_goes_to: cleaningGoesTo,
       extra_deductions: extras.map((e) => n(e.amount)),
+      extra_charges: guestExtras.map((e) => n(e.amount)),
     });
   }, [
     roomFee, rentalDiscount, cleaningFee, guestServiceFee, occupancyTaxes,
     vrboPropertyDamage, isVrbo, hostPayout, hostServiceFee, commissionPct,
-    commissionBase, cleaningGoesTo, extras,
+    commissionBase, cleaningGoesTo, extras, guestExtras,
   ]);
 
   function addExtra() {
@@ -105,6 +108,16 @@ export function SeasonalInvoiceForm({
   }
   function removeExtra(i: number) {
     setExtras((p) => p.filter((_, idx) => idx !== i));
+  }
+
+  function addGuestExtra() {
+    setGuestExtras((p) => [...p, { description: "", amount: "" }]);
+  }
+  function updateGuestExtra(i: number, patch: Partial<Extra>) {
+    setGuestExtras((p) => p.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
+  }
+  function removeGuestExtra(i: number) {
+    setGuestExtras((p) => p.filter((_, idx) => idx !== i));
   }
 
   return (
@@ -206,6 +219,49 @@ export function SeasonalInvoiceForm({
                 <input name="vrbo_property_damage" value={vrboPropertyDamage} onChange={(e) => setVrboPropertyDamage(e.target.value)} type="number" step="0.01" className={inputClass} placeholder="0.00" />
               </Field>
             )}
+
+            {/* Extra payments (somam no total do guest) */}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-ink/50">Extra payments</span>
+                <button type="button" onClick={addGuestExtra} className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                  <Plus className="h-3.5 w-3.5" /> Add
+                </button>
+              </div>
+              <div className="space-y-2">
+                {guestExtras.map((ex, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_7rem_auto] items-center gap-2">
+                    <input
+                      name={`guest_extra_${i}_description`}
+                      value={ex.description}
+                      onChange={(e) => updateGuestExtra(i, { description: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. Pet fee, extra guest"
+                    />
+                    <input
+                      name={`guest_extra_${i}_amount`}
+                      value={ex.amount}
+                      onChange={(e) => updateGuestExtra(i, { amount: e.target.value })}
+                      type="number"
+                      step="0.01"
+                      className={inputClass}
+                      placeholder="0.00"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeGuestExtra(i)}
+                      className="grid h-10 w-10 place-items-center rounded-xl border border-black/[0.08] text-ink/40 transition hover:border-red-300 hover:text-red-500"
+                      aria-label="Remove extra payment"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                {guestExtras.length === 0 && (
+                  <p className="text-xs text-ink/40">No extra payments.</p>
+                )}
+              </div>
+            </div>
           </div>
           <div className="mt-5 flex justify-between border-t border-black/[0.08] pt-3 text-base">
             <span className="font-semibold text-ink">Total Paid by Guest</span>

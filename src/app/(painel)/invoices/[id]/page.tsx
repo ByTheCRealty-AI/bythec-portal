@@ -151,16 +151,31 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
       {/* Print CSS: a impressão mostra só a folha do invoice (oculta sidebar/botões). */}
       <style>{`
         @media print {
-          @page { margin: 14mm; }
-          body { background: #fff !important; }
+          @page { margin: 12mm; }
+          html, body { background: #fff !important; }
           aside, .print-hide { display: none !important; }
           main { padding: 0 !important; }
+          /* O wrapper de conteúdo do painel (max-w-6xl, centralizado) não pode
+             estreitar a folha na impressão. */
+          main > div { max-width: none !important; margin: 0 !important; }
           #invoice-sheet {
             box-shadow: none !important;
             border: none !important;
-            max-width: 100% !important;
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
             padding: 0 !important;
+            font-size: 12.5px;
           }
+          /* As duas tabelas (Paid by Guest / Owner) lado a lado, ocupando a
+             largura inteira da página — não empilham nem encolhem. */
+          #invoice-sheet .seasonal-cols {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 20px !important;
+            width: 100% !important;
+          }
+          #invoice-sheet .seasonal-cols > div { break-inside: avoid; }
         }
       `}</style>
     </>
@@ -266,7 +281,7 @@ function SeasonalBody({
       </div>
 
       {/* Two columns */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="seasonal-cols grid grid-cols-1 gap-6 sm:grid-cols-2">
         <Column
           title="Paid by Guest"
           items={guestItems}

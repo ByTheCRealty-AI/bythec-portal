@@ -145,6 +145,15 @@ export async function createSeasonalInvoice(fd: FormData) {
     extras.push({ description: description ?? "Deduction", total: round2(Number(amountRaw ?? 0) || 0) });
   }
 
+  // Pagamentos extras do GUEST (somam no Total Paid by Guest).
+  const guestExtras: Extra[] = [];
+  for (let i = 0; i < MAX_ITEMS; i++) {
+    const description = str(fd, `guest_extra_${i}_description`);
+    const amountRaw = str(fd, `guest_extra_${i}_amount`);
+    if (!description && !amountRaw) continue;
+    guestExtras.push({ description: description ?? "Extra payment", total: round2(Number(amountRaw ?? 0) || 0) });
+  }
+
   // FÓRMULA TRAVADA — recomputada no servidor (não confia no cliente).
   const computed = computeSeasonal({
     room_fee,
@@ -159,6 +168,7 @@ export async function createSeasonalInvoice(fd: FormData) {
     commission_base,
     cleaning_goes_to,
     extra_deductions: extras.map((e) => e.total),
+    extra_charges: guestExtras.map((e) => e.total),
   });
 
   const platform = str(fd, "platform");
@@ -215,6 +225,10 @@ export async function createSeasonalInvoice(fd: FormData) {
   if (guest_service_fee) itemRows.push({ invoice_id: data.id, description: "Guest Service Fee", total: guest_service_fee, type: "fee", guest: true, owner: false });
   if (occupancy_taxes) itemRows.push({ invoice_id: data.id, description: platform === "VRBO" ? "Lodging Taxes" : "Occupancy Taxes", total: occupancy_taxes, type: "fee", guest: true, owner: false });
   if (platform === "VRBO" && vrbo_property_damage) itemRows.push({ invoice_id: data.id, description: "Property Damage Protection", total: vrbo_property_damage, type: "fee", guest: true, owner: false });
+  // Pagamentos extras do guest (positivos; somam no total do guest).
+  for (const ge of guestExtras) {
+    itemRows.push({ invoice_id: data.id, description: ge.description, total: ge.total, type: "charge", guest: true, owner: false });
+  }
 
   // Coluna Owner Overview. Itens são as PARCELAS que somam pro Total Received by
   // Owner: host_payout − host_service_fee − commission − (cleaning se bythec) − extras.
