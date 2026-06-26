@@ -14,11 +14,13 @@ import {
   type Realtor,
 } from "@/lib/types";
 import { InlineSelect } from "./InlineSelect";
+import { AddForSaleListingForm, type OwnerOption } from "./AddForSaleListingForm";
 import {
   updateSalesClientAction,
   setListingRealtorAction,
   setListingStatusAction,
   setDealOutcomeAction,
+  addForSaleListingAction,
 } from "./actions";
 
 export type ListingRow = {
@@ -56,6 +58,7 @@ export function SalesSections({
   finishedListings,
   finishedCount,
   realtors,
+  owners,
   canEditClients,
   canEditProps,
 }: {
@@ -67,6 +70,7 @@ export function SalesSections({
   finishedListings: ListingRow[];
   finishedCount: number;
   realtors: Realtor[];
+  owners: OwnerOption[];
   canEditClients: boolean;
   canEditProps: boolean;
 }) {
@@ -149,13 +153,18 @@ export function SalesSections({
       )}
 
       {tab === "for_sale" && (
-        <Section title="For sale" icon={<Home className="h-5 w-5" />}>
-          {listings.length > 0 ? (
-            <ListingsTable listings={listings} realtorOpts={realtorOpts} canEdit={canEditProps} />
-          ) : (
-            <EmptyRow message="No listings for sale. Mark a property as For Sale in Properties to see it here." />
+        <div className="space-y-4">
+          {canEditProps && (
+            <AddForSaleListingForm owners={owners} realtors={realtors} action={addForSaleListingAction} />
           )}
-        </Section>
+          <Section title="For sale" icon={<Home className="h-5 w-5" />}>
+            {listings.length > 0 ? (
+              <ListingsTable listings={listings} realtorOpts={realtorOpts} canEdit={canEditProps} />
+            ) : (
+              <EmptyRow message="No listings for sale yet. Add one above, or mark a property as For Sale in Properties." />
+            )}
+          </Section>
+        </div>
       )}
 
       {tab === "sold_closed" && (

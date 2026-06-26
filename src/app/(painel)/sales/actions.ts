@@ -24,9 +24,21 @@ function str(fd: FormData, key: string): string | null {
   const t = v.trim();
   return t === "" ? null : t;
 }
+function bool(fd: FormData, key: string): boolean {
+  const v = fd.get(key);
+  return v === "on" || v === "true";
+}
+function numOrNull(fd: FormData, key: string): number | null {
+  const s = str(fd, key);
+  if (s === null) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
 
 // ---- Create a buy/sell client straight from the Sales screen ---------------
 // Produces a clients row that shows up in BOTH Sales and the main Clients list.
+// Captura os MESMOS campos do form de Clients (co-client, endereço, notas,
+// notificações) — Sales reusa as colunas billing_* como "Address".
 export async function addSalesClientAction(fd: FormData) {
   const profile = await getProfile();
   if (!can(profile, "clients.edit")) {
@@ -46,6 +58,17 @@ export async function addSalesClientAction(fd: FormData) {
       realtor_id: str(fd, "realtor_id"),
       email: str(fd, "email"),
       phone: str(fd, "phone"),
+      billing_address: str(fd, "billing_address"),
+      billing_address2: str(fd, "billing_address2"),
+      billing_city: str(fd, "billing_city"),
+      billing_state: str(fd, "billing_state"),
+      billing_zip: str(fd, "billing_zip"),
+      co_client_name: str(fd, "co_client_name"),
+      co_client_email: str(fd, "co_client_email"),
+      co_client_phone: str(fd, "co_client_phone"),
+      email_notifications: bool(fd, "email_notifications"),
+      sms_notifications: bool(fd, "sms_notifications"),
+      notes: str(fd, "notes"),
     })
     .select("id")
     .single();
@@ -54,6 +77,43 @@ export async function addSalesClientAction(fd: FormData) {
   revalidatePath("/sales");
   revalidatePath("/clientes");
   if (data?.id) revalidatePath(`/clientes/${data.id}`);
+}
+
+// ---- Create a FOR-SALE listing straight from the Sales screen --------------
+// Produces a properties row (property_type='for_sale', sale_status='active') that
+// shows up in BOTH the For sale tab and the main Properties list. owner_id = the
+// seller (a client). Same properties.edit gate; RLS reinforces in the DB.
+export async function addForSaleListingAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to add listings.");
+  }
+  const ownerId = str(fd, "owner_id");
+  if (!ownerId) throw new Error("A seller (owner) is required.");
+  const address = str(fd, "address");
+  if (!address) throw new Error("An address is required.");
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("properties")
+    .insert({
+      owner_id: ownerId,
+      address,
+      address2: str(fd, "address2"),
+      address_text: address.toLowerCase(),
+      property_type: "for_sale",
+      sale_status: "active",
+      commission_fee: numOrNull(fd, "commission_fee"),
+      realtor_id: str(fd, "realtor_id"),
+      notes: str(fd, "notes"),
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/sales");
+  revalidatePath("/propriedades");
+  revalidatePath(`/clientes/${ownerId}`);
+  if (data?.id) revalidatePath(`/propriedades/${data.id}`);
 }
 
 // ---- Inline edit of a buy/sell client's brokerage fields -------------------

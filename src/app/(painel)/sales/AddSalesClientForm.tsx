@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
-import { PhoneInput } from "@/components/form-fields";
+import { PhoneInput, AddressFields } from "@/components/form-fields";
 import { Plus } from "lucide-react";
 import {
   DEAL_SIDE_LABEL,
@@ -11,6 +11,16 @@ import {
   type DealSide,
   type Realtor,
 } from "@/lib/types";
+
+// Reaproveita as colunas billing_* do cliente (não há colunas separadas). No
+// contexto de Sales rotulamos a seção só "Address" — buyer/seller não é faturado.
+const ADDRESS_NAMES = {
+  line1: "billing_address",
+  line2: "billing_address2",
+  city: "billing_city",
+  state: "billing_state",
+  zip: "billing_zip",
+} as const;
 
 // Inline "Add buyer/seller" form on the Sales screen. Creates a buy/sell client
 // (client_type='buy_sell_client') with side + realtor + stage. The stage options
@@ -97,6 +107,47 @@ export function AddSalesClientForm({
               </option>
             ))}
           </select>
+        </Field>
+      </div>
+
+      {/* Address (mesmas colunas billing_* do cliente, sem o rótulo "billing"). */}
+      <div className="border-t border-black/[0.06] pt-5">
+        <h4 className="mb-3 text-sm font-bold text-ink">Address</h4>
+        <AddressFields names={ADDRESS_NAMES} />
+      </div>
+
+      {/* Co-client (spouse / partner on the name). */}
+      <div className="border-t border-black/[0.06] pt-5">
+        <h4 className="mb-3 text-sm font-bold text-ink">
+          Co-client <span className="font-normal text-ink/45">(spouse / partner on the name)</span>
+        </h4>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <Field label="Name">
+            <input name="co_client_name" className={inputClass} />
+          </Field>
+          <Field label="Email">
+            <input name="co_client_email" type="email" className={inputClass} />
+          </Field>
+          <Field label="Phone">
+            <PhoneInput name="co_client_phone" />
+          </Field>
+        </div>
+      </div>
+
+      {/* Preferences + notes. */}
+      <div className="border-t border-black/[0.06] pt-5">
+        <div className="mb-4 flex flex-wrap gap-6">
+          <label className="flex items-center gap-2.5 text-sm text-ink/80">
+            <input type="checkbox" name="email_notifications" defaultChecked className="h-4 w-4 accent-[#198577]" />
+            Email notifications
+          </label>
+          <label className="flex items-center gap-2.5 text-sm text-ink/80">
+            <input type="checkbox" name="sms_notifications" className="h-4 w-4 accent-[#198577]" />
+            SMS notifications
+          </label>
+        </div>
+        <Field label="Internal notes">
+          <textarea name="notes" rows={3} className={inputClass} placeholder="Notes that won't be shared with the client." />
         </Field>
       </div>
 

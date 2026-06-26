@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 async function load() {
   try {
     const supabase = createClient();
-    const [clientsRes, listingsRes, realtorsRes] = await Promise.all([
+    const [clientsRes, listingsRes, realtorsRes, ownersRes] = await Promise.all([
       supabase
         .from("clients")
         .select("*")
@@ -35,17 +35,26 @@ async function load() {
         .select("*")
         .eq("active", true)
         .order("name", { ascending: true }),
+      // Todos os clientes ativos (id+name) pro picker de "seller (owner)" do form
+      // de nova listagem — o vendedor pode ser qualquer cliente.
+      supabase
+        .from("clients")
+        .select("id, name")
+        .is("archived_at", null)
+        .order("name", { ascending: true }),
     ]);
 
     if (clientsRes.error) throw clientsRes.error;
     if (listingsRes.error) throw listingsRes.error;
     if (realtorsRes.error) throw realtorsRes.error;
+    if (ownersRes.error) throw ownersRes.error;
 
     return {
       ok: true as const,
       clients: (clientsRes.data ?? []) as Client[],
       listings: (listingsRes.data ?? []) as unknown as ListingRow[],
       realtors: (realtorsRes.data ?? []) as Realtor[],
+      owners: (ownersRes.data ?? []) as { id: string; name: string }[],
     };
   } catch {
     return {
@@ -53,6 +62,7 @@ async function load() {
       clients: [] as Client[],
       listings: [] as ListingRow[],
       realtors: [] as Realtor[],
+      owners: [] as { id: string; name: string }[],
     };
   }
 }
@@ -90,7 +100,7 @@ export default async function SalesPage() {
     );
   }
 
-  const { ok, clients, listings, realtors } = await load();
+  const { ok, clients, listings, realtors, owners } = await load();
 
   // Deal lifecycle split. The ACTIVE board only shows live deals; closed/expired
   // become history in the "Sold & Closed" tab. Treat a null deal_status as active
@@ -191,6 +201,7 @@ export default async function SalesPage() {
           finishedListings={finishedListings}
           finishedCount={finishedCount}
           realtors={realtors}
+          owners={owners}
           canEditClients={canEditClients}
           canEditProps={canEditProps}
         />
