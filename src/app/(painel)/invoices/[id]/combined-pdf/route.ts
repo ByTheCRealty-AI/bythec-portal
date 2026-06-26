@@ -41,6 +41,13 @@ function sanitizeFilename(s: string): string {
   return s.replace(/[\\/:*?"<>|\n\r]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
+// Só a rua (antes da 1ª vírgula) — "80 Frederick B Douglas Rd, North Falmouth, MA…"
+// vira "80 Frederick B Douglas Rd". Mantém o nome do arquivo e a linha enxutos.
+function streetOnly(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.split(",")[0].trim();
+}
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const profile = await getProfile();
   const supabase = createClient();
@@ -118,7 +125,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     if (inv.guest_name) rightLines.push(`Guest: ${inv.guest_name}`);
     if (inv.dates_reserved_start || inv.dates_reserved_end)
       rightLines.push(`Dates: ${fmtDate(inv.dates_reserved_start)} – ${fmtDate(inv.dates_reserved_end)}`);
-    if (inv.property?.address) rightLines.push(`Property: ${inv.property.address}`);
+    if (inv.property?.address) rightLines.push(`Property: ${streetOnly(inv.property.address)}`);
     if (inv.rental_nights != null) rightLines.push(`Nights: ${inv.rental_nights}`);
   } else {
     const addr = inv.service_address ?? inv.property?.address ?? "";
@@ -252,7 +259,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const out = await pdf.save();
 
-  const propLabel = inv.property?.address ?? inv.service_address ?? inv.client?.name ?? "";
+  const propLabel = streetOnly(inv.property?.address) || streetOnly(inv.service_address) || inv.client?.name || "";
   const fname = sanitizeFilename(`Invoice ${inv.invoice_number}${propLabel ? ` (${propLabel})` : ""}`) + ".pdf";
 
   return new NextResponse(Buffer.from(out), {
