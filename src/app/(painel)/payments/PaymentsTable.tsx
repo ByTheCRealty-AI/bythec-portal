@@ -6,10 +6,11 @@
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, CheckCircle2, Undo2, Loader2 } from "lucide-react";
+import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown } from "lucide-react";
 import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
 import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
 import { PaymentReceipt } from "./PaymentReceipt";
+import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -36,11 +37,31 @@ function StatusBadge({ payment }: { payment: Payment }) {
       </span>
     );
   }
+  // Partial: still due, but some money is in. Amber, with the running total.
+  const paid = payment.amount_paid ?? 0;
+  if (paid > 0) {
+    return (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+          Partial
+        </span>
+        <span className="text-[11px] text-ink/45">
+          {money(paid)} of {money(payment.rent_amount)}
+        </span>
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
       Due
     </span>
   );
+}
+
+// Rent kinds can be paid in installments; security deposit has its own tab.
+const RENT_KINDS_FOR_PARTS = new Set(["monthly", "first_month", "last_month"]);
+function supportsParts(p: Payment): boolean {
+  return RENT_KINDS_FOR_PARTS.has(p.kind);
 }
 
 function kindTone(k: PaymentKind): "gold" | "orange" | "neutral" {
@@ -256,6 +277,9 @@ export function PaymentRow({
   updateAction,
   deleteAction,
   hideProperty = false,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
@@ -266,8 +290,15 @@ export function PaymentRow({
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
   hideProperty?: boolean;
+  // Partial-payment actions. When provided (and the kind is rent), the row gets
+  // an expand toggle that reveals the installments panel. Optional so consumers
+  // that don't manage partials (e.g. read-only contexts) keep working.
+  addPartAction?: (fd: FormData) => void | Promise<void>;
+  updatePartAction?: (fd: FormData) => void | Promise<void>;
+  deletePartAction?: (fd: FormData) => void | Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   if (editing) {
     return (
@@ -283,8 +314,11 @@ export function PaymentRow({
   }
 
   const addr = payment.property?.address ?? "—";
+  const canParts =
+    !!addPartAction && !!updatePartAction && !!deletePartAction && supportsParts(payment);
 
   return (
+    <>
     <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
       {!hideProperty && (
         <td className="px-5 py-3.5">
@@ -330,15 +364,36 @@ export function PaymentRow({
         <StatusBadge payment={payment} />
       </td>
       <td className="px-5 py-3.5">
-        {payment.attachments && payment.attachments.length > 0 ? (
-          <PaymentReceipt attachment={payment.attachments[0]} />
-        ) : (
-          <span className="text-ink/30">—</span>
-        )}
+        {(() => {
+          // Only payment-level receipts here; per-installment ones live in the
+          // expandable panel (they carry a payment_part_id).
+          const top = (payment.attachments ?? []).filter((a) => !a.payment_part_id);
+          return top.length > 0 ? (
+            <PaymentReceipt attachment={top[0]} />
+          ) : (
+            <span className="text-ink/30">—</span>
+          );
+        })()}
       </td>
       {canManage && (
         <td className="px-5 py-3.5">
           <div className="flex items-center justify-end gap-2">
+            {canParts && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="inline-flex items-center gap-1 rounded-lg border border-black/[0.10] bg-white px-2 py-1.5 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
+                aria-expanded={expanded}
+              >
+                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Payments
+                {payment.parts && payment.parts.length > 0 && (
+                  <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                    {payment.parts.length}
+                  </span>
+                )}
+              </button>
+            )}
             <StatusToggle payment={payment} setStatus={setStatus} />
             <EditButton onClick={() => setEditing(true)} />
             <DeleteControl action={deleteAction} hidden={{ id: payment.id }} noun="payment" />
@@ -346,6 +401,20 @@ export function PaymentRow({
         </td>
       )}
     </tr>
+    {canParts && expanded && (
+      <tr className="border-t border-black/[0.05] bg-black/[0.015]">
+        <td colSpan={colSpan} className="px-5 py-4">
+          <RentInstallmentsPanel
+            payment={payment}
+            canManage={canManage}
+            addPartAction={addPartAction!}
+            updatePartAction={updatePartAction!}
+            deletePartAction={deletePartAction!}
+          />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

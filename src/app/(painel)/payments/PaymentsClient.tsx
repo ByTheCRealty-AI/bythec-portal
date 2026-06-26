@@ -23,6 +23,8 @@ import {
   Pencil,
   Trash2,
   X,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { money, date, cx } from "@/lib/format";
 import { Field, inputClass, buttonClass } from "@/components/ui";
@@ -30,6 +32,7 @@ import type { Payment, PaymentKind, PaymentStatus } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
 import { PaymentRow } from "./PaymentsTable";
+import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
 
 type TabKey = "due" | "monthly" | "past" | "deposit";
 
@@ -232,33 +235,93 @@ function SummaryChip({
   );
 }
 
-// Linha enxuta da aba Due (sem edit/delete; só Mark received).
+// Linha da aba Due. Mostra "Partial" + progresso quando há pagamento parcial, e
+// (pra aluguel) um toggle que abre o painel de parcelas pra registrar pagamentos.
 function DueRow({
   p,
   zebra,
   danger,
+  canManage,
   setStatus,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   p: Payment;
   zebra: boolean;
   danger: boolean;
+  canManage: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const paid = p.amount_paid ?? 0;
+  const rent = p.rent_amount ?? 0;
+  const remaining = Math.max(0, rent - paid);
+  const isPartial = paid > 0;
+  const pct = rent > 0 ? Math.min(100, Math.round((paid / rent) * 100)) : 0;
+  const canParts = canManage && isRentKind(p);
+
   return (
-    <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
-      <PropertyCell p={p} />
-      <TenantCell p={p} />
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
-      <td className="whitespace-nowrap px-5 py-3.5">
-        <span className={cx(danger ? "font-semibold text-red-600" : "text-ink/65")}>
-          {date(p.due_date)}
-        </span>
-        <KindTag kind={p.kind} />
-      </td>
-      <td className="px-5 py-3.5 text-right">
-        <MarkReceived id={p.id} setStatus={setStatus} />
-      </td>
-    </tr>
+    <>
+      <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
+        <PropertyCell p={p} />
+        <TenantCell p={p} />
+        <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">
+          {money(p.rent_amount)}
+          {isPartial && (
+            <span className="mt-1 block">
+              <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Partial
+              </span>
+              <span className="mt-0.5 block text-[11px] text-ink/50">
+                {money(paid)} in · {money(remaining)} left
+              </span>
+              <span className="mt-1 block h-1.5 w-28 overflow-hidden rounded-full bg-black/[0.06]">
+                <span className="block h-full rounded-full bg-amber-500" style={{ width: `${pct}%` }} />
+              </span>
+            </span>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-5 py-3.5">
+          <span className={cx(danger ? "font-semibold text-red-600" : "text-ink/65")}>
+            {date(p.due_date)}
+          </span>
+          <KindTag kind={p.kind} />
+        </td>
+        <td className="px-5 py-3.5 text-right">
+          <div className="inline-flex items-center gap-2">
+            {canParts && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="inline-flex items-center gap-1 rounded-lg border border-black/[0.10] bg-white px-2 py-1.5 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
+                aria-expanded={expanded}
+              >
+                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                {isPartial ? "Payments" : "Record payment"}
+              </button>
+            )}
+            <MarkReceived id={p.id} setStatus={setStatus} />
+          </div>
+        </td>
+      </tr>
+      {canParts && expanded && (
+        <tr className="border-t border-black/[0.05] bg-black/[0.015]">
+          <td colSpan={5} className="px-5 py-4">
+            <RentInstallmentsPanel
+              payment={p}
+              canManage={canManage}
+              addPartAction={addPartAction}
+              updatePartAction={updatePartAction}
+              deletePartAction={deletePartAction}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -290,6 +353,9 @@ export function PaymentsClient({
   deleteAction,
   updateDepositTotalAction,
   deleteDepositGroupAction,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   payments: Payment[];
   properties: PaymentPropertyOption[];
@@ -301,6 +367,9 @@ export function PaymentsClient({
   deleteAction: (fd: FormData) => void | Promise<void>;
   updateDepositTotalAction: (fd: FormData) => void | Promise<void>;
   deleteDepositGroupAction: (fd: FormData) => void | Promise<void>;
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
 
@@ -521,7 +590,11 @@ export function PaymentsClient({
                   subtitle="Oldest first. These due dates are before this month."
                   rows={pastDue}
                   danger
+                  canManage={canManage}
                   setStatus={setStatus}
+                  addPartAction={addPartAction}
+                  updatePartAction={updatePartAction}
+                  deletePartAction={deletePartAction}
                 />
               )}
               {dueThisMonth.length > 0 && (
@@ -530,7 +603,11 @@ export function PaymentsClient({
                   subtitle={monthLabel(currentMonthKey)}
                   rows={dueThisMonth}
                   danger={false}
+                  canManage={canManage}
                   setStatus={setStatus}
+                  addPartAction={addPartAction}
+                  updatePartAction={updatePartAction}
+                  deletePartAction={deletePartAction}
                 />
               )}
             </div>
@@ -601,6 +678,9 @@ export function PaymentsClient({
                           setStatus={setStatus}
                           updateAction={updateAction}
                           deleteAction={deleteAction}
+                          addPartAction={addPartAction}
+                          updatePartAction={updatePartAction}
+                          deletePartAction={deletePartAction}
                         />
                       ))}
                     </tbody>
@@ -1119,13 +1199,21 @@ function DueSection({
   subtitle,
   rows,
   danger,
+  canManage,
   setStatus,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   title: string;
   subtitle: string;
   rows: Payment[];
   danger: boolean;
+  canManage: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
 }) {
   return (
     <section>
@@ -1151,7 +1239,11 @@ function DueSection({
                 p={p}
                 zebra={i % 2 === 1}
                 danger={danger}
+                canManage={canManage}
                 setStatus={setStatus}
+                addPartAction={addPartAction}
+                updatePartAction={updatePartAction}
+                deletePartAction={deletePartAction}
               />
             ))}
           </tbody>

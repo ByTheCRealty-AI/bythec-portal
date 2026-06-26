@@ -99,6 +99,8 @@ export async function addPaymentAction(fd: FormData) {
       commission: num(fd, "commission"),
       status,
       received_at: status === "received" ? new Date().toISOString() : null,
+      // One-shot add: if it's already received, the full rent is paid; else 0.
+      amount_paid: status === "received" ? (num(fd, "rent_amount") ?? 0) : 0,
       notes: str(fd, "notes"),
     })
     .select("id")
@@ -332,30 +334,228 @@ export async function updatePaymentAction(fd: FormData) {
 }
 
 // Toggle rápido de status por linha. Carimba received_at ao receber; limpa ao
-// voltar pra due (regime de caixa: a entrada só conta quando received).
+// voltar pra due (regime de caixa: a entrada só conta quando received). Mantém
+// amount_paid coerente pro display de progresso: received => rent cheio, due => 0.
 export async function setPaymentStatusAction(id: string, status: PaymentStatus) {
   await assertCanManagePayments();
   if (!id) throw new Error("Missing payment reference.");
   const supabase = createClient();
 
-  // Busca o property_id pra revalidar também a aba da propriedade.
+  // Busca property_id (revalidar a aba da propriedade) + rent_amount (amount_paid).
   const { data: existing } = await supabase
     .from("payments")
-    .select("property_id")
+    .select("property_id, rent_amount")
     .eq("id", id)
     .maybeSingle();
+  const rent = Number((existing as { rent_amount: number | null } | null)?.rent_amount ?? 0);
 
   const { error } = await supabase
     .from("payments")
     .update({
       status,
       received_at: status === "received" ? new Date().toISOString() : null,
+      amount_paid: status === "received" ? rent : 0,
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/payments");
   const propertyId = (existing as { property_id: string | null } | null)?.property_id;
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// --- PAGAMENTOS PARCIAIS (payment_parts) ------------------------------------
+// Um aluguel (monthly / first_month / last_month) pode ser quitado em N parcelas.
+// Cada parcela tem valor + data + método + comprovantes próprios (qualquer mídia,
+// inclusive o recibo de papel do cash). O pai só vira 'received' quando a soma
+// fecha o rent_amount (regra de caixa: comissão só conta no received).
+
+type ReceiptRef = { url: string; name: string | null; type: string | null };
+
+// Recibos chegam num JSON (já subidos pro bucket client-side): [{url,name,type}].
+function parseReceipts(fd: FormData): ReceiptRef[] {
+  const raw = str(fd, "receipts_json");
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((x) => x && typeof x.url === "string" && x.url.length > 0)
+      .map((x) => ({
+        url: x.url as string,
+        name: typeof x.name === "string" ? x.name : null,
+        type: typeof x.type === "string" ? x.type : null,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+// Recalcula amount_paid + status + received_at a partir das parcelas vivas.
+// Fonte única da verdade — chamado após qualquer add/edit/delete de parcela.
+async function recomputePaymentFromParts(
+  supabase: ReturnType<typeof createClient>,
+  paymentId: string
+) {
+  const { data: payment, error: pErr } = await supabase
+    .from("payments")
+    .select("rent_amount")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (pErr) throw new Error(pErr.message);
+  if (!payment) throw new Error("That payment could not be found.");
+
+  const { data: parts, error: partsErr } = await supabase
+    .from("payment_parts")
+    .select("amount, paid_at")
+    .eq("payment_id", paymentId)
+    .is("archived_at", null);
+  if (partsErr) throw new Error(partsErr.message);
+
+  const rent = Number((payment as { rent_amount: number | null }).rent_amount ?? 0);
+  const rows = (parts ?? []) as { amount: number | null; paid_at: string | null }[];
+  const paid = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+
+  let status: PaymentStatus = "due";
+  let received_at: string | null = null;
+  if (rent > 0 && paid >= rent) {
+    status = "received";
+    // Carimba a data da última parcela (regra de caixa). Meio-dia UTC evita
+    // que o fuso jogue a data pro dia anterior em America/New_York.
+    const maxPaid = rows
+      .map((r) => r.paid_at)
+      .filter((d): d is string => !!d)
+      .sort()
+      .pop();
+    received_at = maxPaid
+      ? new Date(`${maxPaid}T12:00:00Z`).toISOString()
+      : new Date().toISOString();
+  }
+
+  const { error: upErr } = await supabase
+    .from("payments")
+    .update({ amount_paid: paid, status, received_at })
+    .eq("id", paymentId);
+  if (upErr) throw new Error(upErr.message);
+}
+
+function revalidatePayment(propertyId: string | null) {
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Registra UMA parcela paga contra um aluguel + recibos opcionais.
+export async function addPaymentPartAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const paymentId = str(fd, "payment_id");
+  if (!paymentId) throw new Error("Missing payment reference.");
+  const amount = num(fd, "amount");
+  if (amount === null || amount <= 0) {
+    throw new Error("Enter a payment amount greater than zero.");
+  }
+  const paidAt = str(fd, "paid_at");
+  if (!paidAt || !/^\d{4}-\d{2}-\d{2}/.test(paidAt)) {
+    throw new Error("A valid payment date is required.");
+  }
+
+  const { data: part, error } = await supabase
+    .from("payment_parts")
+    .insert({
+      payment_id: paymentId,
+      amount,
+      paid_at: paidAt,
+      method: str(fd, "method"),
+      notes: str(fd, "notes"),
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  // Recibos: gravamos payment_id (o RLS exige) E payment_part_id (liga à parcela).
+  const receipts = parseReceipts(fd);
+  if (receipts.length && part?.id) {
+    const partId = (part as { id: string }).id;
+    const rows = receipts.map((r) => ({
+      payment_id: paymentId,
+      payment_part_id: partId,
+      file_url: r.url,
+      file_name: r.name,
+      content_type: r.type,
+    }));
+    const { error: attErr } = await supabase.from("payment_attachments").insert(rows);
+    if (attErr) {
+      // Soft: a parcela fica; sinaliza a falha do recibo (não derruba o pagamento).
+      await recomputePaymentFromParts(supabase, paymentId);
+      revalidatePayment(str(fd, "property_id"));
+      throw new Error(`Payment saved, but a receipt could not be attached: ${attErr.message}`);
+    }
+  }
+
+  await recomputePaymentFromParts(supabase, paymentId);
+  revalidatePayment(str(fd, "property_id"));
+}
+
+// Edita o valor/data/método/notas de uma parcela (recibos via add/delete).
+export async function updatePaymentPartAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const id = str(fd, "id");
+  const paymentId = str(fd, "payment_id");
+  if (!id || !paymentId) throw new Error("Missing payment reference.");
+  const amount = num(fd, "amount");
+  if (amount === null || amount <= 0) {
+    throw new Error("Enter a payment amount greater than zero.");
+  }
+  const paidAt = str(fd, "paid_at");
+  if (!paidAt || !/^\d{4}-\d{2}-\d{2}/.test(paidAt)) {
+    throw new Error("A valid payment date is required.");
+  }
+
+  const { error } = await supabase
+    .from("payment_parts")
+    .update({
+      amount,
+      paid_at: paidAt,
+      method: str(fd, "method"),
+      notes: str(fd, "notes"),
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  // Permite anexar mais recibos na edição também.
+  const receipts = parseReceipts(fd);
+  if (receipts.length) {
+    const rows = receipts.map((r) => ({
+      payment_id: paymentId,
+      payment_part_id: id,
+      file_url: r.url,
+      file_name: r.name,
+      content_type: r.type,
+    }));
+    const { error: attErr } = await supabase.from("payment_attachments").insert(rows);
+    if (attErr) throw new Error(`Saved, but a receipt could not be attached: ${attErr.message}`);
+  }
+
+  await recomputePaymentFromParts(supabase, paymentId);
+  revalidatePayment(str(fd, "property_id"));
+}
+
+// Deleta uma parcela (os recibos dela caem por ON DELETE CASCADE) e recalcula.
+export async function deletePaymentPartAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const id = str(fd, "id");
+  const paymentId = str(fd, "payment_id");
+  if (!id || !paymentId) throw new Error("Missing payment reference.");
+
+  const { error } = await supabase.from("payment_parts").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await recomputePaymentFromParts(supabase, paymentId);
+  revalidatePayment(str(fd, "property_id"));
 }
 
 // HARD DELETE de um pagamento. Gate re-checado. Confirmação leve é na UI.

@@ -13,12 +13,18 @@ export function PropertyPaymentsTable({
   setStatus,
   updateAction,
   deleteAction,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   payments: Payment[];
   canManage: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
+  addPartAction?: (fd: FormData) => void | Promise<void>;
+  updatePartAction?: (fd: FormData) => void | Promise<void>;
+  deletePartAction?: (fd: FormData) => void | Promise<void>;
 }) {
   // Kind, Month, Due, Amount, Commission, Status, Receipt (+ actions). Sem Property/Tenant.
   const colSpan = canManage ? 8 : 7;
@@ -50,6 +56,9 @@ export function PropertyPaymentsTable({
               setStatus={setStatus}
               updateAction={updateAction}
               deleteAction={deleteAction}
+              addPartAction={addPartAction}
+              updatePartAction={updatePartAction}
+              deletePartAction={deletePartAction}
               hideProperty
             />
           ))}

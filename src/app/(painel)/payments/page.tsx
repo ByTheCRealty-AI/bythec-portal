@@ -14,6 +14,9 @@ import {
   setPaymentStatusAction,
   updateDepositTotalAction,
   deleteDepositGroupAction,
+  addPaymentPartAction,
+  updatePaymentPartAction,
+  deletePaymentPartAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +32,7 @@ async function loadPayments() {
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type)"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id))"
       )
       .is("archived_at", null)
       .in("kind", ["monthly", "first_month", "last_month", "security_deposit"])
@@ -117,6 +120,9 @@ export default async function PaymentsPage() {
           deleteAction={deletePaymentAction}
           updateDepositTotalAction={updateDepositTotalAction}
           deleteDepositGroupAction={deleteDepositGroupAction}
+          addPartAction={addPaymentPartAction}
+          updatePartAction={updatePaymentPartAction}
+          deletePartAction={deletePaymentPartAction}
         />
       )}
     </>

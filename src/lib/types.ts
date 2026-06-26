@@ -384,6 +384,24 @@ export interface PaymentAttachment {
   file_url: string;
   file_name: string | null;
   content_type: string | null;
+  // Set when the receipt belongs to a specific partial payment (payment_parts).
+  // Null = payment-level receipt (legacy Bubble import + single full-payment add).
+  payment_part_id?: string | null;
+}
+
+// One partial payment a tenant made toward a rent charge. A rent payment can be
+// settled in several of these; the parent flips to received only when they sum
+// to rent_amount (cash basis — commission counts then). Each part can carry its
+// own receipts (any media), including cash (a photo of the paper receipt).
+export interface PaymentPart {
+  id: string;
+  payment_id: string;
+  amount: number;
+  paid_at: string; // YYYY-MM-DD
+  method: string | null;
+  notes: string | null;
+  created_at: string;
+  attachments?: PaymentAttachment[] | null;
 }
 
 export interface Payment {
@@ -397,6 +415,9 @@ export interface Payment {
   commission: number | null;
   status: PaymentStatus;
   received_at: string | null;
+  // Running sum of partial payments (payment_parts). Derived display state:
+  // status='due' AND amount_paid>0 => "Partial". Maintained by the server actions.
+  amount_paid: number | null;
   notes: string | null;
   // Security-deposit installment tracking. A single deposit is split into N
   // monthly installments that share one `installment_group` UUID. Null on all
@@ -412,12 +433,26 @@ export interface Payment {
   tenant?: Pick<Client, "id" | "name"> | null;
   // Imported receipts (one per payment for the Bubble batch). May be empty.
   attachments?: PaymentAttachment[] | null;
+  // Partial payments logged against this rent (monthly / first/last month).
+  parts?: PaymentPart[] | null;
 }
 
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   due: "Due",
   received: "Received",
 };
+
+// Payment methods offered when logging a (partial) payment. Free text in the DB,
+// but this fixed list keeps the UI consistent with how By the C gets paid.
+export const PAYMENT_METHODS = [
+  "Zelle",
+  "Check",
+  "Cash",
+  "eCheck (DPX)",
+  "Stripe",
+  "Airbnb / VRBO payout",
+  "Other",
+] as const;
 
 export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
   monthly: "Monthly",
