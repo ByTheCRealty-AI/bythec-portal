@@ -18,6 +18,7 @@ import {
   SEASONAL_COMMISSION_BASE_LABEL,
   type Client,
   type Property,
+  type Invoice,
   type CleaningDestination,
   type SeasonalCommissionBase,
 } from "@/lib/types";
@@ -31,38 +32,56 @@ type Extra = { description: string; amount: string };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const n = (s: string) => Number(s) || 0;
+// number|null -> string pra pré-preencher inputs no modo edição.
+const s = (v: number | null | undefined) => (v == null ? "" : String(v));
+const ymd = (v: string | null | undefined) => (v ? v.slice(0, 10) : "");
 
 export function SeasonalInvoiceForm({
   action,
   clients,
   properties,
+  invoice,
+  initialExtras = [],
+  initialGuestExtras = [],
+  submitLabel = "Create seasonal invoice",
+  cancelHref = "/invoices",
 }: {
   action: (fd: FormData) => void | Promise<void>;
   clients: Client[];
   properties: Prop[];
+  // Modo edição: pré-preenche o form com a invoice existente.
+  invoice?: Invoice;
+  initialExtras?: Extra[];
+  initialGuestExtras?: Extra[];
+  submitLabel?: string;
+  cancelHref?: string;
 }) {
-  const [clientId, setClientId] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [platform, setPlatform] = useState<string>("Airbnb");
-  const [cleaningGoesTo, setCleaningGoesTo] = useState<CleaningDestination>("owner");
+  const [clientId, setClientId] = useState(invoice?.client_id ?? "");
+  const [propertyId, setPropertyId] = useState(invoice?.property_id ?? "");
+  const [platform, setPlatform] = useState<string>(invoice?.platform ?? "Airbnb");
+  const [cleaningGoesTo, setCleaningGoesTo] = useState<CleaningDestination>(invoice?.cleaning_goes_to ?? "owner");
 
   // Guest side
-  const [roomFee, setRoomFee] = useState("");
-  const [rentalNights, setRentalNights] = useState("");
-  const [rentalDiscount, setRentalDiscount] = useState("");
-  const [cleaningFee, setCleaningFee] = useState("");
-  const [guestServiceFee, setGuestServiceFee] = useState("");
-  const [occupancyTaxes, setOccupancyTaxes] = useState("");
-  const [vrboPropertyDamage, setVrboPropertyDamage] = useState("");
+  const [roomFee, setRoomFee] = useState(s(invoice?.room_fee));
+  const [rentalNights, setRentalNights] = useState(s(invoice?.rental_nights));
+  const [rentalDiscount, setRentalDiscount] = useState(s(invoice?.rental_discount));
+  const [cleaningFee, setCleaningFee] = useState(s(invoice?.cleaning_fee));
+  const [guestServiceFee, setGuestServiceFee] = useState(s(invoice?.guest_service_fee));
+  const [occupancyTaxes, setOccupancyTaxes] = useState(s(invoice?.occupancy_taxes));
+  const [vrboPropertyDamage, setVrboPropertyDamage] = useState(s(invoice?.vrbo_property_damage));
   // Pagamentos extras do guest (pet fee, extra guest, late checkout…). Somam no total.
-  const [guestExtras, setGuestExtras] = useState<Extra[]>([]);
+  const [guestExtras, setGuestExtras] = useState<Extra[]>(initialGuestExtras);
 
   // Owner side
-  const [hostPayout, setHostPayout] = useState("");
-  const [hostServiceFee, setHostServiceFee] = useState("");
-  const [commissionPct, setCommissionPct] = useState("10"); // em %, default 10
-  const [commissionBase, setCommissionBase] = useState<SeasonalCommissionBase>("host_payout"); // base do %, default host payout
-  const [extras, setExtras] = useState<Extra[]>([]);
+  const [hostPayout, setHostPayout] = useState(s(invoice?.host_payout));
+  const [hostServiceFee, setHostServiceFee] = useState(s(invoice?.host_service_fee));
+  const [commissionPct, setCommissionPct] = useState(
+    invoice?.commission_rate != null ? String(round1(invoice.commission_rate * 100)) : "10"
+  ); // em %, default 10
+  const [commissionBase, setCommissionBase] = useState<SeasonalCommissionBase>(
+    invoice?.commission_base ?? "host_payout"
+  ); // base do %, default host payout
+  const [extras, setExtras] = useState<Extra[]>(initialExtras);
 
   const clientProps = clientId ? properties.filter((p) => p.owner_id === clientId) : properties;
   const isVrbo = platform === "VRBO";
@@ -171,19 +190,19 @@ export function SeasonalInvoiceForm({
             </select>
           </Field>
           <Field label="Guest name">
-            <input name="guest_name" className={inputClass} placeholder="Guest full name" />
+            <input name="guest_name" defaultValue={invoice?.guest_name ?? ""} className={inputClass} placeholder="Guest full name" />
           </Field>
           <Field label="Check-in">
-            <input name="dates_reserved_start" type="date" className={inputClass} />
+            <input name="dates_reserved_start" type="date" defaultValue={ymd(invoice?.dates_reserved_start)} className={inputClass} />
           </Field>
           <Field label="Check-out">
-            <input name="dates_reserved_end" type="date" className={inputClass} />
+            <input name="dates_reserved_end" type="date" defaultValue={ymd(invoice?.dates_reserved_end)} className={inputClass} />
           </Field>
           <Field label="Invoice date *">
-            <input name="date" type="date" required defaultValue={todayISO()} className={inputClass} />
+            <input name="date" type="date" required defaultValue={ymd(invoice?.date) || todayISO()} className={inputClass} />
           </Field>
           <Field label="Due">
-            <input name="due_date" type="date" className={inputClass} />
+            <input name="due_date" type="date" defaultValue={ymd(invoice?.due_date)} className={inputClass} />
           </Field>
         </div>
       </section>
@@ -367,9 +386,9 @@ export function SeasonalInvoiceForm({
 
       <div className="flex items-center gap-3">
         <button type="submit" className={buttonClass("primary")} disabled={!clientId || !propertyId}>
-          Create seasonal invoice
+          {submitLabel}
         </button>
-        <Link href="/invoices" className={buttonClass("ghost")}>Cancel</Link>
+        <Link href={cancelHref} className={buttonClass("ghost")}>Cancel</Link>
       </div>
     </form>
   );

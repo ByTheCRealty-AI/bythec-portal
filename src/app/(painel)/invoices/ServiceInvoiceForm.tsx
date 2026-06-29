@@ -10,26 +10,40 @@ import Link from "next/link";
 import { Field, inputClass, selectClass, buttonClass } from "@/components/ui";
 import { money } from "@/lib/format";
 import { round2 } from "@/lib/invoice-formula";
-import { INVOICE_ITEM_CATEGORY_LABEL, type Client, type Property, type InvoiceItemCategory } from "@/lib/types";
+import { INVOICE_ITEM_CATEGORY_LABEL, type Client, type Property, type Invoice, type InvoiceItemCategory } from "@/lib/types";
 import { Plus, Trash2 } from "lucide-react";
 
 type Prop = Pick<Property, "id" | "owner_id" | "address" | "address2" | "seasonal_commission_rate">;
 type LineItem = { description: string; amount: string; category: InvoiceItemCategory };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const ymd = (v: string | null | undefined) => (v ? v.slice(0, 10) : "");
 
 export function ServiceInvoiceForm({
   action,
   clients,
   properties,
+  invoice,
+  initialItems,
+  submitLabel = "Create service invoice",
+  cancelHref = "/invoices",
 }: {
   action: (fd: FormData) => void | Promise<void>;
   clients: Client[];
   properties: Prop[];
+  // Modo edição: pré-preenche o form com a invoice existente + seus itens.
+  invoice?: Invoice;
+  initialItems?: LineItem[];
+  submitLabel?: string;
+  cancelHref?: string;
 }) {
-  const [clientId, setClientId] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [items, setItems] = useState<LineItem[]>([{ description: "", amount: "", category: "labor" }]);
+  const [clientId, setClientId] = useState(invoice?.client_id ?? "");
+  const [propertyId, setPropertyId] = useState(invoice?.property_id ?? "");
+  const [items, setItems] = useState<LineItem[]>(
+    initialItems && initialItems.length > 0
+      ? initialItems
+      : [{ description: "", amount: "", category: "labor" }]
+  );
 
   const selectedClient = clients.find((c) => c.id === clientId);
   // Propriedades do cliente selecionado (se houver); senão todas.
@@ -115,16 +129,16 @@ export function ServiceInvoiceForm({
 
         <div className="mt-4">
           <Field label="Service address (if not a saved property)">
-            <input name="service_address" className={inputClass} placeholder="123 Ocean St, Hyannis MA 02601" />
+            <input name="service_address" defaultValue={invoice?.service_address ?? ""} className={inputClass} placeholder="123 Ocean St, Hyannis MA 02601" />
           </Field>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Invoice date *">
-            <input name="date" type="date" required defaultValue={todayISO()} className={inputClass} />
+            <input name="date" type="date" required defaultValue={ymd(invoice?.date) || todayISO()} className={inputClass} />
           </Field>
           <Field label="Due" hint="Service invoices are typically due when received.">
-            <input name="due_date" type="date" className={inputClass} />
+            <input name="due_date" type="date" defaultValue={ymd(invoice?.due_date)} className={inputClass} />
           </Field>
         </div>
       </section>
@@ -198,15 +212,15 @@ export function ServiceInvoiceForm({
 
       <section className="glass p-6">
         <Field label="Notes">
-          <textarea name="notes" rows={2} className={inputClass} placeholder="Internal or invoice notes." />
+          <textarea name="notes" rows={2} defaultValue={invoice?.notes ?? ""} className={inputClass} placeholder="Internal or invoice notes." />
         </Field>
       </section>
 
       <div className="flex items-center gap-3">
         <button type="submit" className={buttonClass("primary")} disabled={!clientId}>
-          Create service invoice
+          {submitLabel}
         </button>
-        <Link href="/invoices" className={buttonClass("ghost")}>Cancel</Link>
+        <Link href={cancelHref} className={buttonClass("ghost")}>Cancel</Link>
       </div>
     </form>
   );
