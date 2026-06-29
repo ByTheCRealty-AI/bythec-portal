@@ -21,6 +21,9 @@ function commissionBasisLabel(
   const base: SeasonalCommissionBase | null =
     inv.commission_base ?? inv.property?.seasonal_commission_base ?? null;
   if (!base) return null;
+  // Só mostra a base quando é o HOST PAYOUT. Quando é o total pago pelo guest,
+  // não escreve nada (decisão da Andrea — o invoice não expõe essa base).
+  if (base === "paid_by_guest") return null;
   const baseText = SEASONAL_COMMISSION_BASE_LABEL[base].toLowerCase();
   const rate = inv.commission_rate;
   if (rate == null) return `of ${baseText}`;
