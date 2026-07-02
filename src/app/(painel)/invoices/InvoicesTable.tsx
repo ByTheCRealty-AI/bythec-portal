@@ -20,9 +20,10 @@ export interface InvoiceRow {
   total: number;
   client_name: string | null;
   property_address: string | null;
+  cleaner_unpaid: boolean;
 }
 
-type Filter = "" | "seasonal" | "service" | "unpaid";
+type Filter = "" | "seasonal" | "service" | "unpaid" | "cleaner_unpaid";
 
 export function InvoicesTable({
   rows,
@@ -55,6 +56,7 @@ export function InvoicesTable({
     ...(canSeasonal ? [{ value: "seasonal" as Filter, label: "Seasonal" }] : []),
     { value: "service", label: "Service" },
     { value: "unpaid", label: "Unpaid" },
+    ...(canSeasonal ? [{ value: "cleaner_unpaid" as Filter, label: "Cleaner unpaid" }] : []),
   ];
 
   const term = query.trim().toLowerCase();
@@ -62,6 +64,7 @@ export function InvoicesTable({
     if (filter === "seasonal" && r.kind !== "seasonal") return false;
     if (filter === "service" && r.kind !== "service") return false;
     if (filter === "unpaid" && r.paid) return false;
+    if (filter === "cleaner_unpaid" && !r.cleaner_unpaid) return false;
     if (term) {
       const hay = `${r.client_name ?? ""} ${r.property_address ?? ""} ${r.invoice_number}`.toLowerCase();
       return term.split(/\s+/).every((w) => hay.includes(w));
@@ -152,15 +155,22 @@ export function InvoicesTable({
                   <td className="px-5 py-3.5 text-ink/65">{date(r.date)}</td>
                   <td className="px-5 py-3.5 text-right font-semibold text-ink">{money(r.total)}</td>
                   <td className="px-5 py-3.5">
-                    {r.paid ? (
-                      <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                        Paid
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
-                        Due
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {r.paid ? (
+                        <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                          Paid
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+                          Due
+                        </span>
+                      )}
+                      {r.cleaner_unpaid && (
+                        <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+                          Cleaner unpaid
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <ChevronRight className="inline-flex h-4 w-4 text-ink/40" />

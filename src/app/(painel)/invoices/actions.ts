@@ -292,6 +292,22 @@ export async function setPaid(id: string, paid: boolean) {
   revalidatePath("/invoices");
 }
 
+// Cleaner pago pela By the C (só faz sentido em seasonal com cleaning_goes_to =
+// 'bythec'). Interno — não vai pro PDF. Carimba a data como o commission_paid.
+export async function setCleanerPaid(id: string, cleanerPaid: boolean) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({
+      cleaner_paid: cleanerPaid,
+      cleaner_paid_at: cleanerPaid ? new Date().toISOString() : null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath("/invoices");
+}
+
 // ---- Archive (NUNCA deletar) -----------------------------------------------
 export async function archiveInvoice(id: string) {
   const supabase = createClient();

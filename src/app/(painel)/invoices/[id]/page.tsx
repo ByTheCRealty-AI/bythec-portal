@@ -72,6 +72,9 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
   const archived = invoice.archived_at !== null;
   const isSeasonal = invoice.kind === "seasonal";
+  // Cleaner pago só faz sentido quando a By the C recebe o cleaning fee (e por
+  // isso paga o cleaner). Interno — nunca vai pro PDF/impressão.
+  const showCleaner = isSeasonal && invoice.cleaning_goes_to === "bythec";
   const numberLabel = isSeasonal
     ? `Invoice #${invoice.invoice_number}`
     : `Service Invoice #${invoice.invoice_number}`;
@@ -105,8 +108,20 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
             <Badge tone="orange">Due</Badge>
           )}
           {archived && <Badge tone="muted">Archived</Badge>}
+          {showCleaner &&
+            (invoice.cleaner_paid ? (
+              <Badge tone="gold">Cleaner paid</Badge>
+            ) : (
+              <Badge tone="orange">Cleaner unpaid</Badge>
+            ))}
         </div>
-        <InvoiceActions id={invoice.id} paid={invoice.paid} archived={archived} />
+        <InvoiceActions
+          id={invoice.id}
+          paid={invoice.paid}
+          archived={archived}
+          showCleaner={showCleaner}
+          cleanerPaid={invoice.cleaner_paid}
+        />
       </div>
 
       {/* ===================== BRANDED INVOICE (printable) ===================== */}

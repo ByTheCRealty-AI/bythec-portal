@@ -227,6 +227,10 @@ export interface Invoice {
   commission_rate: number | null;
   total_received_by_owner: number | null;
   cleaning_goes_to: CleaningDestination | null;
+  // Interno: quando cleaning_goes_to = 'bythec', a By the C paga o cleaner.
+  // Toggle manual na tela (não vai pro PDF). Espelha payments.commission_paid.
+  cleaner_paid: boolean;
+  cleaner_paid_at: string | null;
   vrbo_commission: number | null;
   vrbo_payment_fee: number | null;
   vrbo_property_damage: number | null;

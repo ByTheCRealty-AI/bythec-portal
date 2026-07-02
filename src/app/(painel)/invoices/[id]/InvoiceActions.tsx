@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui";
-import { setPaid, archiveInvoice, unarchiveInvoice } from "../actions";
-import { ArrowLeft, Pencil, Printer, Archive, ArchiveRestore, Check, RotateCcw } from "lucide-react";
+import { setPaid, setCleanerPaid, archiveInvoice, unarchiveInvoice } from "../actions";
+import { ArrowLeft, Pencil, Printer, Archive, ArchiveRestore, Check, RotateCcw, Sparkles } from "lucide-react";
 
 export function InvoiceBackButton() {
   const router = useRouter();
@@ -36,10 +36,15 @@ export function InvoiceActions({
   id,
   paid,
   archived,
+  showCleaner = false,
+  cleanerPaid = false,
 }: {
   id: string;
   paid: boolean;
   archived: boolean;
+  // Só aparece em seasonal com cleaning_goes_to = 'bythec' (a By the C paga o cleaner).
+  showCleaner?: boolean;
+  cleanerPaid?: boolean;
 }) {
   const [pending, start] = useTransition();
 
@@ -53,6 +58,17 @@ export function InvoiceActions({
         {paid ? <RotateCcw className="h-4 w-4" /> : <Check className="h-4 w-4" />}
         {pending ? "Saving…" : paid ? "Mark as unpaid" : "Mark as paid"}
       </button>
+
+      {showCleaner && (
+        <button
+          onClick={() => start(() => setCleanerPaid(id, !cleanerPaid))}
+          disabled={pending}
+          className={buttonClass(cleanerPaid ? "ghost" : "primary")}
+        >
+          {cleanerPaid ? <RotateCcw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+          {pending ? "Saving…" : cleanerPaid ? "Mark cleaner as unpaid" : "Mark cleaner as paid"}
+        </button>
+      )}
 
       <button onClick={() => window.print()} className={buttonClass("ghost")}>
         <Printer className="h-4 w-4" /> Print / Save as PDF
