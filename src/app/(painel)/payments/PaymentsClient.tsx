@@ -31,7 +31,7 @@ import { Field, inputClass, buttonClass } from "@/components/ui";
 import type { Payment, PaymentKind, PaymentStatus } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
-import { PaymentRow } from "./PaymentsTable";
+import { PaymentRow, CommissionPaidToggle } from "./PaymentsTable";
 import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
 
 type TabKey = "due" | "monthly" | "past" | "deposit";
@@ -246,6 +246,7 @@ function DueRow({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  setCommissionPaid,
 }: {
   p: Payment;
   zebra: boolean;
@@ -255,6 +256,7 @@ function DueRow({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
+  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const paid = p.amount_paid ?? 0;
@@ -292,7 +294,10 @@ function DueRow({
           <KindTag kind={p.kind} />
         </td>
         <td className="px-5 py-3.5 text-right">
-          <div className="inline-flex items-center gap-2">
+          <div className="inline-flex flex-wrap items-center justify-end gap-2">
+            {p.commission != null && p.commission > 0 && (
+              <CommissionPaidToggle payment={p} setCommissionPaid={setCommissionPaid} />
+            )}
             {canParts && (
               <button
                 type="button"
@@ -597,6 +602,7 @@ export function PaymentsClient({
                   addPartAction={addPartAction}
                   updatePartAction={updatePartAction}
                   deletePartAction={deletePartAction}
+                  setCommissionPaid={setCommissionPaid}
                 />
               )}
               {dueThisMonth.length > 0 && (
@@ -610,6 +616,7 @@ export function PaymentsClient({
                   addPartAction={addPartAction}
                   updatePartAction={updatePartAction}
                   deletePartAction={deletePartAction}
+                  setCommissionPaid={setCommissionPaid}
                 />
               )}
             </div>
@@ -1207,6 +1214,7 @@ function DueSection({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  setCommissionPaid,
 }: {
   title: string;
   subtitle: string;
@@ -1217,6 +1225,7 @@ function DueSection({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
+  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
 }) {
   return (
     <section>
@@ -1247,6 +1256,7 @@ function DueSection({
                 addPartAction={addPartAction}
                 updatePartAction={updatePartAction}
                 deletePartAction={deletePartAction}
+                setCommissionPaid={setCommissionPaid}
               />
             ))}
           </tbody>

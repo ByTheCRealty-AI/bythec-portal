@@ -66,7 +66,8 @@ function supportsParts(p: Payment): boolean {
 
 // Checkbox pra marcar a comissão da By the C como paga/liquidada. Carimba a data
 // ao marcar (server). Otimista via transition; erro reverte + mostra mensagem.
-function CommissionPaidToggle({
+// Exportado pra reuso na aba Due (PaymentsClient).
+export function CommissionPaidToggle({
   payment,
   setCommissionPaid,
 }: {
