@@ -30,6 +30,7 @@ import {
   deletePropertyDocumentAction,
 } from "../actions";
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
+import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
 import {
   addPaymentAction,
@@ -238,6 +239,18 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           action={addPaymentAction}
           depositAction={addSecurityDepositAction}
           fixedProperty={{ id: p.id, rent_price: p.rent_price }}
+        />
+      )}
+      {canPayments && (
+        <GeneratePaymentsButton
+          propertyId={p.id}
+          rentPrice={p.rent_price}
+          rentalStart={p.rental_start}
+          rentalEnd={p.rental_end}
+          rentDueDay={p.rent_due_day}
+          existingMonths={payments
+            .filter((pay) => pay.kind === "monthly" && pay.month)
+            .map((pay) => pay.month as string)}
         />
       )}
       {payments.length === 0 ? (

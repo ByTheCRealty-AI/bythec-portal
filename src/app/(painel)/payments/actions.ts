@@ -130,6 +130,102 @@ export async function addPaymentAction(fd: FormData) {
   if (softError) throw new Error(softError);
 }
 
+// Gera os pagamentos MENSAIS de um aluguel a partir das datas do contrato
+// (rental_start → rental_end). Um row 'monthly' por mês, status 'due',
+// comissão year-round = 10% do rent (regra TRAVADA). Idempotente: pula os meses
+// que já têm um pagamento 'monthly' (clicar de novo não duplica). NÃO cria
+// first/last month nem security deposit — esses são lançados à parte.
+// Retorna quantos foram criados e quantos foram pulados (pra feedback na UI).
+export async function generateMonthlyPaymentsAction(
+  propertyId: string
+): Promise<{ created: number; skipped: number }> {
+  await assertCanManagePayments();
+  if (!propertyId) throw new Error("A property is required.");
+  const supabase = createClient();
+
+  const { data: prop, error: propErr } = await supabase
+    .from("properties")
+    .select("id, tenant_id, rent_price, rental_start, rental_end, rent_due_day")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (propErr) throw new Error(propErr.message);
+  if (!prop) throw new Error("That property could not be found.");
+
+  const p = prop as {
+    tenant_id: string | null;
+    rent_price: number | string | null;
+    rental_start: string | null;
+    rental_end: string | null;
+    rent_due_day: number | null;
+  };
+
+  const rent = Number(p.rent_price);
+  if (!p.rental_start || !p.rental_end) {
+    throw new Error("Set the lease start and end dates on this property first.");
+  }
+  if (!Number.isFinite(rent) || rent <= 0) {
+    throw new Error("Set the monthly rent on this property first.");
+  }
+
+  const [sy, sm] = p.rental_start.slice(0, 10).split("-").map(Number);
+  const [ey, em] = p.rental_end.slice(0, 10).split("-").map(Number);
+  const monthCount = (ey - sy) * 12 + (em - sm) + 1;
+  if (monthCount < 1 || monthCount > 120) {
+    throw new Error("The lease dates look off — check the start and end dates.");
+  }
+
+  const dueDay = p.rent_due_day ?? 1;
+  const commission = Math.round(rent * 0.1 * 100) / 100;
+
+  // Meses que já têm um pagamento mensal — pra pular (idempotência).
+  const { data: existing, error: exErr } = await supabase
+    .from("payments")
+    .select("month")
+    .eq("property_id", propertyId)
+    .eq("kind", "monthly");
+  if (exErr) throw new Error(exErr.message);
+  const taken = new Set(
+    (existing ?? [])
+      .map((r) => firstOfMonth((r as { month: string | null }).month))
+      .filter((m): m is string => Boolean(m))
+  );
+
+  // Base com o dia de vencimento; addMonths mantém o dia (clamped ao fim do mês).
+  const dueBase = `${String(sy).padStart(4, "0")}-${String(sm).padStart(2, "0")}-${String(dueDay).padStart(2, "0")}`;
+
+  const rows: Array<Record<string, unknown>> = [];
+  let skipped = 0;
+  for (let i = 0; i < monthCount; i++) {
+    const dueDate = addMonths(dueBase, i);
+    const month = firstOfMonth(dueDate);
+    if (!month || !dueDate) continue;
+    if (taken.has(month)) {
+      skipped++;
+      continue;
+    }
+    rows.push({
+      property_id: propertyId,
+      tenant_id: p.tenant_id,
+      kind: "monthly",
+      month,
+      due_date: dueDate,
+      rent_amount: rent,
+      commission,
+      status: "due",
+      amount_paid: 0,
+    });
+  }
+
+  if (rows.length > 0) {
+    const { error: insErr } = await supabase.from("payments").insert(rows);
+    if (insErr) throw new Error(insErr.message);
+  }
+
+  revalidatePath("/payments");
+  revalidatePath("/propriedades/" + propertyId);
+  return { created: rows.length, skipped };
+}
+
 // Cria um SECURITY DEPOSIT dividido em N parcelas mensais. Mesmo gate dos demais.
 // O total é repartido em DÓLARES INTEIROS, com o resto distribuído nas parcelas
 // MAIS CEDO (ex.: $2.300/3 → 767, 767, 766). Todas as parcelas compartilham um
