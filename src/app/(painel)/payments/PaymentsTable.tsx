@@ -335,6 +335,7 @@ export function PaymentRow({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  setCommissionPaid,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
