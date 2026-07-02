@@ -356,6 +356,7 @@ export function PaymentsClient({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  setCommissionPaid,
 }: {
   payments: Payment[];
   properties: PaymentPropertyOption[];
@@ -370,6 +371,7 @@ export function PaymentsClient({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
+  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
 
@@ -681,6 +683,7 @@ export function PaymentsClient({
                           addPartAction={addPartAction}
                           updatePartAction={updatePartAction}
                           deletePartAction={deletePartAction}
+                          setCommissionPaid={setCommissionPaid}
                         />
                       ))}
                     </tbody>

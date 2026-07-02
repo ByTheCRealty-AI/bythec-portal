@@ -6,7 +6,7 @@
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown } from "lucide-react";
+import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown, Square, CheckSquare } from "lucide-react";
 import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
 import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
 import { PaymentReceipt } from "./PaymentReceipt";
@@ -62,6 +62,61 @@ function StatusBadge({ payment }: { payment: Payment }) {
 const RENT_KINDS_FOR_PARTS = new Set(["monthly", "first_month", "last_month"]);
 function supportsParts(p: Payment): boolean {
   return RENT_KINDS_FOR_PARTS.has(p.kind);
+}
+
+// Checkbox pra marcar a comissão da By the C como paga/liquidada. Carimba a data
+// ao marcar (server). Otimista via transition; erro reverte + mostra mensagem.
+function CommissionPaidToggle({
+  payment,
+  setCommissionPaid,
+}: {
+  payment: Payment;
+  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+}) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const paid = payment.commission_paid;
+
+  function run() {
+    setError(null);
+    start(async () => {
+      try {
+        await setCommissionPaid(payment.id, !paid);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not update. Try again.");
+      }
+    });
+  }
+
+  return (
+    <span className="inline-flex flex-col items-start gap-0.5">
+      <button
+        type="button"
+        onClick={run}
+        disabled={pending}
+        className={cx(
+          "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-semibold transition disabled:opacity-60",
+          paid
+            ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/[0.15]"
+            : "border-black/[0.12] bg-white text-ink/55 hover:border-primary/40 hover:text-primary"
+        )}
+        title={paid ? "Commission paid — click to undo" : "Mark commission as paid"}
+      >
+        {pending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : paid ? (
+          <CheckSquare className="h-3.5 w-3.5" />
+        ) : (
+          <Square className="h-3.5 w-3.5" />
+        )}
+        {paid ? "Commission paid" : "Mark paid"}
+      </button>
+      {paid && payment.commission_paid_at && (
+        <span className="text-[10px] text-ink/45">{date(payment.commission_paid_at)}</span>
+      )}
+      {error && <span className="text-[11px] text-red-600">{error}</span>}
+    </span>
+  );
 }
 
 function kindTone(k: PaymentKind): "gold" | "orange" | "neutral" {
@@ -296,6 +351,8 @@ export function PaymentRow({
   addPartAction?: (fd: FormData) => void | Promise<void>;
   updatePartAction?: (fd: FormData) => void | Promise<void>;
   deletePartAction?: (fd: FormData) => void | Promise<void>;
+  // Toggle "commission paid". Optional so read-only contexts skip it.
+  setCommissionPaid?: (id: string, paid: boolean) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -359,7 +416,20 @@ export function PaymentRow({
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(payment.month)}</td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(payment.due_date)}</td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(payment.rent_amount)}</td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/70">{money(payment.commission)}</td>
+      <td className="whitespace-nowrap px-5 py-3.5 text-ink/70">
+        <div className="flex flex-col items-start gap-1.5">
+          <span>{money(payment.commission)}</span>
+          {payment.commission != null && payment.commission > 0 && (
+            canManage && setCommissionPaid ? (
+              <CommissionPaidToggle payment={payment} setCommissionPaid={setCommissionPaid} />
+            ) : payment.commission_paid ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                <CheckSquare className="h-3 w-3" /> Paid
+              </span>
+            ) : null
+          )}
+        </div>
+      </td>
       <td className="px-5 py-3.5">
         <StatusBadge payment={payment} />
       </td>

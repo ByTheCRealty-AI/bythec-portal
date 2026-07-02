@@ -425,6 +425,9 @@ export interface Payment {
   due_date: string | null;
   rent_amount: number | null;
   commission: number | null;
+  // Manual flag: By the C's commission for this payment has been paid/settled.
+  commission_paid: boolean;
+  commission_paid_at: string | null;
   status: PaymentStatus;
   received_at: string | null;
   // Running sum of partial payments (payment_parts). Derived display state:

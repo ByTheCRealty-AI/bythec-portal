@@ -578,3 +578,30 @@ export async function deletePaymentAction(fd: FormData) {
   const propertyId = (existing as { property_id: string | null } | null)?.property_id;
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
+
+// Toggle manual: a comissão da By the C desse pagamento foi paga/liquidada.
+// Carimba commission_paid_at ao marcar; limpa ao desmarcar. Mesmo gate dos demais.
+export async function setCommissionPaidAction(id: string, paid: boolean) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  const supabase = createClient();
+
+  const { data: existing } = await supabase
+    .from("payments")
+    .select("property_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      commission_paid: paid,
+      commission_paid_at: paid ? new Date().toISOString() : null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  const propertyId = (existing as { property_id: string | null } | null)?.property_id;
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
