@@ -110,7 +110,7 @@ export function CommissionPaidToggle({
         ) : (
           <Square className="h-3.5 w-3.5" />
         )}
-        {paid ? "Commission paid" : "Mark paid"}
+        Commission paid
       </button>
       {paid && payment.commission_paid_at && (
         <span className="text-[10px] text-ink/45">{date(payment.commission_paid_at)}</span>
