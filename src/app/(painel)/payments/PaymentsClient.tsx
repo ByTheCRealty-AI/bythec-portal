@@ -425,6 +425,25 @@ export function PaymentsClient({
     return monthKeys[0] ?? null;
   });
 
+  // ---- Monthly tab: por padrão só mostra o mês atual + os que vêm (upcoming),
+  // pra não jogar TODOS os meses de uma vez. Os mais antigos ficam atrás de um
+  // botão "Show older months". Se tudo estiver no passado, cai nos 3 mais recentes.
+  const currentUpcomingMonths = useMemo(
+    () => monthKeys.filter((k) => k >= currentMonthKey).sort((a, b) => a.localeCompare(b)),
+    [monthKeys, currentMonthKey]
+  );
+  const olderMonths = useMemo(
+    () => monthKeys.filter((k) => k < currentMonthKey), // monthKeys é desc → mantém desc
+    [monthKeys, currentMonthKey]
+  );
+  const defaultVisibleMonths =
+    currentUpcomingMonths.length > 0 ? currentUpcomingMonths : monthKeys.slice(0, 3);
+  const [showOlderMonths, setShowOlderMonths] = useState(false);
+  const hiddenOlderCount = monthKeys.length - defaultVisibleMonths.length;
+  const visibleMonthChips = showOlderMonths
+    ? [...currentUpcomingMonths, ...olderMonths]
+    : defaultVisibleMonths;
+
   const monthlyRows = useMemo(() => {
     if (!selectedMonth) return [] as Payment[];
     return rentPayments
@@ -634,7 +653,7 @@ export function PaymentsClient({
           ) : (
             <>
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                {monthKeys.map((k) => {
+                {visibleMonthChips.map((k) => {
                   const active = selectedMonth === k;
                   return (
                     <button
@@ -652,6 +671,15 @@ export function PaymentsClient({
                     </button>
                   );
                 })}
+                {hiddenOlderCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOlderMonths((v) => !v)}
+                    className="rounded-full border border-dashed border-black/15 px-3.5 py-1.5 text-xs font-semibold text-ink/55 transition hover:border-black/30 hover:text-ink"
+                  >
+                    {showOlderMonths ? "Show fewer" : `Show older months (${hiddenOlderCount})`}
+                  </button>
+                )}
               </div>
 
               {monthlyRows.length === 0 ? (
