@@ -338,6 +338,33 @@ export async function setCleanerPaymentMethod(id: string, method: string | null)
   revalidatePath(`/invoices/${id}`);
 }
 
+// Nº do cheque (owner/cleaner). String vazia limpa. Trim + limite defensivo.
+function normalizeCheckNumber(value: string | null): string | null {
+  if (!value) return null;
+  const v = value.trim().slice(0, 40);
+  return v || null;
+}
+
+export async function setOwnerCheckNumber(id: string, value: string | null) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ owner_check_number: normalizeCheckNumber(value) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
+export async function setCleanerCheckNumber(id: string, value: string | null) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ cleaner_check_number: normalizeCheckNumber(value) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
 // ---- Archive (NUNCA deletar) -----------------------------------------------
 export async function archiveInvoice(id: string) {
   const supabase = createClient();

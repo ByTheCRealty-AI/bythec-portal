@@ -234,6 +234,9 @@ export interface Invoice {
   // Como a By the C pagou owner e cleaner (interno). "owner pago" = flag `paid`.
   owner_payment_method: string | null;
   cleaner_payment_method: string | null;
+  // Nº do cheque (só relevante quando o método é Check/eCheck).
+  owner_check_number: string | null;
+  cleaner_check_number: string | null;
   vrbo_commission: number | null;
   vrbo_payment_fee: number | null;
   vrbo_property_damage: number | null;

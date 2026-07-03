@@ -134,6 +134,28 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         />
       </div>
 
+      {/* Payouts internos (só temporada) — no TOPO pra ser a 1ª coisa depois do header. */}
+      {isSeasonal && (
+        <div className="mx-auto mb-6 max-w-3xl">
+          <InvoicePayoutsPanel
+            invoiceId={invoice.id}
+            canManage={seasonalAccess}
+            ownerPaid={invoice.paid}
+            ownerPaidDate={invoice.paid_date}
+            ownerAmount={invoice.total_received_by_owner}
+            ownerMethod={invoice.owner_payment_method}
+            ownerCheckNumber={invoice.owner_check_number}
+            ownerReceipts={ownerReceipts}
+            cleaningToBythec={showCleaner}
+            cleanerPaid={invoice.cleaner_paid}
+            cleanerAmount={invoice.cleaning_fee}
+            cleanerMethod={invoice.cleaner_payment_method}
+            cleanerCheckNumber={invoice.cleaner_check_number}
+            cleanerReceipts={cleanerReceipts}
+          />
+        </div>
+      )}
+
       {/* ===================== BRANDED INVOICE (printable) ===================== */}
       <article id="invoice-sheet" className="mx-auto max-w-3xl rounded-2xl border border-black/[0.08] bg-white p-8 shadow-card sm:p-10">
         {/* Header */}
@@ -178,26 +200,6 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           {COMPANY.name}
         </footer>
       </article>
-
-      {/* Payouts internos (só temporada): como owner/cleaner foram pagos + recibo. */}
-      {isSeasonal && (
-        <div className="mx-auto max-w-3xl">
-          <InvoicePayoutsPanel
-            invoiceId={invoice.id}
-            canManage={seasonalAccess}
-            ownerPaid={invoice.paid}
-            ownerPaidDate={invoice.paid_date}
-            ownerAmount={invoice.total_received_by_owner}
-            ownerMethod={invoice.owner_payment_method}
-            ownerReceipts={ownerReceipts}
-            cleaningToBythec={showCleaner}
-            cleanerPaid={invoice.cleaner_paid}
-            cleanerAmount={invoice.cleaning_fee}
-            cleanerMethod={invoice.cleaner_payment_method}
-            cleanerReceipts={cleanerReceipts}
-          />
-        </div>
-      )}
 
       {/* Anexos + download combinado (recibos do hóspede). Escondido na impressão. */}
       <div className="mx-auto max-w-3xl">
