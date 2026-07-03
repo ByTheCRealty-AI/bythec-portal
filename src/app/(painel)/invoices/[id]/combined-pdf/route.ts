@@ -55,7 +55,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2), items:invoice_items(*), attachments:invoice_attachments(id,file_url,file_name,content_type,created_at)"
+      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2), items:invoice_items(*), attachments:invoice_attachments(id,file_url,file_name,content_type,category,created_at)"
     )
     .eq("id", params.id)
     .single();
@@ -65,7 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     client: { name: string | null; billing_address: string | null; billing_address2: string | null; billing_city: string | null; billing_state: string | null; billing_zip: string | null } | null;
     property: { address: string | null; address2: string | null } | null;
     items: InvoiceItem[];
-    attachments: { id: string; file_url: string; file_name: string | null; content_type: string | null; created_at: string }[];
+    attachments: { id: string; file_url: string; file_name: string | null; content_type: string | null; category: string | null; created_at: string }[];
   };
 
   const isSeasonal = inv.kind === "seasonal";
@@ -211,7 +211,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   T("By the C Realty and Property Management LLC", MARGIN, MARGIN - 14, 8, font, MUTED);
 
   // ---- Append attachments ----
+  // Só recibos do hóspede entram no PDF combinado. Recibos de repasse (owner/
+  // cleaner) são internos e ficam de fora. Legado sem categoria = guest.
   const attachments = (inv.attachments ?? [])
+    .filter((a) => (a.category ?? "guest_receipt") === "guest_receipt")
     .slice()
     .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
 

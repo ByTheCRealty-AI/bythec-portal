@@ -8,6 +8,7 @@ import type { Invoice, InvoiceItem, InvoiceAttachment, Client, Property, Seasona
 import { SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
 import { InvoiceBackButton, InvoiceActions } from "./InvoiceActions";
 import { InvoiceDocuments } from "../InvoiceDocuments";
+import { InvoicePayoutsPanel } from "../InvoicePayoutsPanel";
 import { addInvoiceAttachmentAction, deleteInvoiceAttachmentAction } from "../actions";
 
 // Texto curto da base da comissão (ex.: "10% of host payout"). Usa o que ficou
@@ -52,7 +53,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2,seasonal_commission_rate,seasonal_commission_base), items:invoice_items(*), attachments:invoice_attachments(id,invoice_id,file_url,file_name,content_type,created_at)"
+      "*, client:client_id(id,name,email,phone,billing_address,billing_address2,billing_city,billing_state,billing_zip), property:property_id(id,address,address2,seasonal_commission_rate,seasonal_commission_base), items:invoice_items(*), attachments:invoice_attachments(id,invoice_id,file_url,file_name,content_type,category,created_at)"
     )
     .eq("id", params.id)
     .single();
@@ -75,6 +76,15 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   // Cleaner pago só faz sentido quando a By the C recebe o cleaning fee (e por
   // isso paga o cleaner). Interno — nunca vai pro PDF/impressão.
   const showCleaner = isSeasonal && invoice.cleaning_goes_to === "bythec";
+
+  // Recibos: só guest_receipt entram na seção de recibos/PDF combinado; os de
+  // repasse (owner/cleaner) vão pro painel interno de Payouts.
+  const allAttachments = invoice.attachments ?? [];
+  const guestReceipts = allAttachments.filter(
+    (a) => (a.category ?? "guest_receipt") === "guest_receipt"
+  );
+  const ownerReceipts = allAttachments.filter((a) => a.category === "owner_payout");
+  const cleanerReceipts = allAttachments.filter((a) => a.category === "cleaner_payout");
   const numberLabel = isSeasonal
     ? `Invoice #${invoice.invoice_number}`
     : `Service Invoice #${invoice.invoice_number}`;
@@ -169,11 +179,31 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         </footer>
       </article>
 
-      {/* Anexos + download combinado (recibos). Escondido na impressão. */}
+      {/* Payouts internos (só temporada): como owner/cleaner foram pagos + recibo. */}
+      {isSeasonal && (
+        <div className="mx-auto max-w-3xl">
+          <InvoicePayoutsPanel
+            invoiceId={invoice.id}
+            canManage={seasonalAccess}
+            ownerPaid={invoice.paid}
+            ownerPaidDate={invoice.paid_date}
+            ownerAmount={invoice.total_received_by_owner}
+            ownerMethod={invoice.owner_payment_method}
+            ownerReceipts={ownerReceipts}
+            cleaningToBythec={showCleaner}
+            cleanerPaid={invoice.cleaner_paid}
+            cleanerAmount={invoice.cleaning_fee}
+            cleanerMethod={invoice.cleaner_payment_method}
+            cleanerReceipts={cleanerReceipts}
+          />
+        </div>
+      )}
+
+      {/* Anexos + download combinado (recibos do hóspede). Escondido na impressão. */}
       <div className="mx-auto max-w-3xl">
         <InvoiceDocuments
           invoiceId={invoice.id}
-          attachments={invoice.attachments ?? []}
+          attachments={guestReceipts}
           canManage={isSeasonal ? seasonalAccess : serviceAccess}
           addAction={addInvoiceAttachmentAction}
           deleteAction={deleteInvoiceAttachmentAction}

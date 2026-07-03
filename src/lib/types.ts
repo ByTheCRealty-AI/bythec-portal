@@ -231,6 +231,9 @@ export interface Invoice {
   // Toggle manual na tela (não vai pro PDF). Espelha payments.commission_paid.
   cleaner_paid: boolean;
   cleaner_paid_at: string | null;
+  // Como a By the C pagou owner e cleaner (interno). "owner pago" = flag `paid`.
+  owner_payment_method: string | null;
+  cleaner_payment_method: string | null;
   vrbo_commission: number | null;
   vrbo_payment_fee: number | null;
   vrbo_property_damage: number | null;
@@ -253,12 +256,16 @@ export interface Invoice {
 
 // Anexos (recibos Airbnb/VRBO/Stripe…) de uma invoice. file_url é object path no
 // bucket privado `documents`. Entram no PDF combinado (invoice + recibos).
+export type InvoiceAttachmentCategory = "guest_receipt" | "owner_payout" | "cleaner_payout";
+
 export interface InvoiceAttachment {
   id: string;
   invoice_id: string;
   file_url: string;
   file_name: string | null;
   content_type: string | null;
+  // guest_receipt = entra no PDF combinado; owner_payout/cleaner_payout = interno.
+  category: InvoiceAttachmentCategory;
   created_at: string;
 }
 

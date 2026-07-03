@@ -308,6 +308,36 @@ export async function setCleanerPaid(id: string, cleanerPaid: boolean) {
   revalidatePath("/invoices");
 }
 
+// Como o owner/cleaner foi pago (interno). Método é texto livre vindo do dropdown
+// (eCheck/Check/Cash/Zelle/Stripe/Other); string vazia limpa o campo.
+const PAYOUT_METHODS = ["eCheck", "Check", "Cash", "Zelle", "Stripe", "Other"];
+function normalizeMethod(method: string | null): string | null {
+  if (!method) return null;
+  const m = method.trim();
+  if (!m) return null;
+  return PAYOUT_METHODS.includes(m) ? m : "Other";
+}
+
+export async function setOwnerPaymentMethod(id: string, method: string | null) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ owner_payment_method: normalizeMethod(method) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
+export async function setCleanerPaymentMethod(id: string, method: string | null) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ cleaner_payment_method: normalizeMethod(method) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
 // ---- Archive (NUNCA deletar) -----------------------------------------------
 export async function archiveInvoice(id: string) {
   const supabase = createClient();
@@ -361,12 +391,21 @@ export async function addInvoiceAttachmentAction(fd: FormData) {
   const fileUrl = str(fd, "file_url");
   if (!fileUrl) throw new Error("Missing file.");
 
+  // Categoria separa recibo do hóspede (entra no PDF combinado) dos recibos de
+  // repasse owner/cleaner (internos). Default guest_receipt pra compatibilidade.
+  const rawCategory = str(fd, "category");
+  const category =
+    rawCategory === "owner_payout" || rawCategory === "cleaner_payout"
+      ? rawCategory
+      : "guest_receipt";
+
   const supabase = createClient();
   const { error } = await supabase.from("invoice_attachments").insert({
     invoice_id: invoiceId,
     file_url: fileUrl,
     file_name: str(fd, "file_name"),
     content_type: str(fd, "content_type"),
+    category,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/invoices/${invoiceId}`);
