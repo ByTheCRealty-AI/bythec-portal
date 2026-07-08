@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import type { PropertyType, RequestStatus } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can } from "@/lib/auth/capabilities";
+import { generateMonthlyPaymentsAction } from "../payments/actions";
 
 function str(fd: FormData, key: string): string | null {
   const v = fd.get(key);
@@ -89,6 +90,106 @@ export async function updatePropriedadeAction(id: string, fd: FormData) {
   revalidatePath(`/propriedades/${id}`);
   revalidatePath("/propriedades");
   redirect(`/propriedades/${id}`);
+}
+
+// Nova locação: define/troca o inquilino de um aluguel (year-round/off-season) e
+// grava as datas do contrato num passo só. O inquilino pode ser um cliente
+// existente (tenant_id) ou novo (cria o client com o tipo certo). Opcional:
+// gerar os pagamentos mensais do novo contrato e arquivar o inquilino anterior.
+// O histórico do inquilino antigo (pagamentos) NÃO é alterado — só desliga o
+// vínculo com a propriedade. Só properties.edit.
+export async function assignTenancyAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to change the tenant.");
+  }
+  const supabase = createClient();
+
+  const propertyId = str(fd, "property_id");
+  if (!propertyId) throw new Error("A property is required.");
+
+  const { data: prop, error: propErr } = await supabase
+    .from("properties")
+    .select("id, tenant_id, property_type")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (propErr) throw new Error(propErr.message);
+  if (!prop) throw new Error("That property could not be found.");
+  const p = prop as { id: string; tenant_id: string | null; property_type: PropertyType };
+  const previousTenantId = p.tenant_id;
+
+  // Novo inquilino: existente (tenant_id) OU novo cliente (cria o client).
+  let newTenantId: string | null;
+  if (str(fd, "tenant_mode") === "new") {
+    const name = str(fd, "new_name");
+    if (!name) throw new Error("Enter the new tenant's name.");
+    const clientType =
+      p.property_type === "off_season_rental" ? "off_season_tenant" : "tenant";
+    const { data: created, error: cErr } = await supabase
+      .from("clients")
+      .insert({
+        name,
+        email: str(fd, "new_email"),
+        phone: str(fd, "new_phone"),
+        client_type: clientType,
+      })
+      .select("id")
+      .single();
+    if (cErr) throw new Error(cErr.message);
+    newTenantId = created.id as string;
+  } else {
+    newTenantId = str(fd, "tenant_id");
+    if (!newTenantId) throw new Error("Pick a client to set as the tenant.");
+  }
+
+  // Atualiza a propriedade: inquilino + datas/valor do contrato.
+  const { error: upErr } = await supabase
+    .from("properties")
+    .update({
+      tenant_id: newTenantId,
+      rent_price: num(fd, "rent_price"),
+      rent_due_day: num(fd, "rent_due_day"),
+      rental_start: str(fd, "rental_start"),
+      rental_end: str(fd, "rental_end"),
+    })
+    .eq("id", propertyId);
+  if (upErr) throw new Error(upErr.message);
+
+  // Arquivar o inquilino anterior (opcional) — só se havia um e é diferente do novo.
+  if (str(fd, "archive_old") === "1" && previousTenantId && previousTenantId !== newTenantId) {
+    const { error: arErr } = await supabase
+      .from("clients")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", previousTenantId);
+    if (arErr) throw new Error(arErr.message);
+  }
+
+  // Gerar os pagamentos mensais do novo contrato (opcional). Idempotente: pula
+  // meses que já têm pagamento monthly.
+  if (str(fd, "generate_payments") === "1") {
+    await generateMonthlyPaymentsAction(propertyId);
+  }
+
+  revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/propriedades");
+  revalidatePath("/payments");
+}
+
+// Deixa a propriedade vaga (remove o inquilino). Não mexe no histórico.
+export async function clearPropertyTenantAction(propertyId: string) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to change the tenant.");
+  }
+  if (!propertyId) throw new Error("A property is required.");
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("properties")
+    .update({ tenant_id: null })
+    .eq("id", propertyId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/propriedades");
 }
 
 // TRAVADO: arquivar, nunca deletar.

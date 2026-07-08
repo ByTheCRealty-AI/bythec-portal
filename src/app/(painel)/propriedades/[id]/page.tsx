@@ -32,6 +32,7 @@ import {
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
+import { TenancyForm } from "./TenancyForm";
 import {
   addPaymentAction,
   addSecurityDepositAction,
@@ -102,6 +103,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     { data: providersData },
     { data: documentsData },
     { data: paymentsData },
+    { data: clientsData },
   ] = await Promise.all([
     supabase
       .from("notes")
@@ -144,6 +146,12 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .is("archived_at", null)
       .order("month", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
+    // Clientes ativos pro picker de inquilino (trocar/definir tenant).
+    supabase
+      .from("clients")
+      .select("id, name")
+      .is("archived_at", null)
+      .order("name", { ascending: true }),
   ]);
 
   const notes = (notesData ?? []) as Note[];
@@ -152,6 +160,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = (documentsData ?? []) as Document[];
   const payments = (paymentsData ?? []) as unknown as Payment[];
+  const clientOptions = (clientsData ?? []) as { id: string; name: string }[];
 
   // ---- Aba Overview (Details / Owner / Rent / short Notes summary) ----
   const overviewTab = (
@@ -204,6 +213,19 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             </Link>
           ) : (
             <p className="text-sm text-ink/50">No tenant (vacant).</p>
+          )}
+          {canEditProperty && (
+            <TenancyForm
+              propertyId={p.id}
+              currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
+              clients={clientOptions}
+              lease={{
+                rentPrice: p.rent_price,
+                rentDueDay: p.rent_due_day,
+                rentalStart: p.rental_start,
+                rentalEnd: p.rental_end,
+              }}
+            />
           )}
         </Card>
       )}
