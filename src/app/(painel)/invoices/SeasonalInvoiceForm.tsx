@@ -7,7 +7,7 @@
 // Total Paid by Guest / By the C Commission / Total Received by Owner using the
 // SHARED locked formula (src/lib/invoice-formula.ts) — identical to the server.
 // =============================================================================
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Field, inputClass, selectClass, buttonClass } from "@/components/ui";
 import { money } from "@/lib/format";
@@ -29,6 +29,20 @@ type Prop = Pick<
   "id" | "owner_id" | "address" | "address2" | "seasonal_commission_rate" | "seasonal_commission_base"
 >;
 type Extra = { description: string; amount: string };
+
+// Deduções padrão do OWNER que a Andrea sempre aplica em invoice VRBO. As 3
+// primeiras têm valor manual (variam por invoice); "Lodging Taxes By the C
+// Remits" = o lodging tax coletado (auto = occupancy_taxes). NUNCA inclui
+// Booking Fee nem Management Fee. Só entram em invoice NOVA (não em edição).
+const VRBO_LODGING_REMIT = "Lodging Taxes By the C Remits";
+const VRBO_STD_DEDUCTIONS = [
+  "Insurance Fee",
+  "Hostaway Application Fee",
+  "Stripe Processing Fees",
+  VRBO_LODGING_REMIT,
+];
+const isVrboStdDeduction = (d: string) =>
+  VRBO_STD_DEDUCTIONS.some((x) => x.toLowerCase() === d.trim().toLowerCase());
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const n = (s: string) => Number(s) || 0;
@@ -82,6 +96,47 @@ export function SeasonalInvoiceForm({
     invoice?.commission_base ?? "host_payout"
   ); // base do %, default host payout
   const [extras, setExtras] = useState<Extra[]>(initialExtras);
+
+  // VRBO: injeta/remove as deduções padrão do owner conforme a plataforma.
+  // Só em invoice NOVA (não mexe em edição). Idempotente: não duplica linha já
+  // presente; ao sair do VRBO, remove só as linhas padrão (deduções custom ficam).
+  useEffect(() => {
+    if (invoice) return;
+    setExtras((prev) => {
+      if (platform === "VRBO") {
+        const have = new Set(
+          prev.filter((e) => isVrboStdDeduction(e.description)).map((e) => e.description.trim().toLowerCase())
+        );
+        const additions = VRBO_STD_DEDUCTIONS.filter((x) => !have.has(x.toLowerCase())).map((x) => ({
+          description: x,
+          amount: "",
+        }));
+        return additions.length ? [...prev, ...additions] : prev;
+      }
+      const filtered = prev.filter((e) => !isVrboStdDeduction(e.description));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform, invoice]);
+
+  // VRBO: "Lodging Taxes By the C Remits" = o lodging tax coletado (occupancy_taxes).
+  // Mantém a linha padrão sincronizada com o campo de imposto. Só invoice nova.
+  useEffect(() => {
+    if (invoice) return;
+    if (platform !== "VRBO") return;
+    setExtras((prev) => {
+      let changed = false;
+      const next = prev.map((e) => {
+        if (e.description.trim().toLowerCase() === VRBO_LODGING_REMIT.toLowerCase() && e.amount !== occupancyTaxes) {
+          changed = true;
+          return { ...e, amount: occupancyTaxes };
+        }
+        return e;
+      });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [occupancyTaxes, platform, invoice]);
 
   const clientProps = clientId ? properties.filter((p) => p.owner_id === clientId) : properties;
   const isVrbo = platform === "VRBO";
