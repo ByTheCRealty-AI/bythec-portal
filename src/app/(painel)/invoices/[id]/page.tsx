@@ -383,7 +383,6 @@ function SeasonalBody({
           accent="primary"
           commission={invoice.bythec_commission}
           commissionBasis={commissionBasisLabel(invoice)}
-          hideTotal
         />
       </div>
     </>
@@ -398,7 +397,6 @@ function Column({
   accent,
   commission,
   commissionBasis,
-  hideTotal = false,
 }: {
   title: string;
   items: InvoiceItem[];
@@ -407,7 +405,6 @@ function Column({
   accent: "primary" | "secondary";
   commission?: number | null;
   commissionBasis?: string | null;
-  hideTotal?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-black/[0.07] bg-black/[0.012] p-5">
@@ -429,14 +426,12 @@ function Column({
         })}
         {items.length === 0 && <p className="text-xs text-ink/40">—</p>}
       </div>
-      {!hideTotal && (
-        <div className="mt-4 flex justify-between border-t border-black/[0.1] pt-3 text-base font-semibold text-ink">
-          <span>{totalLabel}</span>
-          <span className={accent === "primary" ? "h-display text-primary" : "h-display text-secondary"}>
-            {money(totalValue)}
-          </span>
-        </div>
-      )}
+      <div className="mt-4 flex justify-between border-t border-black/[0.1] pt-3 text-base font-semibold text-ink">
+        <span>{totalLabel}</span>
+        <span className={accent === "primary" ? "h-display text-primary" : "h-display text-secondary"}>
+          {money(totalValue)}
+        </span>
+      </div>
     </div>
   );
 }
