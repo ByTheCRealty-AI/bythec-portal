@@ -151,7 +151,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       title: string,
       items: InvoiceItem[],
       totalLabel: string,
-      totalVal: number
+      totalVal: number,
+      showTotal = true
     ): number => {
       let cy = y;
       T(title, x + 4, cy, 12, bold);
@@ -162,16 +163,19 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         TR(money(it.total), x + boxW - 4, cy - 8, 10, font, it.total < 0 ? MUTED : INK);
         cy -= 18;
       }
-      cy -= 6;
-      hline(cy + 8, x, x + boxW);
-      T(totalLabel, x + 4, cy - 6, 11, bold);
-      TR(money(totalVal), x + boxW - 4, cy - 6, 12, bold, GREEN);
-      cy -= 24;
+      if (showTotal) {
+        cy -= 6;
+        hline(cy + 8, x, x + boxW);
+        T(totalLabel, x + 4, cy - 6, 11, bold);
+        TR(money(totalVal), x + boxW - 4, cy - 6, 12, bold, GREEN);
+        cy -= 24;
+      }
       return cy;
     };
 
     const leftEnd = drawColumn(leftX, "Paid by Guest", guestItems, "Total Paid by Guest", inv.total_paid_by_guest ?? 0);
-    const rightEnd = drawColumn(rightX, "Owner Overview", ownerItems, "Total Received by Owner", inv.total_received_by_owner ?? 0);
+    // Owner Overview: sem o "Total Received by Owner" (decisão da Andrea).
+    const rightEnd = drawColumn(rightX, "Owner Overview", ownerItems, "Total Received by Owner", inv.total_received_by_owner ?? 0, false);
     y = Math.min(leftEnd, rightEnd) - 10;
   } else {
     // Service: tabela única + totais.
