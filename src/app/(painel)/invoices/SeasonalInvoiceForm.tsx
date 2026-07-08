@@ -140,7 +140,17 @@ export function SeasonalInvoiceForm({
   }
 
   return (
-    <form action={action} className="space-y-8">
+    <form
+      action={action}
+      className="space-y-8"
+      // Impede o scroll do mouse de alterar o valor de um campo numérico: ao
+      // rolar sobre um input type=number, tira o foco dele (aí o scroll rola a
+      // página em vez de mudar o número). Cobre todos os campos $ do form.
+      onWheel={(e) => {
+        const t = e.target as HTMLElement;
+        if (t instanceof HTMLInputElement && t.type === "number") t.blur();
+      }}
+    >
       {/* hidden mirror of computed commission_rate fraction (server recomputes anyway) */}
       <input type="hidden" name="commission_rate" value={String(n(commissionPct) / 100)} />
       <input type="hidden" name="commission_base" value={commissionBase} />
