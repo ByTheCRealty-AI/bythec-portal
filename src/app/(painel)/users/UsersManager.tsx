@@ -126,7 +126,7 @@ export function UsersManager({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card">
+        <div className="overflow-x-auto rounded-2xl border border-black/[0.08] bg-white shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
               <tr>
