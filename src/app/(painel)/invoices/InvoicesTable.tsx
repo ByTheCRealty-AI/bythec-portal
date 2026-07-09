@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { money, date, cx } from "@/lib/format";
+import { date, cx } from "@/lib/format";
 import { INVOICE_KIND_LABEL, type InvoiceKind } from "@/lib/types";
 
 export interface InvoiceRow {
@@ -128,7 +128,6 @@ export function InvoicesTable({
                 <th className="px-5 py-3 font-bold">Client</th>
                 <th className="px-5 py-3 font-bold">Property</th>
                 <th className="px-5 py-3 font-bold">Date</th>
-                <th className="px-5 py-3 font-bold text-right">Total</th>
                 <th className="px-5 py-3 font-bold">Status</th>
                 <th className="px-5 py-3" />
               </tr>
@@ -153,7 +152,6 @@ export function InvoicesTable({
                   <td className="px-5 py-3.5 text-ink/85">{r.client_name ?? "—"}</td>
                   <td className="px-5 py-3.5 text-ink/65">{r.property_address ?? "—"}</td>
                   <td className="px-5 py-3.5 text-ink/65">{date(r.date)}</td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-ink">{money(r.total)}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {r.paid ? (
