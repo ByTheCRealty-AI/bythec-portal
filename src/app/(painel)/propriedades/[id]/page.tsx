@@ -32,6 +32,7 @@ import {
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
+import { PastTenantPaymentsSection } from "./PastTenantPaymentsSection";
 import { TenancyForm } from "./TenancyForm";
 import {
   addPaymentAction,
@@ -162,6 +163,70 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const payments = (paymentsData ?? []) as unknown as Payment[];
   const clientOptions = (clientsData ?? []) as { id: string; name: string }[];
 
+  // Payments: só o inquilino ATUAL na lista principal; ex-inquilinos numa seção
+  // colapsável ("current" = pagamento com tenant_id do inquilino atual). Vaga
+  // (sem inquilino atual) = mostra tudo no principal (nada a separar).
+  const currentTenantId = p.tenant?.id ?? null;
+  const currentPayments = currentTenantId
+    ? payments.filter((pay) => pay.tenant_id === currentTenantId)
+    : payments;
+  const pastPayments = currentTenantId
+    ? payments.filter((pay) => pay.tenant_id !== currentTenantId)
+    : [];
+
+  // Nomes dos ex-inquilinos (inclui arquivados). tenant_id null -> grupo "earlier".
+  const pastTenantIds = Array.from(
+    new Set(pastPayments.map((pay) => pay.tenant_id).filter((id): id is string => Boolean(id)))
+  );
+  const pastNameById = new Map<string, string>();
+  if (pastTenantIds.length > 0) {
+    const { data: pastClients } = await supabase
+      .from("clients")
+      .select("id, name")
+      .in("id", pastTenantIds);
+    for (const c of (pastClients ?? []) as { id: string; name: string }[]) {
+      pastNameById.set(c.id, c.name);
+    }
+  }
+
+  const yearOf = (pay: Payment): number | null => {
+    const d = pay.month ?? pay.due_date ?? pay.created_at ?? null;
+    if (!d) return null;
+    const y = Number(String(d).slice(0, 4));
+    return Number.isFinite(y) ? y : null;
+  };
+  const pastGroupsMap = new Map<string, Payment[]>();
+  for (const pay of pastPayments) {
+    const key = pay.tenant_id ?? "__none__";
+    const arr = pastGroupsMap.get(key);
+    if (arr) arr.push(pay);
+    else pastGroupsMap.set(key, [pay]);
+  }
+  const pastGroups = Array.from(pastGroupsMap.entries()).map(([key, items]) => {
+    const years = items.map(yearOf).filter((y): y is number => y != null);
+    const range =
+      years.length === 0
+        ? null
+        : Math.min(...years) === Math.max(...years)
+        ? String(Math.min(...years))
+        : `${Math.min(...years)} – ${Math.max(...years)}`;
+    return {
+      key,
+      name:
+        key === "__none__"
+          ? "Earlier (no tenant on record)"
+          : pastNameById.get(key) ?? "Former tenant",
+      range,
+      payments: items,
+    };
+  });
+  // Grupos mais recentes primeiro (maior ano no topo).
+  pastGroups.sort(
+    (a, b) =>
+      Math.max(...b.payments.map((x) => yearOf(x) ?? 0)) -
+      Math.max(...a.payments.map((x) => yearOf(x) ?? 0))
+  );
+
   // ---- Aba Overview (Details / Owner / Rent / short Notes summary) ----
   const overviewTab = (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -286,16 +351,42 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           }
         />
       ) : (
-        <PropertyPaymentsTable
-          payments={payments}
-          canManage={canPayments}
-          setStatus={setPaymentStatusAction}
-          updateAction={updatePaymentAction}
-          deleteAction={deletePaymentAction}
-          addPartAction={addPaymentPartAction}
-          updatePartAction={updatePaymentPartAction}
-          deletePartAction={deletePaymentPartAction}
-        />
+        <>
+          {currentTenantId && (
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-sm font-medium text-ink/80">Current tenant · {p.tenant?.name}</span>
+            </div>
+          )}
+          {currentPayments.length > 0 ? (
+            <PropertyPaymentsTable
+              payments={currentPayments}
+              canManage={canPayments}
+              setStatus={setPaymentStatusAction}
+              updateAction={updatePaymentAction}
+              deleteAction={deletePaymentAction}
+              addPartAction={addPaymentPartAction}
+              updatePartAction={updatePaymentPartAction}
+              deletePartAction={deletePaymentPartAction}
+            />
+          ) : (
+            <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-8 text-center text-sm text-ink/55 shadow-card">
+              No payments for the current tenant yet.
+            </div>
+          )}
+          {pastGroups.length > 0 && (
+            <PastTenantPaymentsSection
+              groups={pastGroups}
+              canManage={canPayments}
+              setStatus={setPaymentStatusAction}
+              updateAction={updatePaymentAction}
+              deleteAction={deletePaymentAction}
+              addPartAction={addPaymentPartAction}
+              updatePartAction={updatePaymentPartAction}
+              deletePartAction={deletePaymentPartAction}
+            />
+          )}
+        </>
       )}
     </div>
   );
