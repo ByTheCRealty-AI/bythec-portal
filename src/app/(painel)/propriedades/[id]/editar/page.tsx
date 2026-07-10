@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PageHeader, Field, inputClass, buttonClass } from "@/components/ui";
-import { PROPERTY_TYPE_LABEL, SEASONAL_COMMISSION_BASE_LABEL, type Property } from "@/lib/types";
+import { PROPERTY_TYPE_LABEL, SEASONAL_COMMISSION_BASE_LABEL, RENT_COLLECTION_LABEL, type Property } from "@/lib/types";
 import { updatePropriedadeAction } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +88,13 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
                 <option value="annual">Annual</option>
+              </select>
+            </Field>
+            <Field label="Rent collection" hint="Who collects the rent from the tenant. Rent + commission are tracked either way.">
+              <select name="rent_collection" defaultValue={p.rent_collection ?? "bythec"} className={inputClass}>
+                {Object.entries(RENT_COLLECTION_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
               </select>
             </Field>
           </div>

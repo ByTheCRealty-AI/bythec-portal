@@ -46,6 +46,7 @@ import {
 } from "../../payments/actions";
 import {
   PROPERTY_TYPE_LABEL,
+  RENT_COLLECTION_LABEL,
   type Property,
   type Note,
   type Service,
@@ -303,6 +304,12 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             <Row label="Due" value={p.rent_due_day ? `Day ${p.rent_due_day}` : null} />
             <Row label="Start" value={date(p.rental_start)} />
             <Row label="End" value={date(p.rental_end)} />
+          </div>
+          <div className="mt-3 border-t border-black/[0.06] pt-3">
+            <Row
+              label="Rent collection"
+              value={RENT_COLLECTION_LABEL[p.rent_collection ?? "bythec"]}
+            />
           </div>
         </Card>
       )}

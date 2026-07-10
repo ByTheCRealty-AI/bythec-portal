@@ -7,6 +7,7 @@ import { PlusCircle } from "lucide-react";
 import {
   PROPERTY_TYPE_LABEL,
   SEASONAL_COMMISSION_BASE_LABEL,
+  RENT_COLLECTION_LABEL,
   type PropertyType,
 } from "@/lib/types";
 import { createPropriedadeStandaloneAction } from "./actions";
@@ -150,6 +151,13 @@ export function PropriedadeNovoForm({ owners }: { owners: OwnerOption[] }) {
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
                 <option value="annual">Annual</option>
+              </select>
+            </Field>
+            <Field label="Rent collection" hint="Who collects the rent from the tenant. Rent + commission are tracked either way.">
+              <select name="rent_collection" defaultValue="bythec" className={inputClass}>
+                {Object.entries(RENT_COLLECTION_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
               </select>
             </Field>
           </div>

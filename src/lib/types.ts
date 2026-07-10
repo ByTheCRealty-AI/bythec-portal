@@ -19,6 +19,14 @@ export type PropertyType =
   | "off_season_rental"
   | "for_sale";
 
+// Quem coleta o aluguel num year-round/off-season. Rastreio de rent + comissão é
+// o mesmo nos dois; muda a DIREÇÃO do dinheiro e o label da comissão.
+export type RentCollection = "bythec" | "owner";
+export const RENT_COLLECTION_LABEL: Record<RentCollection, string> = {
+  bythec: "By the C collects (I pay the owner)",
+  owner: "Owner collects (they remit my commission)",
+};
+
 export type DealSide = "buyer" | "seller" | "both";
 
 // =============================================================================
@@ -147,6 +155,9 @@ export interface Property {
   rental_end: string | null;
   rent_due_day: number | null;
   rent_frequency: string | null;
+  // Quem coleta o aluguel (year-round/off-season). 'bythec' = By the C coleta e
+  // paga o owner (menos comissão); 'owner' = owner coleta e remete a comissão.
+  rent_collection: RentCollection;
   notes: string | null;
   photo_url: string | null;
   archived_at: string | null;
