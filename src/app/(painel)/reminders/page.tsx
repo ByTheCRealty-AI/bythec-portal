@@ -112,10 +112,7 @@ export default async function RemindersPage() {
 
   return (
     <>
-      <PageHeader
-        title="Reminders"
-        subtitle="Shared follow-up board. Assign a task to someone; unfinished ones escalate in the portal — to a manager after 3 days, to Andrea after 5."
-      />
+      <PageHeader title="Reminders" />
 
       {!ok && (
         <Card className="mb-6 border-secondary/30 bg-secondary/[0.06] text-sm text-ink/70">

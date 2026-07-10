@@ -73,7 +73,6 @@ export function ReminderAddForm({
 
       <div className="flex items-center justify-between">
         <h3 className="h-display text-base text-ink">{isEdit ? "Edit reminder" : "New reminder"}</h3>
-        <span className="text-xs text-ink/45">Escalates in-portal · 3d → manager · 5d → owner</span>
       </div>
 
       <Field label="Title *">
