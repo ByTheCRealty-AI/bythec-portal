@@ -439,12 +439,13 @@ export function PaymentRow({
       </td>
       <td className="px-5 py-3.5">
         {(() => {
-          // ALL payment-level receipts (not just the first). Per-installment ones
-          // (they carry a payment_part_id) live in the expandable Payments panel.
-          const top = (payment.attachments ?? []).filter((a) => !a.payment_part_id);
-          return top.length > 0 ? (
+          // ALL receipts for this payment: payment-level AND per-installment
+          // (the query already loads both under payment.attachments). Antes só
+          // mostrava a 1ª payment-level, então recibos de parcelas sumiam da coluna.
+          const all = payment.attachments ?? [];
+          return all.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">
-              {top.map((a) => (
+              {all.map((a) => (
                 <PaymentReceipt key={a.id} attachment={a} />
               ))}
             </div>
