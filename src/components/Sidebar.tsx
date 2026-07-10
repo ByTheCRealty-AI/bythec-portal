@@ -33,6 +33,7 @@ type Item = {
 // Ordem dos módulos do painel. Só Clientes e Propriedades são funcionais agora.
 const NAV: Item[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard, ready: false },
+  { href: "/reminders", label: "Reminders", icon: BellRing, ready: true, cap: "reminders.view" },
   { href: "/clientes", label: "Clients", icon: Users, ready: true, cap: "clients.edit" },
   { href: "/propriedades", label: "Properties", icon: Home, ready: true, cap: "properties.edit" },
   { href: "/invoices", label: "Invoices", icon: FileText, ready: true, cap: "invoices.service" },
@@ -41,7 +42,6 @@ const NAV: Item[] = [
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "operations.edit" },
   { href: "/sales", label: "Sales", icon: KeyRound, ready: true, cap: "clients.edit" },
-  { href: "/reminders", label: "Reminders", icon: BellRing, ready: true, cap: "reminders.view" },
   { href: "/listings", label: "Listings", icon: Building2, ready: false, cap: "operations.edit" },
 ];
 
