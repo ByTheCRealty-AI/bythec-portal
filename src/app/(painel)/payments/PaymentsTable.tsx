@@ -77,6 +77,9 @@ export function CommissionPaidToggle({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const paid = payment.commission_paid;
+  // Owner-collects (arrangement B): a comissão VEM do owner → "received".
+  const ownerRemits = payment.property?.rent_collection === "owner";
+  const label = ownerRemits ? "Commission received" : "Commission paid";
 
   function run() {
     setError(null);
@@ -101,7 +104,7 @@ export function CommissionPaidToggle({
             ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/[0.15]"
             : "border-black/[0.12] bg-white text-ink/55 hover:border-primary/40 hover:text-primary"
         )}
-        title={paid ? "Commission paid — click to undo" : "Mark commission as paid"}
+        title={paid ? `${label} — click to undo` : `Mark commission as ${ownerRemits ? "received" : "paid"}`}
       >
         {pending ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -110,7 +113,7 @@ export function CommissionPaidToggle({
         ) : (
           <Square className="h-3.5 w-3.5" />
         )}
-        Commission paid
+        {label}
       </button>
       {paid && payment.commission_paid_at && (
         <span className="text-[10px] text-ink/45">{date(payment.commission_paid_at)}</span>
@@ -428,7 +431,7 @@ export function PaymentRow({
               <CommissionPaidToggle payment={payment} setCommissionPaid={setCommissionPaid} />
             ) : payment.commission_paid ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                <CheckSquare className="h-3 w-3" /> Paid
+                <CheckSquare className="h-3 w-3" /> {payment.property?.rent_collection === "owner" ? "Received" : "Paid"}
               </span>
             ) : null
           )}

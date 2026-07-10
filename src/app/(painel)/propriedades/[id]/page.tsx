@@ -142,7 +142,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id))"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id))"
       )
       .eq("property_id", p.id)
       .is("archived_at", null)

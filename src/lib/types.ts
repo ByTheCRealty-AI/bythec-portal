@@ -470,7 +470,7 @@ export interface Payment {
   archived_at: string | null;
   created_at: string;
   // joins opcionais
-  property?: Pick<Property, "id" | "address" | "address2" | "property_type"> | null;
+  property?: Pick<Property, "id" | "address" | "address2" | "property_type" | "rent_collection"> | null;
   tenant?: Pick<Client, "id" | "name"> | null;
   // Imported receipts (one per payment for the Bubble batch). May be empty.
   attachments?: PaymentAttachment[] | null;
