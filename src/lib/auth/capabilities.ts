@@ -32,6 +32,8 @@ export type Capability =
   | "invoices.service" // criar/ver SOMENTE invoices de serviço
   | "invoices.seasonal" // criar/ver SOMENTE invoices de temporada (Airbnb/VRBO)
   | "payments.annual" // gerir pagamentos de aluguel year-round
+  | "reminders.view" // ver o quadro compartilhado de lembretes/follow-ups
+  | "reminders.manage" // criar/atribuir/completar/editar/arquivar lembretes
   | "users.create"
   | "users.delete"
   | "users.manage_access";
@@ -44,6 +46,8 @@ export const ALL_CAPABILITIES: Capability[] = [
   "invoices.service",
   "invoices.seasonal",
   "payments.annual",
+  "reminders.view",
+  "reminders.manage",
   "users.create",
   "users.delete",
   "users.manage_access",
@@ -58,6 +62,8 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "invoices.service": "Service invoices — create & view (service type only)",
   "invoices.seasonal": "Seasonal invoices — create & view (Airbnb / VRBO)",
   "payments.annual": "Year-round payments — manage rent payments",
+  "reminders.view": "Reminders — see the shared follow-up board",
+  "reminders.manage": "Reminders — create, assign, complete & archive",
   "users.create": "Users — invite & create logins",
   "users.delete": "Users — delete logins",
   "users.manage_access": "Users — edit roles & permissions",
@@ -80,6 +86,8 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "invoices.service",
     "invoices.seasonal",
     "payments.annual",
+    "reminders.view",
+    "reminders.manage",
     "users.create",
     "users.manage_access",
     // NÃO tem users.delete
@@ -91,12 +99,16 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "invoices.service",
     "invoices.seasonal", // vê/cria TODAS as invoices; NÃO vê commissions/payouts/expenses
     "payments.annual",
+    "reminders.view",
+    "reminders.manage",
     // SEM financials.full, SEM gestão de usuários
   ],
-  // Externos: nenhuma capacidade interna (stub pros portais futuros).
+  // Externos: sem capacidade interna, EXCETO o quadro de lembretes — realtor
+  // participa do board (pode ser designado e ver os follow-ups), mesmo default
+  // da secretary pra reminders (confirmado com Andrea 2026-07-09).
   owner_client: [],
   tenant: [],
-  realtor: [],
+  realtor: ["reminders.view", "reminders.manage"],
 };
 
 // Overrides por usuário: { "financials.full": true } concede, { "invoices.service": false } revoga.

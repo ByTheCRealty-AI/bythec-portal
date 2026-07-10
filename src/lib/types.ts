@@ -4,6 +4,7 @@
 // Base do % da comissão seasonal (single source of truth na fórmula travada).
 export type { SeasonalCommissionBase } from "./invoice-formula";
 import type { SeasonalCommissionBase } from "./invoice-formula";
+import type { ProfileLike } from "./auth/capabilities";
 
 export type ClientType =
   | "tenant"
@@ -493,4 +494,40 @@ export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
 export const NOTIFY_VIA_LABEL: Record<NotifyVia, string> = {
   whatsapp: "WhatsApp",
   email: "Email",
+};
+
+// =============================================================================
+// Reminders / Follow-ups — quadro compartilhado (0015_reminders.sql).
+// Qualquer interno cria um lembrete e designa a uma pessoa. Escalação é
+// COMPUTADA AO VIVO (sem cron, sem timestamps de alerta) — ver src/lib/reminders.ts.
+// TRAVADO: arquivar (archived_at), nunca deletar — só owner hard-delete.
+// =============================================================================
+
+export type ReminderStatus = "open" | "done";
+
+// Link opcional a um registro (mesma família polimórfica de notes/documents).
+export type ReminderParentType = "client" | "property" | "listing";
+
+export interface Reminder {
+  id: string;
+  title: string;
+  notes: string | null;
+  assigned_to: string; // profiles.id — pessoa responsável
+  created_by: string; // profiles.id — quem criou
+  status: ReminderStatus;
+  done_at: string | null;
+  due_date: string | null; // opcional; se setado, ancora o relógio de escalação
+  parent_type: ReminderParentType | null;
+  parent_id: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // joins opcionais
+  assignee?: Pick<ProfileLike, "id" | "full_name" | "role"> | null;
+  creator?: Pick<ProfileLike, "id" | "full_name"> | null;
+}
+
+export const REMINDER_STATUS_LABEL: Record<ReminderStatus, string> = {
+  open: "Open",
+  done: "Done",
 };

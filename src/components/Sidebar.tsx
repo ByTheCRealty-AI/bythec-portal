@@ -15,6 +15,7 @@ import {
   HardHat,
   Building2,
   KeyRound,
+  BellRing,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -40,6 +41,7 @@ const NAV: Item[] = [
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "operations.edit" },
   { href: "/sales", label: "Sales", icon: KeyRound, ready: true, cap: "clients.edit" },
+  { href: "/reminders", label: "Reminders", icon: BellRing, ready: true, cap: "reminders.view" },
   { href: "/listings", label: "Listings", icon: Building2, ready: false, cap: "operations.edit" },
 ];
 
@@ -54,12 +56,15 @@ export function Sidebar({
   caps,
   canManageUsers,
   user,
+  remindersBadge = 0,
   onNavigate,
   className,
 }: {
   caps: Capability[];
   canManageUsers: boolean;
   user: SidebarUser;
+  // Nº de lembretes escalados PRO usuário logado (manager/owner). 0 = sem badge.
+  remindersBadge?: number;
   // Chamado ao clicar num link de navegação — usado pelo drawer mobile pra fechar.
   onNavigate?: () => void;
   // Override do shell externo (ex.: static md+ vs. drawer mobile).
@@ -107,6 +112,11 @@ export function Sidebar({
                 strokeWidth={2}
               />
               <span className="flex-1">{item.label}</span>
+              {item.href === "/reminders" && remindersBadge > 0 && (
+                <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {remindersBadge}
+                </span>
+              )}
               {!item.ready && (
                 <span className="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink/45">
                   Coming soon
