@@ -530,12 +530,17 @@ export interface Reminder {
   due_date: string | null; // opcional; se setado, ancora o relógio de escalação
   parent_type: ReminderParentType | null;
   parent_id: string | null;
+  // Links opcionais e independentes: uma pessoa (cliente) E/OU uma propriedade.
+  client_id: string | null;
+  property_id: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
   // joins opcionais
   assignee?: Pick<ProfileLike, "id" | "full_name" | "role"> | null;
   creator?: Pick<ProfileLike, "id" | "full_name"> | null;
+  client?: Pick<Client, "id" | "name"> | null;
+  property?: Pick<Property, "id" | "address" | "address2"> | null;
 }
 
 export const REMINDER_STATUS_LABEL: Record<ReminderStatus, string> = {

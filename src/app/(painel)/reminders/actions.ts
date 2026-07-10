@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth/session";
 import { can, canDelete } from "@/lib/auth/capabilities";
-import type { ReminderParentType } from "@/lib/types";
 
 // Helpers de FormData -> valor limpo (string vazia -> null).
 function str(fd: FormData, key: string): string | null {
@@ -12,15 +11,6 @@ function str(fd: FormData, key: string): string | null {
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t === "" ? null : t;
-}
-
-// parent link opcional (client/property/listing). Só grava se AMBOS vierem.
-function parentLink(fd: FormData): { parent_type: ReminderParentType | null; parent_id: string | null } {
-  const type = str(fd, "parent_type");
-  const id = str(fd, "parent_id");
-  const valid = type === "client" || type === "property" || type === "listing";
-  if (!valid || !id) return { parent_type: null, parent_id: null };
-  return { parent_type: type as ReminderParentType, parent_id: id };
 }
 
 // Cria um lembrete. created_by = usuário logado (server-side, nunca do cliente).
@@ -34,8 +24,6 @@ export async function createReminderAction(fd: FormData) {
   const assignedTo = str(fd, "assigned_to");
   if (!assignedTo) throw new Error("Pick who is responsible for this reminder.");
 
-  const { parent_type, parent_id } = parentLink(fd);
-
   const supabase = createClient();
   const { error } = await supabase.from("reminders").insert({
     title,
@@ -43,8 +31,8 @@ export async function createReminderAction(fd: FormData) {
     assigned_to: assignedTo,
     created_by: profile!.id,
     due_date: str(fd, "due_date"),
-    parent_type,
-    parent_id,
+    client_id: str(fd, "client_id"),
+    property_id: str(fd, "property_id"),
   });
   if (error) throw new Error(error.message);
   revalidatePath("/reminders");
@@ -64,8 +52,6 @@ export async function updateReminderAction(fd: FormData) {
   const assignedTo = str(fd, "assigned_to");
   if (!assignedTo) throw new Error("Pick who is responsible for this reminder.");
 
-  const { parent_type, parent_id } = parentLink(fd);
-
   const supabase = createClient();
   const { error } = await supabase
     .from("reminders")
@@ -74,8 +60,8 @@ export async function updateReminderAction(fd: FormData) {
       notes: str(fd, "notes"),
       assigned_to: assignedTo,
       due_date: str(fd, "due_date"),
-      parent_type,
-      parent_id,
+      client_id: str(fd, "client_id"),
+      property_id: str(fd, "property_id"),
     })
     .eq("id", id);
   if (error) throw new Error(error.message);

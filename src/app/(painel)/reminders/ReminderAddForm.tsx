@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import { Plus, Loader2 } from "lucide-react";
 import { ROLE_LABEL } from "@/lib/auth/capabilities";
-import type { PersonOption } from "./RemindersClient";
+import type { PersonOption, ClientOption, PropertyOption } from "./RemindersClient";
 
 // Valores iniciais (modo edição). Ausentes = form de criação em branco.
 export type ReminderFormDefaults = {
@@ -14,20 +14,26 @@ export type ReminderFormDefaults = {
   notes: string | null;
   assigned_to: string;
   due_date: string | null;
+  client_id: string | null;
+  property_id: string | null;
 };
 
 // Form inline pra criar OU editar um lembrete. Mesmo padrão glass/toggle das
 // outras adds. No modo edição (defaults setado) o botão vira "Save" e um hidden
-// carrega o id. O parent link (client/property) fica pro backlog — o schema e as
-// actions já suportam, mas o picker não entra no v1 pra não carregar listas.
+// carrega o id. Links opcionais (pessoa/propriedade) só aparecem se houver lista
+// (realtor não vê clientes/propriedades → os pickers somem).
 export function ReminderAddForm({
   people,
+  clients,
+  properties,
   action,
   defaults,
   onDone,
   autoOpen = false,
 }: {
   people: PersonOption[];
+  clients: ClientOption[];
+  properties: PropertyOption[];
   action: (fd: FormData) => Promise<void>;
   defaults?: ReminderFormDefaults;
   // Chamado após submit com sucesso (fecha um editor inline, por ex.).
@@ -114,6 +120,37 @@ export function ReminderAddForm({
           />
         </Field>
       </div>
+
+      {(clients.length > 0 || properties.length > 0) && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {clients.length > 0 && (
+            <Field label="Link a person" hint="Optional — an owner, tenant, buyer or seller.">
+              <select name="client_id" defaultValue={defaults?.client_id ?? ""} className={inputClass}>
+                <option value="">None</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          {properties.length > 0 && (
+            <Field label="Link a property" hint="Optional — attach the property this is about.">
+              <select name="property_id" defaultValue={defaults?.property_id ?? ""} className={inputClass}>
+                <option value="">None</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.address}
+                    {p.address2 ? ` · ${p.address2}` : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+        </div>
+      )}
 
       <Field label="Notes">
         <textarea

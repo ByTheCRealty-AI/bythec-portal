@@ -12,11 +12,13 @@ import {
   Loader2,
   BellRing,
   ShieldAlert,
+  User,
+  Home,
 } from "lucide-react";
 import { cx, date } from "@/lib/format";
 import { ROLE_LABEL, type AppRole } from "@/lib/auth/capabilities";
 import { isEscalatedToViewer } from "@/lib/reminders";
-import type { ReminderStatus, ReminderParentType } from "@/lib/types";
+import type { ReminderStatus } from "@/lib/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ReminderAddForm } from "./ReminderAddForm";
 import { EmptyState } from "@/components/ui";
@@ -28,6 +30,10 @@ export type PersonOption = {
   role: AppRole;
 };
 
+// Opções pros links opcionais (pessoa = cliente; propriedade).
+export type ClientOption = { id: string; name: string };
+export type PropertyOption = { id: string; address: string; address2: string | null };
+
 // Linha já enriquecida no servidor (nome do responsável + escalação computada).
 export type ReminderBoardRow = {
   id: string;
@@ -36,8 +42,10 @@ export type ReminderBoardRow = {
   status: ReminderStatus;
   done_at: string | null;
   due_date: string | null;
-  parent_type: ReminderParentType | null;
-  parent_id: string | null;
+  client_id: string | null;
+  property_id: string | null;
+  client_name: string | null;
+  property_label: string | null;
   assigned_to: string;
   assignee_name: string | null;
   created_at: string;
@@ -93,6 +101,8 @@ function EscalationBadge({ row }: { row: ReminderBoardRow }) {
 export function RemindersClient({
   rows,
   people,
+  clients,
+  properties,
   viewerRole,
   viewerId,
   canManage,
@@ -105,6 +115,8 @@ export function RemindersClient({
 }: {
   rows: ReminderBoardRow[];
   people: PersonOption[];
+  clients: ClientOption[];
+  properties: PropertyOption[];
   viewerRole: AppRole;
   viewerId: string;
   canManage: boolean;
@@ -196,7 +208,12 @@ export function RemindersClient({
   return (
     <>
       {canManage && (
-        <ReminderAddForm people={people} action={createAction} />
+        <ReminderAddForm
+          people={people}
+          clients={clients}
+          properties={properties}
+          action={createAction}
+        />
       )}
 
       {/* Filtros */}
@@ -279,6 +296,8 @@ export function RemindersClient({
                 <li key={r.id}>
                   <ReminderAddForm
                     people={people}
+                    clients={clients}
+                    properties={properties}
                     action={updateAction}
                     defaults={{
                       id: r.id,
@@ -286,6 +305,8 @@ export function RemindersClient({
                       notes: r.notes,
                       assigned_to: r.assigned_to,
                       due_date: r.due_date,
+                      client_id: r.client_id,
+                      property_id: r.property_id,
                     }}
                     onDone={() => setEditingId(null)}
                   />
@@ -341,6 +362,21 @@ export function RemindersClient({
 
                   {r.notes && (
                     <p className="mt-1 line-clamp-2 text-xs text-ink/55">{r.notes}</p>
+                  )}
+
+                  {(r.client_name || r.property_label) && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {r.client_name && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-black/[0.08] bg-black/[0.02] px-2 py-0.5 text-[11px] text-ink/65">
+                          <User className="h-3 w-3 text-ink/40" /> {r.client_name}
+                        </span>
+                      )}
+                      {r.property_label && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-black/[0.08] bg-black/[0.02] px-2 py-0.5 text-[11px] text-ink/65">
+                          <Home className="h-3 w-3 text-ink/40" /> {r.property_label}
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink/50">
