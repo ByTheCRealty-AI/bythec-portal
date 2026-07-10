@@ -82,7 +82,7 @@ function EscalationBadge({ row }: { row: ReminderBoardRow }) {
   }
   if (row.escalatedToManager) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+      <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">
         <BellRing className="h-3 w-3" /> Manager
       </span>
     );
@@ -300,7 +300,7 @@ export function RemindersClient({
                   r.escalatedToOwner
                     ? "border-red-200"
                     : r.escalatedToManager
-                    ? "border-secondary/25"
+                    ? "border-violet-200"
                     : "border-black/[0.08]",
                   done && "opacity-60"
                 )}
@@ -351,7 +351,15 @@ export function RemindersClient({
                       {r.assignee_name ?? "Unassigned"}
                     </span>
                     {!done && (
-                      <span className={cx(r.ageDays >= 3 && "font-semibold text-secondary")}>
+                      <span
+                        className={cx(
+                          r.escalatedToOwner
+                            ? "font-semibold text-red-600"
+                            : r.escalatedToManager
+                            ? "font-semibold text-violet-700"
+                            : ""
+                        )}
+                      >
                         {r.ageDays}d open
                       </span>
                     )}

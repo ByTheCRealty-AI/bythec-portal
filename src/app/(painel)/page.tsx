@@ -242,12 +242,15 @@ export default async function OverviewPage({
                 >
                   <span className="min-w-0 flex-1 truncate text-ink/80">{r.title}</span>
                   <span className="flex shrink-0 items-center gap-2">
-                    {(r.esc.escalatedToOwner || r.esc.escalatedToManager) && (
+                    {r.esc.escalatedToOwner ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">
-                        <ShieldAlert className="h-3 w-3" />
-                        {r.esc.escalatedToOwner ? "Owner" : "Manager"}
+                        <ShieldAlert className="h-3 w-3" /> Owner
                       </span>
-                    )}
+                    ) : r.esc.escalatedToManager ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
+                        <BellRing className="h-3 w-3" /> Manager
+                      </span>
+                    ) : null}
                     <span className="text-xs text-ink/45">{r.esc.ageDays}d</span>
                   </span>
                 </li>
