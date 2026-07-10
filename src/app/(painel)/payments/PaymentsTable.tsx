@@ -415,8 +415,10 @@ export function PaymentRow({
           </span>
         )}
       </td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(payment.month)}</td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(payment.due_date)}</td>
+      <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">
+        {payment.received_at ? date(payment.received_at) : <span className="text-ink/30">—</span>}
+      </td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(payment.rent_amount)}</td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/70">
         <div className="flex flex-col items-start gap-1.5">
@@ -437,11 +439,15 @@ export function PaymentRow({
       </td>
       <td className="px-5 py-3.5">
         {(() => {
-          // Only payment-level receipts here; per-installment ones live in the
-          // expandable panel (they carry a payment_part_id).
+          // ALL payment-level receipts (not just the first). Per-installment ones
+          // (they carry a payment_part_id) live in the expandable Payments panel.
           const top = (payment.attachments ?? []).filter((a) => !a.payment_part_id);
           return top.length > 0 ? (
-            <PaymentReceipt attachment={top[0]} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {top.map((a) => (
+                <PaymentReceipt key={a.id} attachment={a} />
+              ))}
+            </div>
           ) : (
             <span className="text-ink/30">—</span>
           );
@@ -600,8 +606,8 @@ export function PaymentsTable({
                 <th className="px-5 py-3 font-bold">Property</th>
                 <th className="px-5 py-3 font-bold">Tenant</th>
                 <th className="px-5 py-3 font-bold">Kind</th>
-                <th className="px-5 py-3 font-bold">Month</th>
                 <th className="px-5 py-3 font-bold">Due</th>
+                <th className="px-5 py-3 font-bold">Date received</th>
                 <th className="px-5 py-3 font-bold">Amount</th>
                 <th className="px-5 py-3 font-bold">Commission</th>
                 <th className="px-5 py-3 font-bold">Status</th>

@@ -694,8 +694,8 @@ export function PaymentsClient({
                         <th className="px-5 py-3 font-bold">Property</th>
                         <th className="px-5 py-3 font-bold">Tenant</th>
                         <th className="px-5 py-3 font-bold">Kind</th>
-                        <th className="px-5 py-3 font-bold">Month</th>
                         <th className="px-5 py-3 font-bold">Due</th>
+                        <th className="px-5 py-3 font-bold">Date received</th>
                         <th className="px-5 py-3 font-bold">Amount</th>
                         <th className="px-5 py-3 font-bold">Commission</th>
                         <th className="px-5 py-3 font-bold">Status</th>

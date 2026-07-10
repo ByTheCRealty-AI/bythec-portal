@@ -35,8 +35,8 @@ export function PropertyPaymentsTable({
         <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
           <tr>
             <th className="px-5 py-3 font-bold">Kind</th>
-            <th className="px-5 py-3 font-bold">Month</th>
             <th className="px-5 py-3 font-bold">Due</th>
+            <th className="px-5 py-3 font-bold">Date received</th>
             <th className="px-5 py-3 font-bold">Amount</th>
             <th className="px-5 py-3 font-bold">Commission</th>
             <th className="px-5 py-3 font-bold">Status</th>
