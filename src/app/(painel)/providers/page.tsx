@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, NoAccess, Card } from "@/components/ui";
+import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { HardHat } from "lucide-react";
 import type { ServiceProvider } from "@/lib/types";
 import { ProvidersTable } from "./ProvidersTable";
+import { createProviderAction, updateProviderAction, deleteProviderAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -51,15 +51,13 @@ export default async function ProvidersPage() {
         </Card>
       )}
 
-      {providers.length === 0 ? (
-        <EmptyState
-          icon={<HardHat className="h-6 w-6" />}
-          title="No providers yet"
-          message="Service providers appear here once they are added to the directory."
-        />
-      ) : (
-        <ProvidersTable providers={providers} />
-      )}
+      <ProvidersTable
+        providers={providers}
+        canManage={can(profile, "operations.edit")}
+        createAction={createProviderAction}
+        updateAction={updateProviderAction}
+        deleteAction={deleteProviderAction}
+      />
     </>
   );
 }
