@@ -6,11 +6,11 @@
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
+import { Search, CheckCircle2, Undo2, Loader2, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
 import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
 import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
 import { PaymentReceipt } from "./PaymentReceipt";
-import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
+import { PaymentEntryButton } from "./PaymentEntryButton";
 import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { money, date, cx } from "@/lib/format";
 import {
@@ -366,7 +366,6 @@ export function PaymentRow({
   ownerActions?: OwnerPayoutActions;
 }) {
   const [editing, setEditing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [ownerExpanded, setOwnerExpanded] = useState(false);
 
   if (editing) {
@@ -476,20 +475,15 @@ export function PaymentRow({
         <td className="px-5 py-3.5">
           <div className="flex items-center justify-end gap-2">
             {canParts && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg border border-black/[0.10] bg-white px-2 py-1.5 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
-                aria-expanded={expanded}
-              >
-                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                Payments
-                {payment.parts && payment.parts.length > 0 && (
-                  <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
-                    {payment.parts.length}
-                  </span>
-                )}
-              </button>
+              <PaymentEntryButton
+                payment={payment}
+                canManage={canManage}
+                supportsParts={supportsParts(payment)}
+                setStatus={setStatus}
+                addPartAction={addPartAction!}
+                updatePartAction={updatePartAction!}
+                deletePartAction={deletePartAction!}
+              />
             )}
             {showOwnerPayout && (
               <button
@@ -515,19 +509,6 @@ export function PaymentRow({
         </td>
       )}
     </tr>
-    {canParts && expanded && (
-      <tr className="border-t border-black/[0.05] bg-black/[0.015]">
-        <td colSpan={colSpan} className="px-5 py-4">
-          <RentInstallmentsPanel
-            payment={payment}
-            canManage={canManage}
-            addPartAction={addPartAction!}
-            updatePartAction={updatePartAction!}
-            deletePartAction={deletePartAction!}
-          />
-        </td>
-      </tr>
-    )}
     {showOwnerPayout && ownerExpanded && (
       <tr className="border-t border-black/[0.05] bg-black/[0.015]">
         <td colSpan={colSpan} className="px-5 py-4">
