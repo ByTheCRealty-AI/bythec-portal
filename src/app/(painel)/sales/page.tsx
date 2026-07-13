@@ -87,8 +87,9 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 
 export default async function SalesPage() {
   const profile = await getProfile();
-  const canEditClients = can(profile, "clients.edit");
-  const canEditProps = can(profile, "properties.edit");
+  // .own = escopo do realtor (só os dele, via RLS); .edit = internos (todos).
+  const canEditClients = can(profile, "clients.edit") || can(profile, "clients.own");
+  const canEditProps = can(profile, "properties.edit") || can(profile, "properties.own");
 
   // Gate: needs either side of the brokerage to view.
   if (!canEditClients && !canEditProps) {

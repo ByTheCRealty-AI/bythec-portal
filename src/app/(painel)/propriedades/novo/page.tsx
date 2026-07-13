@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NovaPropriedadePage() {
   const profile = await getProfile();
-  if (!can(profile, "properties.edit")) {
+  if (!can(profile, "properties.edit") && !can(profile, "properties.own")) {
     return (
       <>
         <PageHeader title="New property" />

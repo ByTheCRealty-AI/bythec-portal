@@ -26,7 +26,9 @@ async function load() {
 
 export default async function ProvidersPage() {
   const profile = await getProfile();
-  if (!can(profile, "operations.edit")) {
+  // operations.edit = internos (CRUD completo). providers.view = read-only (realtor
+  // vê a lista compartilhada mas não cria/edita/apaga — canManage abaixo controla).
+  if (!can(profile, "operations.edit") && !can(profile, "providers.view")) {
     return (
       <>
         <PageHeader title="Service Providers" />

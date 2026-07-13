@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const profile = await getProfile();
-  if (!can(profile, "operations.edit")) {
+  // listings.view (realtor + internos) OU operations.edit. Tela ainda é placeholder.
+  if (!can(profile, "operations.edit") && !can(profile, "listings.view")) {
     return (
       <>
         <PageHeader title="Listings" />

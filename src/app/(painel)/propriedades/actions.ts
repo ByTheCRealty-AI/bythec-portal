@@ -36,6 +36,7 @@ function seasonalBase(fd: FormData): "host_payout" | "paid_by_guest" {
 // fluxo do cliente, mas standalone.
 export async function createPropriedadeStandaloneAction(fd: FormData) {
   const supabase = createClient();
+  const profile = await getProfile();
   const ownerId = str(fd, "owner_id");
   if (!ownerId) throw new Error("An owner is required to create a property.");
   const address = str(fd, "address");
@@ -43,6 +44,7 @@ export async function createPropriedadeStandaloneAction(fd: FormData) {
     .from("properties")
     .insert({
       owner_id: ownerId, // TRAVADO: toda propriedade tem dono.
+      created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
       address,
       address2: str(fd, "address2"),
       address_text: address ? address.toLowerCase() : null,

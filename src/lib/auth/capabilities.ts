@@ -34,6 +34,10 @@ export type Capability =
   | "payments.annual" // gerir pagamentos de aluguel year-round
   | "reminders.view" // ver o quadro compartilhado de lembretes/follow-ups
   | "reminders.manage" // criar/atribuir/completar/editar/arquivar lembretes
+  | "clients.own" // ver/gerir SOMENTE os clientes que o próprio usuário criou (realtor)
+  | "properties.own" // ver/gerir SOMENTE as propriedades que o próprio usuário criou (realtor)
+  | "providers.view" // ver (read-only) a lista compartilhada de service providers
+  | "listings.view" // ver (read-only) todas as listings
   | "users.create"
   | "users.delete"
   | "users.manage_access";
@@ -48,6 +52,10 @@ export const ALL_CAPABILITIES: Capability[] = [
   "payments.annual",
   "reminders.view",
   "reminders.manage",
+  "clients.own",
+  "properties.own",
+  "providers.view",
+  "listings.view",
   "users.create",
   "users.delete",
   "users.manage_access",
@@ -64,6 +72,10 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "payments.annual": "Year-round payments — manage rent payments",
   "reminders.view": "Reminders — see the shared follow-up board",
   "reminders.manage": "Reminders — create, assign, complete & archive",
+  "clients.own": "Clients — view & manage only their own (scoped)",
+  "properties.own": "Properties — view & manage only their own (scoped)",
+  "providers.view": "Providers — view the shared list (read-only)",
+  "listings.view": "Listings — view all (read-only)",
   "users.create": "Users — invite & create logins",
   "users.delete": "Users — delete logins",
   "users.manage_access": "Users — edit roles & permissions",
@@ -88,6 +100,10 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "payments.annual",
     "reminders.view",
     "reminders.manage",
+    "clients.own",
+    "properties.own",
+    "providers.view",
+    "listings.view",
     "users.create",
     "users.manage_access",
     // NÃO tem users.delete
@@ -101,14 +117,27 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "payments.annual",
     "reminders.view",
     "reminders.manage",
+    "clients.own",
+    "properties.own",
+    "providers.view",
+    "listings.view",
     // SEM financials.full, SEM gestão de usuários
   ],
   // Externos: sem capacidade interna, EXCETO o quadro de lembretes — realtor
-  // participa do board (pode ser designado e ver os follow-ups), mesmo default
-  // da secretary pra reminders (confirmado com Andrea 2026-07-09).
+  // participa do board (pode ser designado e ver os follow-ups). Além disso o
+  // realtor tem um espaço PRÓPRIO: clientes/propriedades SÓ dele (scoped por RLS,
+  // migration 0021), + providers/listings compartilhados read-only. NÃO vê os
+  // dados da Andrea (created_by != auth.uid()).
   owner_client: [],
   tenant: [],
-  realtor: ["reminders.view", "reminders.manage"],
+  realtor: [
+    "reminders.view",
+    "reminders.manage",
+    "clients.own",
+    "properties.own",
+    "providers.view",
+    "listings.view",
+  ],
 };
 
 // Overrides por usuário: { "financials.full": true } concede, { "invoices.service": false } revoga.

@@ -44,7 +44,8 @@ export default async function PropriedadesPage({
   searchParams: { tipo?: string; q?: string; archived?: string };
 }) {
   const profile = await getProfile();
-  if (!can(profile, "properties.edit")) {
+  // properties.edit = full (internos); properties.own = escopo do realtor (RLS).
+  if (!can(profile, "properties.edit") && !can(profile, "properties.own")) {
     return (
       <>
         <PageHeader title="Properties" />

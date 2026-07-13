@@ -95,7 +95,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const showDelete = canDelete(profile);
 
   // Gates dos forms inline (o RLS reforça no banco; aqui só guarda a UI).
-  const canEditProperty = can(profile, "properties.edit");
+  const canEditProperty = can(profile, "properties.edit") || can(profile, "properties.own");
   const canEditOps = can(profile, "operations.edit");
   // Mesmo gate da tela /payments: payments.annual OU financials.full. Controla os
   // botões de write da aba Payments (add/edit/delete/toggle). RLS reforça no banco.

@@ -38,12 +38,14 @@ function seasonalBase(fd: FormData): "host_payout" | "paid_by_guest" {
 
 export async function createClienteAction(fd: FormData) {
   const supabase = createClient();
+  const profile = await getProfile();
   const clientType = str(fd, "client_type") as ClientType;
   const isBuySell = clientType === "buy_sell_client";
   const { data, error } = await supabase
     .from("clients")
     .insert({
       name: str(fd, "name"),
+      created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
       client_type: clientType,
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       // Sales fields only stored for buy/sell clients.
@@ -282,9 +284,11 @@ export async function deleteClientDocumentAction(fd: FormData) {
 
 export async function createPropriedadeAction(ownerId: string, fd: FormData) {
   const supabase = createClient();
+  const profile = await getProfile();
   const address = str(fd, "address");
   const { error } = await supabase.from("properties").insert({
     owner_id: ownerId, // TRAVADO: auto-preenchido pelo cliente (entidade-mãe).
+    created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
     address,
     address2: str(fd, "address2"),
     address_text: address ? address.toLowerCase() : null,

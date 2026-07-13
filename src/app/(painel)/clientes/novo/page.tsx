@@ -24,7 +24,7 @@ async function loadRealtors(): Promise<Realtor[]> {
 
 export default async function NovoClientePage() {
   const profile = await getProfile();
-  if (!can(profile, "clients.edit")) {
+  if (!can(profile, "clients.edit") && !can(profile, "clients.own")) {
     return (
       <>
         <PageHeader title="New client" />

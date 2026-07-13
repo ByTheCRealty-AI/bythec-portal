@@ -41,7 +41,7 @@ function numOrNull(fd: FormData, key: string): number | null {
 // notificações) — Sales reusa as colunas billing_* como "Address".
 export async function addSalesClientAction(fd: FormData) {
   const profile = await getProfile();
-  if (!can(profile, "clients.edit")) {
+  if (!can(profile, "clients.edit") && !can(profile, "clients.own")) {
     throw new Error("You do not have permission to add sales clients.");
   }
   const name = str(fd, "name");
@@ -52,6 +52,7 @@ export async function addSalesClientAction(fd: FormData) {
     .from("clients")
     .insert({
       name,
+      created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
       client_type: "buy_sell_client" as ClientType,
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       sales_stage: str(fd, "sales_stage"),
@@ -85,7 +86,7 @@ export async function addSalesClientAction(fd: FormData) {
 // seller (a client). Same properties.edit gate; RLS reinforces in the DB.
 export async function addForSaleListingAction(fd: FormData) {
   const profile = await getProfile();
-  if (!can(profile, "properties.edit")) {
+  if (!can(profile, "properties.edit") && !can(profile, "properties.own")) {
     throw new Error("You do not have permission to add listings.");
   }
   const ownerId = str(fd, "owner_id");
@@ -98,6 +99,7 @@ export async function addForSaleListingAction(fd: FormData) {
     .from("properties")
     .insert({
       owner_id: ownerId,
+      created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
       address,
       address2: str(fd, "address2"),
       address_text: address.toLowerCase(),

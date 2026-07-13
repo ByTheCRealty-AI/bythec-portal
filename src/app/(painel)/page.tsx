@@ -130,10 +130,16 @@ export default async function OverviewPage({
     ? await loadRemindersSummary(profile!.id, profile!.role)
     : null;
 
+  // Counts vêm via RLS → pro realtor, clients/properties já são só os DELE ("her
+  // things"). O card de Invoices só faz sentido pra quem tem acesso a invoices.
+  const canSeeInvoices =
+    can(profile, "invoices.service") || can(profile, "invoices.seasonal") || can(profile, "financials.full");
   const cards = [
     { label: "Active clients", value: c.clients, icon: Users, tone: "gold" as const },
     { label: "Active properties", value: c.properties, icon: Home, tone: "orange" as const },
-    { label: "Invoices", value: c.invoices, icon: FileText, tone: "neutral" as const },
+    ...(canSeeInvoices
+      ? [{ label: "Invoices", value: c.invoices, icon: FileText, tone: "neutral" as const }]
+      : []),
   ];
 
   return (

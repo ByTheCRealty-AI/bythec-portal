@@ -36,7 +36,9 @@ export default async function ClientesPage({
   searchParams: { tipo?: string; q?: string; archived?: string };
 }) {
   const profile = await getProfile();
-  if (!can(profile, "clients.edit")) {
+  // clients.edit = full (internos); clients.own = escopo do realtor (só os dele,
+  // via RLS). Qualquer um dos dois entra na tela.
+  if (!can(profile, "clients.edit") && !can(profile, "clients.own")) {
     return (
       <>
         <PageHeader title="Clients" />

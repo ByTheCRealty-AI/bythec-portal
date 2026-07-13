@@ -34,15 +34,17 @@ type Item = {
 const NAV: Item[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard, ready: false },
   { href: "/reminders", label: "Reminders", icon: BellRing, ready: true, cap: "reminders.view" },
-  { href: "/clientes", label: "Clients", icon: Users, ready: true, cap: "clients.edit" },
-  { href: "/propriedades", label: "Properties", icon: Home, ready: true, cap: "properties.edit" },
+  // clients.own / properties.own são visíveis a internos E realtor (o RLS escopa
+  // o realtor pros próprios registros). Sales segue clients.own.
+  { href: "/clientes", label: "Clients", icon: Users, ready: true, cap: "clients.own" },
+  { href: "/propriedades", label: "Properties", icon: Home, ready: true, cap: "properties.own" },
   { href: "/invoices", label: "Invoices", icon: FileText, ready: true, cap: "invoices.service" },
   { href: "/payments", label: "Payments", icon: Wallet, ready: true, cap: "payments.annual" },
   { href: "/expenses", label: "Expenses", icon: Receipt, ready: false, cap: "financials.full" },
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
-  { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "operations.edit" },
-  { href: "/sales", label: "Sales", icon: KeyRound, ready: true, cap: "clients.edit" },
-  { href: "/listings", label: "Listings", icon: Building2, ready: false, cap: "operations.edit" },
+  { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "providers.view" },
+  { href: "/sales", label: "Sales", icon: KeyRound, ready: true, cap: "clients.own" },
+  { href: "/listings", label: "Listings", icon: Building2, ready: false, cap: "listings.view" },
 ];
 
 export type SidebarUser = {

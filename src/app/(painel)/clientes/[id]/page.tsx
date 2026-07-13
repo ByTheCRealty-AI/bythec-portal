@@ -95,7 +95,8 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
   const profile = await getProfile();
   const showDelete = canDelete(profile);
-  const canEditClient = can(profile, "clients.edit");
+  // .own = realtor (RLS só deixa abrir os dele); .edit = internos.
+  const canEditClient = can(profile, "clients.edit") || can(profile, "clients.own");
   const canEditOps = can(profile, "operations.edit");
 
   // Compõe o endereço de cobrança estruturado em uma linha legível, pulando
