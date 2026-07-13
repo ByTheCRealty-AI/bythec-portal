@@ -530,17 +530,39 @@ export function PaymentsClient({
   }, [depositPayments]);
 
   // ---- Owner payouts tab: received "By the C collects" rents not yet paid to
-  // the owner, grouped by owner with the total still owed. Marking one paid drops
-  // it (server revalidate). Only bythec + received + owner_paid=false show here.
+  // the owner, grouped by owner with the total still owed.
+  //
+  // Checking "Owner paid" flips owner_paid=true, which would normally drop the
+  // row from this list (it filters !owner_paid) BEFORE you can pick the method /
+  // eCheck # / receipt. So we keep any row you mark paid IN THIS SESSION visible
+  // (recordingIds) — the control then reveals those fields and you finish
+  // recording. It clears on reload (by then it's paid, so it filters out).
+  const [recordingIds, setRecordingIds] = useState<Set<string>>(() => new Set());
+  const ownerPayoutTabActions: OwnerPayoutActions = useMemo(
+    () => ({
+      ...ownerActions,
+      setOwnerPaid: async (id: string, paid: boolean) => {
+        setRecordingIds((prev) => {
+          const next = new Set(prev);
+          if (paid) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+        await ownerActions.setOwnerPaid(id, paid);
+      },
+    }),
+    [ownerActions]
+  );
+
   const ownerPayoutGroups = useMemo(() => {
-    const unpaid = rentPayments.filter(
+    const shown = rentPayments.filter(
       (p) =>
         p.status === "received" &&
         p.property?.rent_collection === "bythec" &&
-        !p.owner_paid
+        (!p.owner_paid || recordingIds.has(p.id))
     );
     const map = new Map<string, { ownerName: string; items: Payment[] }>();
-    for (const p of unpaid) {
+    for (const p of shown) {
       const owner = p.property?.owner ?? null;
       const key = owner?.id ?? `prop:${p.property_id}`;
       const name = owner?.name ?? p.property?.address ?? "Unknown owner";
@@ -554,17 +576,26 @@ export function PaymentsClient({
           ymdOf(b.received_at) ?? ymdOf(b.due_date) ?? ""
         )
       );
-      const totalOwed = items.reduce((s, p) => s + ownerOwed(p), 0);
-      return { key, ownerName: g.ownerName, items, totalOwed };
+      // Total + count reflect what's still OWED — a just-recorded row lingers for
+      // editing but no longer counts toward the owner's outstanding total.
+      const owed = items.filter((p) => !p.owner_paid);
+      const totalOwed = owed.reduce((s, p) => s + ownerOwed(p), 0);
+      return { key, ownerName: g.ownerName, items, owedCount: owed.length, totalOwed };
     });
     // Most owed first.
     groups.sort((a, b) => b.totalOwed - a.totalOwed);
     return groups;
-  }, [rentPayments]);
+  }, [rentPayments, recordingIds]);
 
   const ownerPayoutCount = useMemo(
-    () => ownerPayoutGroups.reduce((s, g) => s + g.items.length, 0),
-    [ownerPayoutGroups]
+    () =>
+      rentPayments.filter(
+        (p) =>
+          p.status === "received" &&
+          p.property?.rent_collection === "bythec" &&
+          !p.owner_paid
+      ).length,
+    [rentPayments]
   );
 
   const tabs: Array<{ key: TabKey; label: string; icon: ReactNode; badge?: number }> = [
@@ -890,7 +921,7 @@ export function PaymentsClient({
                     <div className="text-right">
                       <div className="text-lg font-bold text-ink">{money(g.totalOwed)}</div>
                       <div className="text-xs text-ink/55">
-                        {g.items.length} {g.items.length === 1 ? "payment" : "payments"} owed
+                        {g.owedCount} {g.owedCount === 1 ? "payment" : "payments"} owed
                       </div>
                     </div>
                   </div>
@@ -919,7 +950,7 @@ export function PaymentsClient({
                             <span className="text-ink/40">·</span>
                             <span className="text-ink/55">received {date(p.received_at)}</span>
                           </div>
-                          <OwnerPayoutControl payment={p} canManage={canManage} actions={ownerActions} />
+                          <OwnerPayoutControl payment={p} canManage={canManage} actions={ownerPayoutTabActions} />
                         </div>
                       );
                     })}
