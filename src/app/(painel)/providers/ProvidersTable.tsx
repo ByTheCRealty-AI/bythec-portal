@@ -5,6 +5,7 @@
 // um SEGUNDO modal de confirmação ("are you sure?"). Delete = arquivar (a action
 // arquiva; histórico de services fica). Gated por canManage (operations.edit).
 import { useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Search, Plus, Loader2, Check, Pencil, Trash2, X } from "lucide-react";
 import { Badge, Field, inputClass, selectClass, buttonClass } from "@/components/ui";
 import { NOTIFY_VIA_LABEL, type ServiceProvider } from "@/lib/types";
@@ -96,15 +97,21 @@ function ProviderForm({
   );
 }
 
-// Overlay genérico (janelinha centralizada com backdrop). z alto pra ficar sobre a lista.
+// Overlay genérico (janelinha centralizada com backdrop). Renderizado via PORTAL
+// no document.body: o wrapper do painel tem `animate-fade-up` (transform), e um
+// ancestral com transform quebra `position: fixed` (a modal ancorava lá embaixo
+// na página em vez do centro da tela). O portal escapa esse containing block.
+// max-h + overflow-y-auto pra o form (edit) caber em telas baixas.
 function Modal({ onClose, children, z = 50 }: { onClose: () => void; children: React.ReactNode; z?: number }) {
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: z }}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-md rounded-2xl border border-black/[0.08] bg-white shadow-2xl">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-black/[0.08] bg-white shadow-2xl">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
