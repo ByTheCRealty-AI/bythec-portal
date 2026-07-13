@@ -1,12 +1,12 @@
 "use client";
 
-// Diretório de service providers com busca + CRUD inline (create / edit / delete).
-// Delete = arquivar (a action arquiva; o histórico de services fica). Gated por
-// canManage (operations.edit) — sem a cap, é só leitura.
+// Diretório de service providers. Linhas LIMPAS e clicáveis (sem botões na lista):
+// clicar abre uma janelinha (modal) com os detalhes + Edit + Delete. Delete abre
+// um SEGUNDO modal de confirmação ("are you sure?"). Delete = arquivar (a action
+// arquiva; histórico de services fica). Gated por canManage (operations.edit).
 import { useState, useTransition } from "react";
-import { Search, Plus, Loader2, Check } from "lucide-react";
+import { Search, Plus, Loader2, Check, Pencil, Trash2, X } from "lucide-react";
 import { Badge, Field, inputClass, selectClass, buttonClass } from "@/components/ui";
-import { DeleteControl, EditButton } from "@/components/inline-forms/InlineRowControls";
 import { NOTIFY_VIA_LABEL, type ServiceProvider } from "@/lib/types";
 
 type Action = (fd: FormData) => void | Promise<void>;
@@ -46,13 +46,13 @@ function ProviderForm({
   p,
   action,
   onDone,
-  title,
+  onCancel,
   submitLabel,
 }: {
   p?: ServiceProvider;
   action: Action;
   onDone: () => void;
-  title: string;
+  onCancel: () => void;
   submitLabel: string;
 }) {
   const [pending, start] = useTransition();
@@ -78,8 +78,7 @@ function ProviderForm({
   }
 
   return (
-    <form onSubmit={submit} className="glass space-y-4 p-5">
-      <h3 className="h-display text-base text-ink">{title}</h3>
+    <form onSubmit={submit} className="space-y-4">
       <ProviderFields p={p} />
       {error && (
         <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{error}</p>
@@ -89,11 +88,32 @@ function ProviderForm({
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {pending ? "Saving…" : submitLabel}
         </button>
-        <button type="button" onClick={onDone} disabled={pending} className={buttonClass("ghost")}>
+        <button type="button" onClick={onCancel} disabled={pending} className={buttonClass("ghost")}>
           Cancel
         </button>
       </div>
     </form>
+  );
+}
+
+// Overlay genérico (janelinha centralizada com backdrop). z alto pra ficar sobre a lista.
+function Modal({ onClose, children, z = 50 }: { onClose: () => void; children: React.ReactNode; z?: number }) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: z }}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div className="relative w-full max-w-md rounded-2xl border border-black/[0.08] bg-white shadow-2xl">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-t border-black/[0.06] py-2.5 text-sm">
+      <span className="text-ink/45">{label}</span>
+      <span className={"text-right " + (accent ? "text-primary" : "text-ink/85")}>{value || "—"}</span>
+    </div>
   );
 }
 
@@ -111,8 +131,11 @@ export function ProvidersTable({
   deleteAction: Action;
 }) {
   const [query, setQuery] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // Modal aberto: { provider, editing } — provider null = criar novo.
+  const [open, setOpen] = useState<{ provider: ServiceProvider | null; editing: boolean } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ServiceProvider | null>(null);
+  const [delPending, startDelete] = useTransition();
+  const [delError, setDelError] = useState<string | null>(null);
 
   const term = query.trim().toLowerCase();
   const filtered = term
@@ -122,7 +145,20 @@ export function ProvidersTable({
       })
     : providers;
 
-  const cols = canManage ? 5 : 4;
+  function runDelete(p: ServiceProvider) {
+    setDelError(null);
+    const fd = new FormData();
+    fd.set("id", p.id);
+    startDelete(async () => {
+      try {
+        await deleteAction(fd);
+        setConfirmDelete(null);
+        setOpen(null);
+      } catch (err) {
+        setDelError(err instanceof Error ? err.message : "Could not delete. Try again.");
+      }
+    });
+  }
 
   return (
     <>
@@ -137,23 +173,12 @@ export function ProvidersTable({
             className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-9 pr-3 text-sm text-ink placeholder:text-ink/40 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
           />
         </div>
-        {canManage && !adding && (
-          <button type="button" onClick={() => setAdding(true)} className={buttonClass("primary")}>
+        {canManage && (
+          <button type="button" onClick={() => setOpen({ provider: null, editing: true })} className={buttonClass("primary")}>
             <Plus className="h-4 w-4" /> Add provider
           </button>
         )}
       </div>
-
-      {adding && (
-        <div className="mb-4">
-          <ProviderForm
-            action={createAction}
-            onDone={() => setAdding(false)}
-            title="New provider"
-            submitLabel="Create provider"
-          />
-        </div>
-      )}
 
       {providers.length === 0 ? (
         <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-10 text-center text-sm text-ink/55 shadow-card">
@@ -172,69 +197,144 @@ export function ProvidersTable({
                 <th className="px-5 py-3 font-bold">Service</th>
                 <th className="px-5 py-3 font-bold">Contact</th>
                 <th className="px-5 py-3 font-bold">Notes</th>
-                {canManage && <th className="px-5 py-3" />}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p, i) =>
-                canManage && editingId === p.id ? (
-                  <tr key={p.id} className="border-t border-black/[0.05] bg-black/[0.015]">
-                    <td colSpan={cols} className="px-5 py-4">
-                      <ProviderForm
-                        p={p}
-                        action={updateAction}
-                        onDone={() => setEditingId(null)}
-                        title={`Edit ${p.name}`}
-                        submitLabel="Save changes"
-                      />
-                    </td>
-                  </tr>
-                ) : (
-                  <tr
-                    key={p.id}
-                    className={
-                      "border-t border-black/[0.05] transition hover:bg-primary/[0.04] " +
-                      (i % 2 === 1 ? "bg-black/[0.015]" : "")
-                    }
-                  >
-                    <td className="px-5 py-3.5 font-semibold text-ink">{p.name}</td>
-                    <td className="px-5 py-3.5">
-                      {p.service_type ? (
-                        <Badge tone="orange">{p.service_type}</Badge>
-                      ) : (
-                        <span className="text-ink/40">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-ink/65">
-                      {p.phone ?? p.email ?? "—"}
-                      {p.phone && p.email && <span className="block text-xs text-ink/45">{p.email}</span>}
-                      {p.notify_via && (
-                        <span className="mt-1 block text-[11px] text-ink/40">
-                          Notify via {NOTIFY_VIA_LABEL[p.notify_via]}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-ink/55">
-                      {p.notes ? (
-                        <span className="line-clamp-2 max-w-xs">{p.notes}</span>
-                      ) : (
-                        <span className="text-ink/35">—</span>
-                      )}
-                    </td>
-                    {canManage && (
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-2">
-                          <EditButton onClick={() => setEditingId(p.id)} />
-                          <DeleteControl action={deleteAction} hidden={{ id: p.id }} noun="provider" />
-                        </div>
-                      </td>
+              {filtered.map((p, i) => (
+                <tr
+                  key={p.id}
+                  onClick={() => canManage && setOpen({ provider: p, editing: false })}
+                  className={
+                    "border-t border-black/[0.05] transition " +
+                    (canManage ? "cursor-pointer hover:bg-primary/[0.04] " : "") +
+                    (i % 2 === 1 ? "bg-black/[0.015]" : "")
+                  }
+                >
+                  <td className="px-5 py-3.5 font-semibold text-ink">{p.name}</td>
+                  <td className="px-5 py-3.5">
+                    {p.service_type ? (
+                      <Badge tone="orange">{p.service_type}</Badge>
+                    ) : (
+                      <span className="text-ink/40">—</span>
                     )}
-                  </tr>
-                )
-              )}
+                  </td>
+                  <td className="px-5 py-3.5 text-ink/65">
+                    {p.phone ?? p.email ?? "—"}
+                    {p.phone && p.email && <span className="block text-xs text-ink/45">{p.email}</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-ink/55">
+                    {p.notes ? (
+                      <span className="line-clamp-1 max-w-xs">{p.notes}</span>
+                    ) : (
+                      <span className="text-ink/35">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Janelinha do provider (detalhe / edição / criação) */}
+      {open && (
+        <Modal onClose={() => setOpen(null)}>
+          <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
+            <div>
+              <h3 className="h-display text-lg text-ink">
+                {open.provider ? (open.editing ? `Edit ${open.provider.name}` : open.provider.name) : "New provider"}
+              </h3>
+              {open.provider && !open.editing && open.provider.service_type && (
+                <span className="mt-1 inline-block">
+                  <Badge tone="orange">{open.provider.service_type}</Badge>
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(null)}
+              aria-label="Close"
+              className="grid h-8 w-8 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {open.editing ? (
+              <ProviderForm
+                p={open.provider ?? undefined}
+                action={open.provider ? updateAction : createAction}
+                submitLabel={open.provider ? "Save changes" : "Create provider"}
+                onCancel={() => (open.provider ? setOpen({ provider: open.provider, editing: false }) : setOpen(null))}
+                onDone={() => setOpen(null)}
+              />
+            ) : open.provider ? (
+              <>
+                <div className="mb-5">
+                  <DetailRow label="Phone" value={open.provider.phone} />
+                  <DetailRow label="Email" value={open.provider.email} accent />
+                  <DetailRow label="Notify via" value={open.provider.notify_via ? NOTIFY_VIA_LABEL[open.provider.notify_via] : null} />
+                  <DetailRow
+                    label="Notes"
+                    value={open.provider.notes ? <span className="whitespace-pre-wrap">{open.provider.notes}</span> : null}
+                  />
+                </div>
+                {canManage && (
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setOpen({ provider: open.provider, editing: true })}
+                      className={buttonClass("primary")}
+                    >
+                      <Pencil className="h-4 w-4" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => open.provider && setConfirmDelete(open.provider)}
+                      className={buttonClass("danger")}
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+        </Modal>
+      )}
+
+      {/* Segundo modal: confirmação de delete ("are you sure?") */}
+      {confirmDelete && (
+        <Modal onClose={() => !delPending && setConfirmDelete(null)} z={60}>
+          <div className="px-6 py-5">
+            <h3 className="h-display text-lg text-ink">Delete this provider?</h3>
+            <p className="mt-2 text-sm text-ink/70">
+              Are you sure you want to delete <span className="font-semibold text-ink">{confirmDelete.name}</span>? It
+              will be removed from the directory. Their service history is kept.
+            </p>
+            {delError && <p className="mt-3 text-sm text-red-600">{delError}</p>}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => runDelete(confirmDelete)}
+                disabled={delPending}
+                className={buttonClass("danger")}
+              >
+                {delPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {delPending ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                disabled={delPending}
+                className={buttonClass("ghost")}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </>
   );
