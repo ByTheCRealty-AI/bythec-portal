@@ -32,9 +32,13 @@ type Actor = Pick<ProfileLike, "id" | "role" | "permissions" | "active">;
 
 // Papéis que ESTE ator pode atribuir, dado o seu papel.
 function assignableRoles(actorIsOwner: boolean): AppRole[] {
-  const internal = actorIsOwner ? (["owner", "manager", "secretary"] as AppRole[]) : (["secretary"] as AppRole[]);
-  // Papéis externos ficam de fora do convite interno por ora (portais futuros).
-  return internal;
+  // Externos (portais): Property Owner, Tenant, Realtor. owner/manager podem
+  // convidar external roles (o server já permite via canAssignRole); manager NÃO
+  // pode criar owner/manager, mas PODE criar owner_client/tenant/realtor/secretary.
+  const external: AppRole[] = ["owner_client", "tenant", "realtor"];
+  return actorIsOwner
+    ? (["owner", "manager", "secretary", ...external] as AppRole[])
+    : (["secretary", ...external] as AppRole[]);
 }
 
 // O ator pode editar o alvo? (espelha canEditTarget do server)
