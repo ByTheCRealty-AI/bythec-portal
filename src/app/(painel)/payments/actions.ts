@@ -701,3 +701,130 @@ export async function setCommissionPaidAction(id: string, paid: boolean) {
   const propertyId = (existing as { property_id: string | null } | null)?.property_id;
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
+
+// --- OWNER PAYOUTS (rent_collection = 'bythec') -----------------------------
+// Repasse ao owner de um aluguel RECEBIDO. Espelha o payout de invoice de
+// temporada: toggle "paid" (carimba owner_paid_at), método, nº do eCheck, recibo
+// (category='owner_payout'). Mesmo gate + revalidação das demais actions.
+
+// Helper: property_id do pagamento (pra revalidar a aba da propriedade).
+async function paymentPropertyId(
+  supabase: ReturnType<typeof createClient>,
+  id: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("payments")
+    .select("property_id")
+    .eq("id", id)
+    .maybeSingle();
+  return (data as { property_id: string | null } | null)?.property_id ?? null;
+}
+
+// Marca / desmarca o repasse ao owner. Carimba owner_paid_at ao marcar.
+export async function setOwnerPaidAction(id: string, paid: boolean) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  const supabase = createClient();
+  const propertyId = await paymentPropertyId(supabase, id);
+
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      owner_paid: paid,
+      owner_paid_at: paid ? new Date().toISOString() : null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Salva o método do repasse (eCheck | Zelle | Cash | Other). null limpa.
+export async function setOwnerPaymentMethodAction(id: string, method: string | null) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  const supabase = createClient();
+  const propertyId = await paymentPropertyId(supabase, id);
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ owner_payment_method: method })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Salva o nº do eCheck do repasse. null limpa.
+export async function setOwnerCheckNumberAction(id: string, checkNumber: string | null) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  const supabase = createClient();
+  const propertyId = await paymentPropertyId(supabase, id);
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ owner_check_number: checkNumber })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Anexa um recibo do REPASSE ao owner (category='owner_payout'). O arquivo já foi
+// subido client-side pro bucket privado `documents`; aqui só a linha.
+export async function addOwnerPayoutReceiptAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const paymentId = str(fd, "payment_id");
+  if (!paymentId) throw new Error("Missing payment reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing uploaded file reference.");
+
+  const { error } = await supabase.from("payment_attachments").insert({
+    payment_id: paymentId,
+    file_url: fileUrl,
+    file_name: str(fd, "file_name"),
+    content_type: str(fd, "content_type"),
+    category: "owner_payout",
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  const propertyId = await paymentPropertyId(supabase, paymentId);
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Remove um recibo de repasse: apaga o object do Storage e depois a linha.
+export async function deleteOwnerPayoutReceiptAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing receipt reference.");
+  const paymentId = str(fd, "payment_id");
+  const fileUrl = str(fd, "file_url");
+
+  // Só remove do Storage se for um object path nosso (não URL externa legada).
+  if (fileUrl && !/^https?:\/\//i.test(fileUrl)) {
+    const { error: storageError } = await supabase.storage.from("documents").remove([fileUrl]);
+    if (storageError) throw new Error(`Could not remove the file: ${storageError.message}`);
+  }
+
+  const { error } = await supabase
+    .from("payment_attachments")
+    .delete()
+    .eq("id", id)
+    .eq("category", "owner_payout");
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (paymentId) {
+    const propertyId = await paymentPropertyId(supabase, paymentId);
+    if (propertyId) revalidatePath("/propriedades/" + propertyId);
+  }
+}

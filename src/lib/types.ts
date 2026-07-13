@@ -417,6 +417,8 @@ export type PaymentKind =
 // full external URL (legacy Bubble-imported receipts start with "http") OR a
 // Supabase storage object path inside the `documents` bucket (future uploads).
 // The viewer branches on `file_url.startsWith("http")` — see PaymentReceipt.tsx.
+export type PaymentAttachmentCategory = "rent_receipt" | "owner_payout";
+
 export interface PaymentAttachment {
   id: string;
   file_url: string;
@@ -425,6 +427,9 @@ export interface PaymentAttachment {
   // Set when the receipt belongs to a specific partial payment (payment_parts).
   // Null = payment-level receipt (legacy Bubble import + single full-payment add).
   payment_part_id?: string | null;
+  // rent_receipt = tenant proof (Receipt column); owner_payout = owner-payout proof.
+  // Optional in the type because some older selects may not request it.
+  category?: PaymentAttachmentCategory | null;
 }
 
 // One partial payment a tenant made toward a rent charge. A rent payment can be
@@ -454,6 +459,12 @@ export interface Payment {
   // Manual flag: By the C's commission for this payment has been paid/settled.
   commission_paid: boolean;
   commission_paid_at: string | null;
+  // Owner payout (only meaningful when property.rent_collection = 'bythec' and the
+  // payment is received). By the C owes the owner ≈ rent_amount − commission.
+  owner_paid: boolean;
+  owner_paid_at: string | null;
+  owner_payment_method: string | null; // eCheck | Zelle | Cash | Other (free text)
+  owner_check_number: string | null; // only when method = eCheck
   status: PaymentStatus;
   received_at: string | null;
   // Running sum of partial payments (payment_parts). Derived display state:
@@ -470,7 +481,11 @@ export interface Payment {
   archived_at: string | null;
   created_at: string;
   // joins opcionais
-  property?: Pick<Property, "id" | "address" | "address2" | "property_type" | "rent_collection"> | null;
+  property?:
+    | (Pick<Property, "id" | "address" | "address2" | "property_type" | "rent_collection"> & {
+        owner?: Pick<Client, "id" | "name"> | null;
+      })
+    | null;
   tenant?: Pick<Client, "id" | "name"> | null;
   // Imported receipts (one per payment for the Bubble batch). May be empty.
   attachments?: PaymentAttachment[] | null;

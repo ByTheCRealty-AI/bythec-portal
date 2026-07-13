@@ -6,11 +6,12 @@
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown, Square, CheckSquare } from "lucide-react";
+import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
 import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
 import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
 import { PaymentReceipt } from "./PaymentReceipt";
 import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
+import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -340,6 +341,7 @@ export function PaymentRow({
   updatePartAction,
   deletePartAction,
   setCommissionPaid,
+  ownerActions,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
@@ -358,9 +360,14 @@ export function PaymentRow({
   deletePartAction?: (fd: FormData) => void | Promise<void>;
   // Toggle "commission paid". Optional so read-only contexts skip it.
   setCommissionPaid?: (id: string, paid: boolean) => Promise<void>;
+  // Owner-payout actions. When provided AND the property collects rent through
+  // By the C AND the payment is received, the row gets an "Owner payout" toggle
+  // that expands the payout control. Optional so read-only contexts skip it.
+  ownerActions?: OwnerPayoutActions;
 }) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [ownerExpanded, setOwnerExpanded] = useState(false);
 
   if (editing) {
     return (
@@ -378,6 +385,13 @@ export function PaymentRow({
   const addr = payment.property?.address ?? "—";
   const canParts =
     !!addPartAction && !!updatePartAction && !!deletePartAction && supportsParts(payment);
+  // Owner payout only makes sense for "By the C collects" properties, once the
+  // rent is actually received (cash basis) — that's when By the C owes the owner.
+  const showOwnerPayout =
+    canManage &&
+    !!ownerActions &&
+    payment.property?.rent_collection === "bythec" &&
+    payment.status === "received";
 
   return (
     <>
@@ -442,10 +456,11 @@ export function PaymentRow({
       </td>
       <td className="px-5 py-3.5">
         {(() => {
-          // ALL receipts for this payment: payment-level AND per-installment
-          // (the query already loads both under payment.attachments). Antes só
-          // mostrava a 1ª payment-level, então recibos de parcelas sumiam da coluna.
-          const all = payment.attachments ?? [];
+          // ALL rent receipts for this payment: payment-level AND per-installment
+          // (the query already loads both under payment.attachments). Owner-payout
+          // receipts (category='owner_payout') are excluded — they live in the
+          // Owner payout control, not the tenant Receipt column.
+          const all = (payment.attachments ?? []).filter((a) => a.category !== "owner_payout");
           return all.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {all.map((a) => (
@@ -476,6 +491,23 @@ export function PaymentRow({
                 )}
               </button>
             )}
+            {showOwnerPayout && (
+              <button
+                type="button"
+                onClick={() => setOwnerExpanded((v) => !v)}
+                className={cx(
+                  "inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold transition",
+                  payment.owner_paid
+                    ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/[0.15]"
+                    : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                )}
+                aria-expanded={ownerExpanded}
+                title={payment.owner_paid ? "Owner paid" : "Owner not paid yet"}
+              >
+                {ownerExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Wallet className="h-3.5 w-3.5" />}
+                Owner payout
+              </button>
+            )}
             <StatusToggle payment={payment} setStatus={setStatus} />
             <EditButton onClick={() => setEditing(true)} />
             <DeleteControl action={deleteAction} hidden={{ id: payment.id }} noun="payment" />
@@ -493,6 +525,13 @@ export function PaymentRow({
             updatePartAction={updatePartAction!}
             deletePartAction={deletePartAction!}
           />
+        </td>
+      </tr>
+    )}
+    {showOwnerPayout && ownerExpanded && (
+      <tr className="border-t border-black/[0.05] bg-black/[0.015]">
+        <td colSpan={colSpan} className="px-5 py-4">
+          <OwnerPayoutControl payment={payment} canManage={canManage} actions={ownerActions!} />
         </td>
       </tr>
     )}

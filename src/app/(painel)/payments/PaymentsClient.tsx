@@ -25,6 +25,7 @@ import {
   X,
   ChevronRight,
   ChevronDown,
+  Wallet,
 } from "lucide-react";
 import { money, date, cx } from "@/lib/format";
 import { Field, inputClass, buttonClass } from "@/components/ui";
@@ -33,8 +34,9 @@ import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
 import { PaymentRow, CommissionPaidToggle } from "./PaymentsTable";
 import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
+import { OwnerPayoutControl, ownerOwed, type OwnerPayoutActions } from "./OwnerPayoutControl";
 
-type TabKey = "due" | "monthly" | "past" | "deposit";
+type TabKey = "due" | "monthly" | "past" | "deposit" | "owner_payouts";
 
 // Rent kinds shown in the Due / Monthly / Past tabs (security_deposit excluded —
 // it has its own tab).
@@ -362,6 +364,7 @@ export function PaymentsClient({
   updatePartAction,
   deletePartAction,
   setCommissionPaid,
+  ownerActions,
 }: {
   payments: Payment[];
   properties: PaymentPropertyOption[];
@@ -377,6 +380,7 @@ export function PaymentsClient({
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
   setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+  ownerActions: OwnerPayoutActions;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
 
@@ -525,6 +529,44 @@ export function PaymentsClient({
     return groups;
   }, [depositPayments]);
 
+  // ---- Owner payouts tab: received "By the C collects" rents not yet paid to
+  // the owner, grouped by owner with the total still owed. Marking one paid drops
+  // it (server revalidate). Only bythec + received + owner_paid=false show here.
+  const ownerPayoutGroups = useMemo(() => {
+    const unpaid = rentPayments.filter(
+      (p) =>
+        p.status === "received" &&
+        p.property?.rent_collection === "bythec" &&
+        !p.owner_paid
+    );
+    const map = new Map<string, { ownerName: string; items: Payment[] }>();
+    for (const p of unpaid) {
+      const owner = p.property?.owner ?? null;
+      const key = owner?.id ?? `prop:${p.property_id}`;
+      const name = owner?.name ?? p.property?.address ?? "Unknown owner";
+      const g = map.get(key);
+      if (g) g.items.push(p);
+      else map.set(key, { ownerName: name, items: [p] });
+    }
+    const groups = Array.from(map.entries()).map(([key, g]) => {
+      const items = [...g.items].sort((a, b) =>
+        (ymdOf(a.received_at) ?? ymdOf(a.due_date) ?? "").localeCompare(
+          ymdOf(b.received_at) ?? ymdOf(b.due_date) ?? ""
+        )
+      );
+      const totalOwed = items.reduce((s, p) => s + ownerOwed(p), 0);
+      return { key, ownerName: g.ownerName, items, totalOwed };
+    });
+    // Most owed first.
+    groups.sort((a, b) => b.totalOwed - a.totalOwed);
+    return groups;
+  }, [rentPayments]);
+
+  const ownerPayoutCount = useMemo(
+    () => ownerPayoutGroups.reduce((s, g) => s + g.items.length, 0),
+    [ownerPayoutGroups]
+  );
+
   const tabs: Array<{ key: TabKey; label: string; icon: ReactNode; badge?: number }> = [
     { key: "due", label: "Due", icon: <CalendarClock className="h-4 w-4" />, badge: dueCount },
     { key: "monthly", label: "Monthly", icon: <CalendarDays className="h-4 w-4" /> },
@@ -534,6 +576,12 @@ export function PaymentsClient({
       label: "Security deposit",
       icon: <ShieldCheck className="h-4 w-4" />,
       badge: depositGroups.length,
+    },
+    {
+      key: "owner_payouts",
+      label: "Owner payouts",
+      icon: <Wallet className="h-4 w-4" />,
+      badge: ownerPayoutCount,
     },
   ];
 
@@ -719,6 +767,7 @@ export function PaymentsClient({
                           updatePartAction={updatePartAction}
                           deletePartAction={deletePartAction}
                           setCommissionPaid={setCommissionPaid}
+                          ownerActions={ownerActions}
                         />
                       ))}
                     </tbody>
@@ -810,6 +859,72 @@ export function PaymentsClient({
                   updateDepositTotalAction={updateDepositTotalAction}
                   deleteDepositGroupAction={deleteDepositGroupAction}
                 />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- OWNER PAYOUTS TAB ---- */}
+      {tab === "owner_payouts" && (
+        <div>
+          <div className="mb-4 rounded-2xl border border-black/[0.08] bg-white p-4 text-sm text-ink/60 shadow-card">
+            Owners you still owe for received rent on “By the C collects” properties. The amount
+            owed is rent minus commission. Mark paid, add the method / eCheck number / receipt, and
+            it drops off this list.
+          </div>
+
+          {ownerPayoutGroups.length === 0 ? (
+            <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-12 text-center text-sm text-ink/55 shadow-card">
+              Every owner is paid up. No received “By the C collects” rent is waiting on a payout.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {ownerPayoutGroups.map((g) => (
+                <div
+                  key={g.key}
+                  className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-card"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] bg-black/[0.015] px-5 py-4">
+                    <div className="font-bold text-ink">{g.ownerName}</div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-ink">{money(g.totalOwed)}</div>
+                      <div className="text-xs text-ink/55">
+                        {g.items.length} {g.items.length === 1 ? "payment" : "payments"} owed
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4 p-5">
+                    {g.items.map((p) => {
+                      const mk = paymentMonthKey(p);
+                      return (
+                        <div key={p.id}>
+                          <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+                            {p.property ? (
+                              <Link
+                                href={`/propriedades/${p.property.id}`}
+                                className="font-semibold text-ink hover:text-primary"
+                              >
+                                {p.property.address}
+                              </Link>
+                            ) : (
+                              <span className="font-semibold text-ink/60">—</span>
+                            )}
+                            {mk && (
+                              <>
+                                <span className="text-ink/40">·</span>
+                                <span className="text-ink/60">{monthLabel(mk)}</span>
+                              </>
+                            )}
+                            <span className="text-ink/40">·</span>
+                            <span className="text-ink/55">received {date(p.received_at)}</span>
+                          </div>
+                          <OwnerPayoutControl payment={p} canManage={canManage} actions={ownerActions} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
           )}

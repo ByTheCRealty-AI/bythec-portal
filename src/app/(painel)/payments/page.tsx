@@ -18,6 +18,11 @@ import {
   updatePaymentPartAction,
   deletePaymentPartAction,
   setCommissionPaidAction,
+  setOwnerPaidAction,
+  setOwnerPaymentMethodAction,
+  setOwnerCheckNumberAction,
+  addOwnerPayoutReceiptAction,
+  deleteOwnerPayoutReceiptAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +38,7 @@ async function loadPayments() {
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id))"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, owner_paid, owner_paid_at, owner_payment_method, owner_check_number, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection, owner:owner_id (id, name)), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category))"
       )
       .is("archived_at", null)
       .in("kind", ["monthly", "first_month", "last_month", "security_deposit"])
@@ -125,6 +130,13 @@ export default async function PaymentsPage() {
           updatePartAction={updatePaymentPartAction}
           deletePartAction={deletePaymentPartAction}
           setCommissionPaid={setCommissionPaidAction}
+          ownerActions={{
+            setOwnerPaid: setOwnerPaidAction,
+            setOwnerMethod: setOwnerPaymentMethodAction,
+            setOwnerCheckNumber: setOwnerCheckNumberAction,
+            addReceipt: addOwnerPayoutReceiptAction,
+            deleteReceipt: deleteOwnerPayoutReceiptAction,
+          }}
         />
       )}
     </>

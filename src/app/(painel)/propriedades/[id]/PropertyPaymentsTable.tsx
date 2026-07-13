@@ -5,6 +5,7 @@
 // Reusa a PaymentRow da tela /payments em modo hideProperty (mesmo toggle de
 // status em regime de caixa, edição inline e delete com confirmação).
 import { PaymentRow } from "../../payments/PaymentsTable";
+import type { OwnerPayoutActions } from "../../payments/OwnerPayoutControl";
 import type { PaymentStatus, Payment } from "@/lib/types";
 
 export function PropertyPaymentsTable({
@@ -16,6 +17,7 @@ export function PropertyPaymentsTable({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  ownerActions,
 }: {
   payments: Payment[];
   canManage: boolean;
@@ -25,6 +27,7 @@ export function PropertyPaymentsTable({
   addPartAction?: (fd: FormData) => void | Promise<void>;
   updatePartAction?: (fd: FormData) => void | Promise<void>;
   deletePartAction?: (fd: FormData) => void | Promise<void>;
+  ownerActions?: OwnerPayoutActions;
 }) {
   // Kind, Month, Due, Amount, Commission, Status, Receipt (+ actions). Sem Property/Tenant.
   const colSpan = canManage ? 8 : 7;
@@ -59,6 +62,7 @@ export function PropertyPaymentsTable({
               addPartAction={addPartAction}
               updatePartAction={updatePartAction}
               deletePartAction={deletePartAction}
+              ownerActions={ownerActions}
               hideProperty
             />
           ))}

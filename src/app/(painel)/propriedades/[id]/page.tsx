@@ -43,6 +43,11 @@ import {
   addPaymentPartAction,
   updatePaymentPartAction,
   deletePaymentPartAction,
+  setOwnerPaidAction,
+  setOwnerPaymentMethodAction,
+  setOwnerCheckNumberAction,
+  addOwnerPayoutReceiptAction,
+  deleteOwnerPayoutReceiptAction,
 } from "../../payments/actions";
 import {
   PROPERTY_TYPE_LABEL,
@@ -142,7 +147,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id))"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, owner_paid, owner_paid_at, owner_payment_method, owner_check_number, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection, owner:owner_id (id, name)), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category))"
       )
       .eq("property_id", p.id)
       .is("archived_at", null)
@@ -375,6 +380,13 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               addPartAction={addPaymentPartAction}
               updatePartAction={updatePaymentPartAction}
               deletePartAction={deletePaymentPartAction}
+              ownerActions={{
+                setOwnerPaid: setOwnerPaidAction,
+                setOwnerMethod: setOwnerPaymentMethodAction,
+                setOwnerCheckNumber: setOwnerCheckNumberAction,
+                addReceipt: addOwnerPayoutReceiptAction,
+                deleteReceipt: deleteOwnerPayoutReceiptAction,
+              }}
             />
           ) : (
             <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-8 text-center text-sm text-ink/55 shadow-card">
