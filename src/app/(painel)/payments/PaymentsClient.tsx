@@ -23,8 +23,6 @@ import {
   Pencil,
   Trash2,
   X,
-  ChevronRight,
-  ChevronDown,
   Wallet,
 } from "lucide-react";
 import { money, date, cx } from "@/lib/format";
@@ -33,7 +31,7 @@ import type { Payment, PaymentKind, PaymentStatus } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
 import { PaymentRow, CommissionPaidToggle } from "./PaymentsTable";
-import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
+import { PaymentEntryButton } from "./PaymentEntryButton";
 import { OwnerPayoutControl, ownerOwed, type OwnerPayoutActions } from "./OwnerPayoutControl";
 
 type TabKey = "due" | "monthly" | "past" | "deposit" | "owner_payouts";
@@ -260,13 +258,11 @@ function DueRow({
   deletePartAction: (fd: FormData) => void | Promise<void>;
   setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const paid = p.amount_paid ?? 0;
   const rent = p.rent_amount ?? 0;
   const remaining = Math.max(0, rent - paid);
   const isPartial = paid > 0;
   const pct = rent > 0 ? Math.min(100, Math.round((paid / rent) * 100)) : 0;
-  const canParts = canManage && isRentKind(p);
 
   return (
     <>
@@ -300,34 +296,18 @@ function DueRow({
             {p.commission != null && p.commission > 0 && (
               <CommissionPaidToggle payment={p} setCommissionPaid={setCommissionPaid} />
             )}
-            {canParts && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg border border-black/[0.10] bg-white px-2 py-1.5 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
-                aria-expanded={expanded}
-              >
-                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                {isPartial ? "Payments" : "Record payment"}
-              </button>
-            )}
-            <MarkReceived id={p.id} setStatus={setStatus} />
-          </div>
-        </td>
-      </tr>
-      {canParts && expanded && (
-        <tr className="border-t border-black/[0.05] bg-black/[0.015]">
-          <td colSpan={5} className="px-5 py-4">
-            <RentInstallmentsPanel
+            <PaymentEntryButton
               payment={p}
               canManage={canManage}
+              supportsParts={isRentKind(p)}
+              setStatus={setStatus}
               addPartAction={addPartAction}
               updatePartAction={updatePartAction}
               deletePartAction={deletePartAction}
             />
-          </td>
-        </tr>
-      )}
+          </div>
+        </td>
+      </tr>
     </>
   );
 }
