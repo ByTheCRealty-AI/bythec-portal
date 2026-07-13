@@ -30,7 +30,8 @@ function safeName(name: string): string {
 
 // Sobe N arquivos pro bucket privado `documents` (client-side, pro Storage RLS
 // usar a sessão) e devolve as referências pra gravar em payment_attachments.
-async function uploadReceipts(
+// Exportado: reusado pelo "Mark paid in full" (PaymentEntryButton), que exige recibo.
+export async function uploadReceipts(
   files: File[]
 ): Promise<{ url: string; name: string; type: string }[]> {
   if (!files.length) return [];
@@ -51,8 +52,8 @@ async function uploadReceipts(
   return refs;
 }
 
-// "Hoje" em America/New_York como YYYY-MM-DD, pra pré-preencher a data.
-function todayNY(): string {
+// "Hoje" em America/New_York como YYYY-MM-DD, pra pré-preencher a data. Exportado.
+export function todayNY(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
     year: "numeric",

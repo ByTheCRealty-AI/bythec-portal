@@ -10,12 +10,13 @@
 // scroll-down.
 // =============================================================================
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, Undo2, Wallet, X } from "lucide-react";
 import { money, date } from "@/lib/format";
-import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
-import { PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
+import { Field, inputClass } from "@/components/ui";
+import { RentInstallmentsPanel, uploadReceipts, todayNY } from "./RentInstallmentsPanel";
+import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
 // Janela centralizada — mesmo padrão do modal de providers (portal no body pra
 // escapar do ancestral transformado e centralizar na tela).
@@ -32,28 +33,69 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
   );
 }
 
-// Atalho "recebi tudo de uma vez" / "reabrir". Espelha o antigo MarkReceived +
-// StatusToggle, agora dentro da janela.
+// Atalho "recebi tudo de uma vez" / "reabrir". Marcar pago em cheio EXIGE recibo
+// (prova de pagamento) — sobe o recibo e registra o pagamento do valor restante
+// via addPartAction, que anexa o recibo (category='rent_receipt') e vira received.
+// Reabrir (Mark as due) segue por setStatus (não exige recibo).
 function FullPaymentControl({
   payment,
+  remaining,
   setStatus,
+  addPartAction,
 }: {
   payment: Payment;
+  remaining: number;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  addPartAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [pending, start] = useTransition();
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [hasFile, setHasFile] = useState(false);
   const received = payment.status === "received";
 
-  function run(status: PaymentStatus) {
+  function reopen() {
     setError(null);
     start(async () => {
       try {
-        await setStatus(payment.id, status);
+        await setStatus(payment.id, "due");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not update. Try again.");
       }
     });
+  }
+
+  async function markPaid(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const files = Array.from(fileRef.current?.files ?? []);
+    if (!files.length) {
+      setError("Attach a receipt to mark this paid.");
+      return;
+    }
+    if (remaining <= 0) {
+      setError("Nothing left to pay on this rent.");
+      return;
+    }
+    const form = e.currentTarget;
+    setBusy(true);
+    try {
+      const refs = await uploadReceipts(files);
+      const fd = new FormData(form);
+      fd.delete("receipt_files");
+      fd.set("payment_id", payment.id);
+      fd.set("property_id", payment.property_id);
+      fd.set("amount", String(remaining));
+      fd.set("paid_at", todayNY());
+      fd.set("notes", "Paid in full");
+      fd.set("receipts_json", JSON.stringify(refs));
+      await addPartAction(fd);
+      // O aluguel vira received; a linha sai da aba Due e a janela fecha sozinha.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setBusy(false);
+    }
   }
 
   if (received) {
@@ -64,7 +106,7 @@ function FullPaymentControl({
         </span>
         <button
           type="button"
-          onClick={() => run("due")}
+          onClick={reopen}
           disabled={pending}
           className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-3 py-2 text-xs font-semibold text-ink/65 transition hover:border-secondary/40 hover:text-secondary disabled:opacity-60"
         >
@@ -77,21 +119,46 @@ function FullPaymentControl({
   }
 
   return (
-    <div>
+    <form onSubmit={markPaid} className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-ink">Mark paid in full</p>
+        <p className="text-xs text-ink/45">
+          Got the whole rent at once? Attach the receipt and mark it received.
+        </p>
+      </div>
+      <Field label="Receipt (required)" hint="Image, HEIC, or PDF. Up to 25 MB each.">
+        <input
+          ref={fileRef}
+          name="receipt_files"
+          type="file"
+          multiple
+          required
+          accept="image/*,application/pdf"
+          onChange={(e) => setHasFile((e.target.files?.length ?? 0) > 0)}
+          className={inputClass}
+        />
+      </Field>
+      <Field label="Method">
+        <select name="method" defaultValue="Zelle" className={inputClass}>
+          {PAYMENT_METHODS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {error && (
+        <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{error}</p>
+      )}
       <button
-        type="button"
-        onClick={() => run("received")}
-        disabled={pending}
-        className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/[0.06] px-4 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/[0.10] disabled:opacity-60"
+        type="submit"
+        disabled={busy || !hasFile}
+        className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/[0.06] px-4 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/[0.10] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-        Mark paid in full
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+        {busy ? "Saving…" : "Mark paid in full"}
       </button>
-      <p className="mt-1.5 text-xs text-ink/45">
-        Got the whole rent at once? Mark it received without logging each payment.
-      </p>
-      {error && <p className="mt-2 text-[12px] text-red-600">{error}</p>}
-    </div>
+    </form>
   );
 }
 
@@ -170,9 +237,14 @@ export function PaymentEntryButton({
               />
             )}
 
-            {/* Atalho recebido de uma vez / reabrir */}
+            {/* Atalho recebido de uma vez (exige recibo) / reabrir */}
             <div className="border-t border-black/[0.06] pt-4">
-              <FullPaymentControl payment={payment} setStatus={setStatus} />
+              <FullPaymentControl
+                payment={payment}
+                remaining={Math.max(0, (payment.rent_amount ?? 0) - (payment.amount_paid ?? 0))}
+                setStatus={setStatus}
+                addPartAction={addPartAction}
+              />
             </div>
           </div>
         </Modal>
