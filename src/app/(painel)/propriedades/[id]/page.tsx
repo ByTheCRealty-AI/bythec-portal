@@ -137,7 +137,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .order("name", { ascending: true }),
     supabase
       .from("documents")
-      .select("id, parent_type, parent_id, file_url, file_name, content_type, year, created_at, archived_at")
+      .select(
+        "id, parent_type, parent_id, file_url, file_name, content_type, year, category, tenant_id, tenant_label, created_at, archived_at"
+      )
       .eq("parent_type", "property")
       .eq("parent_id", p.id)
       .is("archived_at", null)
@@ -153,11 +155,11 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .is("archived_at", null)
       .order("month", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
-    // Clientes ativos pro picker de inquilino (trocar/definir tenant).
+    // Clientes (ativos + arquivados) — o TenancyForm usa só os ativos; o picker
+    // de "past tenant" dos documentos busca ativos E arquivados (marca archived).
     supabase
       .from("clients")
-      .select("id, name")
-      .is("archived_at", null)
+      .select("id, name, archived_at")
       .order("name", { ascending: true }),
   ]);
 
@@ -167,7 +169,18 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = (documentsData ?? []) as Document[];
   const payments = (paymentsData ?? []) as unknown as Payment[];
-  const clientOptions = (clientsData ?? []) as { id: string; name: string }[];
+  const allClients = (clientsData ?? []) as { id: string; name: string; archived_at: string | null }[];
+  // TenancyForm picker stays active-only (you assign a live client as tenant).
+  const clientOptions = allClients
+    .filter((c) => c.archived_at === null)
+    .map((c) => ({ id: c.id, name: c.name }));
+  // Document "past tenant" picker searches active + archived, flagging archived.
+  const tenantPickerOptions = allClients.map((c) => ({
+    id: c.id,
+    name: c.name,
+    archived: c.archived_at !== null,
+  }));
+  const clientInfoById = new Map(tenantPickerOptions.map((c) => [c.id, c] as const));
 
   // Payments: só o inquilino ATUAL na lista principal; ex-inquilinos numa seção
   // colapsável ("current" = pagamento com tenant_id do inquilino atual). Vaga
@@ -533,10 +546,66 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   // ---- Aba Documents (upload no browser + lista + download via signed URL) ----
   // Gate: properties.edit OU operations.edit (RLS reforça no banco).
   const canUploadDocs = canEditProperty || canEditOps;
+
+  // "Belongs to" grouping: Current tenant -> Past tenant(s) -> Property docs.
+  //  - current: tenant_id == current tenant (only when the property is occupied).
+  //  - past:    tenant_id set but != current (grouped by client, archived flagged),
+  //             PLUS free-text tenant_label groups (past tenants who aren't clients).
+  //  - property: neither tenant_id nor tenant_label.
+  // A vacant property has no "current" group, so tenant-linked docs fall to "past".
+  const currentDocs = currentTenantId
+    ? documents.filter((d) => d.tenant_id === currentTenantId)
+    : [];
+  const propertyDocs = documents.filter((d) => !d.tenant_id && !d.tenant_label);
+  const pastGroupsDocMap = new Map<
+    string,
+    { key: string; name: string; archived: boolean; docs: Document[] }
+  >();
+  for (const d of documents) {
+    let key: string | null = null;
+    let name = "Former tenant";
+    let archived = false;
+    if (d.tenant_id && d.tenant_id !== currentTenantId) {
+      key = `id:${d.tenant_id}`;
+      const info = clientInfoById.get(d.tenant_id);
+      name = info?.name ?? "Former tenant";
+      archived = info?.archived ?? false;
+    } else if (!d.tenant_id && d.tenant_label) {
+      key = `label:${d.tenant_label}`;
+      name = d.tenant_label;
+    }
+    if (!key) continue;
+    const g = pastGroupsDocMap.get(key) ?? { key, name, archived, docs: [] };
+    g.docs.push(d);
+    pastGroupsDocMap.set(key, g);
+  }
+  const pastDocGroups = Array.from(pastGroupsDocMap.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  const docList = (docs: Document[]) => (
+    <ul className="space-y-3">
+      {docs.map((d) => (
+        <DocumentRow
+          key={d.id}
+          doc={d}
+          canDelete={canUploadDocs}
+          deleteAction={deletePropertyDocumentAction}
+        />
+      ))}
+    </ul>
+  );
+
   const documentsTab = (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {canUploadDocs && (
-        <DocumentAddForm parentType="property" parentId={p.id} action={addDocumentAction} />
+        <DocumentAddForm
+          parentType="property"
+          parentId={p.id}
+          action={addDocumentAction}
+          currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
+          tenantOptions={tenantPickerOptions}
+        />
       )}
       {documents.length === 0 ? (
         <EmptyState
@@ -545,16 +614,45 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           message="Upload leases, inspections and other files for this property. Download anytime."
         />
       ) : (
-        <ul className="space-y-3">
-          {documents.map((d) => (
-            <DocumentRow
-              key={d.id}
-              doc={d}
-              canDelete={canUploadDocs}
-              deleteAction={deletePropertyDocumentAction}
-            />
+        <div className="space-y-7">
+          {currentDocs.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                <h3 className="text-sm font-semibold text-ink/80">
+                  Current tenant · {p.tenant?.name}
+                </h3>
+                <span className="text-xs text-ink/45">{currentDocs.length}</span>
+              </div>
+              {docList(currentDocs)}
+            </section>
+          )}
+
+          {pastDocGroups.map((g) => (
+            <section key={g.key} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-ink/25" />
+                <h3 className="text-sm font-semibold text-ink/70">
+                  {g.name}
+                  {g.archived ? " (archived)" : ""}
+                </h3>
+                <span className="text-xs text-ink/45">Past tenant · {g.docs.length}</span>
+              </div>
+              {docList(g.docs)}
+            </section>
           ))}
-        </ul>
+
+          {propertyDocs.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-ink/40" />
+                <h3 className="text-sm font-semibold text-ink/70">Property documents</h3>
+                <span className="text-xs text-ink/45">{propertyDocs.length}</span>
+              </div>
+              {docList(propertyDocs)}
+            </section>
+          )}
+        </div>
       )}
     </div>
   );

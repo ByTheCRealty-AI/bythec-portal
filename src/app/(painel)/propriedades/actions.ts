@@ -311,6 +311,45 @@ export async function addDocumentAction(fd: FormData) {
   const year = num(fd, "year") ?? new Date().getFullYear();
 
   const supabase = createClient();
+
+  // "Belongs to": resolve to tenant_id / tenant_label. Only ONE is ever set.
+  //  - property       -> both null (default)
+  //  - current        -> the property's CURRENT tenant, looked up on the server
+  //                      (never trusted from the client)
+  //  - past_existing  -> a chosen client (may be archived); validated to exist
+  //  - past_free      -> free-text name (+ optional years), not a client
+  const belongsTo = str(fd, "belongs_to") ?? "property";
+  let tenantId: string | null = null;
+  let tenantLabel: string | null = null;
+
+  if (belongsTo === "current") {
+    const { data: prop, error: pErr } = await supabase
+      .from("properties")
+      .select("tenant_id")
+      .eq("id", propertyId)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    tenantId = (prop as { tenant_id: string | null } | null)?.tenant_id ?? null;
+    if (!tenantId) throw new Error("This property has no current tenant to attach the document to.");
+  } else if (belongsTo === "past_existing") {
+    const chosen = str(fd, "tenant_id");
+    if (!chosen) throw new Error("Pick a past tenant, or choose a different option.");
+    // Validate the client exists (active or archived).
+    const { data: cli, error: cErr } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", chosen)
+      .maybeSingle();
+    if (cErr) throw new Error(cErr.message);
+    if (!cli) throw new Error("That client could not be found.");
+    tenantId = chosen;
+  } else if (belongsTo === "past_free") {
+    const name = str(fd, "tenant_label");
+    if (!name) throw new Error("Enter the past tenant's name, or choose a different option.");
+    const years = str(fd, "tenant_years");
+    tenantLabel = years ? `${name} · ${years}` : name;
+  }
+
   const { error } = await supabase.from("documents").insert({
     parent_type: "property",
     parent_id: propertyId,
@@ -318,6 +357,8 @@ export async function addDocumentAction(fd: FormData) {
     file_name: fileName,
     content_type: str(fd, "content_type"),
     year,
+    tenant_id: tenantId,
+    tenant_label: tenantLabel,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);

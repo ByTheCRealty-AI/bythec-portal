@@ -422,9 +422,22 @@ export interface Document {
   file_name: string;
   content_type: string | null;
   year: number | null;
+  // Property-scoped organization (migration 0020). `category` = doc-type tag
+  // (column ready; UI deferred per Andrea 2026-07-13). "Belongs to" = who the
+  // doc is about: tenant_id links a (possibly ARCHIVED) client; tenant_label
+  // holds a free-text past-tenant name when they aren't a client. Both null =
+  // the property itself. Only tenant_id OR tenant_label is set, never both.
+  category: string | null;
+  tenant_id: string | null;
+  tenant_label: string | null;
   created_at: string;
   archived_at: string | null;
 }
+
+// "Belongs to" selector value on the property Documents tab. Resolved to
+// tenant_id / tenant_label on the server (current tenant is never trusted from
+// the client — it's looked up from the property).
+export type DocumentBelongsTo = "property" | "current" | "past_existing" | "past_free";
 
 export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   open: "Open",

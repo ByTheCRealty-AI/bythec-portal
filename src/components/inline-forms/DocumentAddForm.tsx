@@ -13,6 +13,10 @@ import { Plus, Upload, Loader2 } from "lucide-react";
 //
 // O bucket `documents` é PRIVADO: guardamos o object PATH em file_url (nunca URL
 // pública). Download usa signed URL gerada na hora (ver DocumentRow).
+//
+// PROPERTIES ONLY: quando parentType === "property", mostramos o seletor
+// "Belongs to" (a própria propriedade / inquilino atual / inquilino passado).
+// Pra clientes o form fica exatamente como era.
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -26,14 +30,21 @@ function safeName(name: string): string {
   return cleaned || "file";
 }
 
+type TenantOption = { id: string; name: string; archived: boolean };
+
 export function DocumentAddForm({
   parentType,
   parentId,
   action,
+  currentTenant = null,
+  tenantOptions = [],
 }: {
   parentType: "client" | "property";
   parentId: string;
   action: (fd: FormData) => void | Promise<void>;
+  // Property-only "belongs to" inputs. Ignored for clients.
+  currentTenant?: { id: string; name: string } | null;
+  tenantOptions?: TenantOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,11 +52,27 @@ export function DocumentAddForm({
   const fileRef = useRef<HTMLInputElement>(null);
   const currentYear = new Date().getFullYear();
   const target = parentType === "client" ? "client" : "property";
+  const showBelongsTo = parentType === "property";
+
+  // "Belongs to" state (property only). UI-level "belongs" is resolved to the
+  // server enum on submit. Past tenant can be an existing client OR a free name.
+  const [belongs, setBelongs] = useState<"property" | "current" | "past">("property");
+  const [pastMode, setPastMode] = useState<"existing" | "free">(
+    tenantOptions.length > 0 ? "existing" : "free"
+  );
+  const [pastTenantId, setPastTenantId] = useState<string>("");
+  const [pastName, setPastName] = useState<string>("");
+  const [pastYears, setPastYears] = useState<string>("");
 
   function reset() {
     setError(null);
     setBusy(false);
     setOpen(false);
+    setBelongs("property");
+    setPastMode(tenantOptions.length > 0 ? "existing" : "free");
+    setPastTenantId("");
+    setPastName("");
+    setPastYears("");
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -61,6 +88,29 @@ export function DocumentAddForm({
     if (file.size > MAX_BYTES) {
       setError("File is too large. Maximum size is 25 MB.");
       return;
+    }
+
+    // Resolve the "belongs to" choice into the server enum + validate locally
+    // (the server re-validates and looks up the current tenant itself).
+    let belongsTo = "property";
+    if (showBelongsTo) {
+      if (belongs === "current") {
+        belongsTo = "current";
+      } else if (belongs === "past") {
+        if (pastMode === "existing") {
+          if (!pastTenantId) {
+            setError("Pick a past tenant, or switch to entering a name.");
+            return;
+          }
+          belongsTo = "past_existing";
+        } else {
+          if (!pastName.trim()) {
+            setError("Enter the past tenant's name, or pick one from the list.");
+            return;
+          }
+          belongsTo = "past_free";
+        }
+      }
     }
 
     const yearRaw = (form.elements.namedItem("year") as HTMLInputElement | null)?.value ?? "";
@@ -88,6 +138,14 @@ export function DocumentAddForm({
       fd.set("file_name", file.name);
       fd.set("content_type", file.type || "");
       fd.set("year", String(year));
+      if (showBelongsTo) {
+        fd.set("belongs_to", belongsTo);
+        if (belongsTo === "past_existing") fd.set("tenant_id", pastTenantId);
+        if (belongsTo === "past_free") {
+          fd.set("tenant_label", pastName.trim());
+          if (pastYears.trim()) fd.set("tenant_years", pastYears.trim());
+        }
+      }
 
       await action(fd);
       reset();
@@ -115,6 +173,86 @@ export function DocumentAddForm({
       <Field label="File *" hint="Up to 25 MB. PDFs, images, documents.">
         <input ref={fileRef} name="file" type="file" required className={inputClass} />
       </Field>
+
+      {showBelongsTo && (
+        <Field label="Belongs to" hint="Organize this file under the property or a tenant.">
+          <select
+            value={belongs}
+            onChange={(e) => setBelongs(e.target.value as "property" | "current" | "past")}
+            className={inputClass}
+          >
+            <option value="property">The property</option>
+            {currentTenant && <option value="current">Current tenant — {currentTenant.name}</option>}
+            <option value="past">A past tenant</option>
+          </select>
+        </Field>
+      )}
+
+      {showBelongsTo && belongs === "past" && (
+        <div className="space-y-4 rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPastMode("existing")}
+              className={
+                pastMode === "existing"
+                  ? buttonClass("primary") + " !py-1.5 !text-xs"
+                  : buttonClass("ghost") + " !py-1.5 !text-xs"
+              }
+            >
+              Existing client
+            </button>
+            <button
+              type="button"
+              onClick={() => setPastMode("free")}
+              className={
+                pastMode === "free"
+                  ? buttonClass("primary") + " !py-1.5 !text-xs"
+                  : buttonClass("ghost") + " !py-1.5 !text-xs"
+              }
+            >
+              Enter a name
+            </button>
+          </div>
+
+          {pastMode === "existing" ? (
+            <Field label="Past tenant" hint="Searches active and archived clients.">
+              <select
+                value={pastTenantId}
+                onChange={(e) => setPastTenantId(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Select a client…</option>
+                {tenantOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.archived ? " (archived)" : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Name *" hint="The past tenant's name.">
+                <input
+                  value={pastName}
+                  onChange={(e) => setPastName(e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. John Smith"
+                />
+              </Field>
+              <Field label="Years" hint="Optional, e.g. 2021–2022.">
+                <input
+                  value={pastYears}
+                  onChange={(e) => setPastYears(e.target.value)}
+                  className={inputClass}
+                  placeholder="2021–2022"
+                />
+              </Field>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="sm:max-w-[12rem]">
         <Field label="Year" hint="Defaults to the current year.">
