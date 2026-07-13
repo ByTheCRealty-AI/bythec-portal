@@ -327,15 +327,45 @@ export type NotifyVia = "whatsapp" | "email";
 
 export interface ServiceProvider {
   id: string;
-  name: string;
+  name: string; // business name
   service_type: string | null;
-  phone: string | null;
+  phone: string | null; // office number
   email: string | null;
   notify_via: NotifyVia | null;
   notes: string | null;
+  // Point of contact (pessoa preferida) + o número dela.
+  contact_person: string | null;
+  contact_phone: string | null;
+  // Provider preferido (starred).
+  preferred: boolean;
   archived_at: string | null;
   created_at: string;
 }
+
+// Lista canônica de tipos de serviço (dropdown). É texto no banco; ao editar um
+// provider cujo valor não esteja aqui, a UI adiciona a opção dinamicamente.
+export const SERVICE_TYPE_OPTIONS: string[] = [
+  "HVAC",
+  "Plumbing",
+  "Electrical",
+  "Painting",
+  "Landscaping / Lawn",
+  "Cleaning",
+  "Roofing",
+  "Carpentry / Handyman",
+  "General Contractor",
+  "Pest Control",
+  "Appliance Repair",
+  "Flooring",
+  "Pool / Spa",
+  "Snow Removal",
+  "Locksmith",
+  "Masonry",
+  "Windows / Doors",
+  "Gutters",
+  "Septic",
+  "Other",
+];
 
 export type RequestStatus = "open" | "done";
 

@@ -4,7 +4,7 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import type { ServiceProvider } from "@/lib/types";
 import { ProvidersTable } from "./ProvidersTable";
-import { createProviderAction, updateProviderAction, deleteProviderAction } from "./actions";
+import { createProviderAction, updateProviderAction, deleteProviderAction, togglePreferredAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +13,9 @@ async function load() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("service_providers")
-      .select("id, name, service_type, phone, email, notify_via, notes, archived_at, created_at")
+      .select("id, name, service_type, phone, email, notify_via, notes, contact_person, contact_phone, preferred, archived_at, created_at")
       .is("archived_at", null) // TRAVADO: lista filtra arquivados por padrão
+      .order("preferred", { ascending: false }) // starred no topo
       .order("name", { ascending: true });
     if (error) throw error;
     return { ok: true as const, providers: (data ?? []) as ServiceProvider[] };
@@ -57,6 +58,7 @@ export default async function ProvidersPage() {
         createAction={createProviderAction}
         updateAction={updateProviderAction}
         deleteAction={deleteProviderAction}
+        toggleAction={togglePreferredAction}
       />
     </>
   );

@@ -1,31 +1,50 @@
 "use client";
 
-// Diretório de service providers. Linhas LIMPAS e clicáveis (sem botões na lista):
-// clicar abre uma janelinha (modal) com os detalhes + Edit + Delete. Delete abre
-// um SEGUNDO modal de confirmação ("are you sure?"). Delete = arquivar (a action
-// arquiva; histórico de services fica). Gated por canManage (operations.edit).
+// Diretório de service providers. Linhas limpas e clicáveis (sem botões na lista):
+// clicar abre uma janelinha (modal) com detalhes + Edit + Delete; Delete abre um
+// SEGUNDO modal de confirmação. Star (preferred) toggla direto na lista/modal e
+// sobe pro topo. Campos: business name (name), point of contact + número, office
+// number (phone), email, service type (dropdown), notify via, notes.
+// Modal via portal no body (escapa o transform do wrapper → centraliza na tela).
 import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, Loader2, Check, Pencil, Trash2, X } from "lucide-react";
+import { Search, Plus, Loader2, Check, Pencil, Trash2, X, Star } from "lucide-react";
 import { Badge, Field, inputClass, selectClass, buttonClass } from "@/components/ui";
-import { NOTIFY_VIA_LABEL, type ServiceProvider } from "@/lib/types";
+import { cx } from "@/lib/format";
+import { NOTIFY_VIA_LABEL, SERVICE_TYPE_OPTIONS, type ServiceProvider } from "@/lib/types";
 
 type Action = (fd: FormData) => void | Promise<void>;
 
 function ProviderFields({ p }: { p?: ServiceProvider }) {
+  const currentType = p?.service_type ?? "";
+  const typeOptions =
+    currentType && !SERVICE_TYPE_OPTIONS.includes(currentType)
+      ? [currentType, ...SERVICE_TYPE_OPTIONS]
+      : SERVICE_TYPE_OPTIONS;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Name *">
-        <input name="name" required defaultValue={p?.name ?? ""} className={inputClass} placeholder="Provider or company name" />
+      <Field label="Business name *">
+        <input name="name" required defaultValue={p?.name ?? ""} className={inputClass} placeholder="Company name" />
       </Field>
-      <Field label="Service type" hint="e.g. HVAC, Plumbing, Painting">
-        <input name="service_type" defaultValue={p?.service_type ?? ""} className={inputClass} />
+      <Field label="Service type">
+        <select name="service_type" defaultValue={currentType} className={selectClass}>
+          <option value="">Select…</option>
+          {typeOptions.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
       </Field>
-      <Field label="Phone">
-        <input name="phone" defaultValue={p?.phone ?? ""} className={inputClass} placeholder="(508) 555-0123" />
+      <Field label="Point of contact" hint="Who to ask for">
+        <input name="contact_person" defaultValue={p?.contact_person ?? ""} className={inputClass} placeholder="e.g. Maria at the front desk" />
       </Field>
       <Field label="Email">
         <input name="email" type="email" defaultValue={p?.email ?? ""} className={inputClass} placeholder="name@email.com" />
+      </Field>
+      <Field label="Office number">
+        <input name="phone" defaultValue={p?.phone ?? ""} className={inputClass} placeholder="(508) 555-0123" />
+      </Field>
+      <Field label="Point of contact’s number">
+        <input name="contact_phone" defaultValue={p?.contact_phone ?? ""} className={inputClass} placeholder="(508) 555-0199" />
       </Field>
       <Field label="Notify via">
         <select name="notify_via" defaultValue={p?.notify_via ?? "email"} className={selectClass}>
@@ -34,6 +53,10 @@ function ProviderFields({ p }: { p?: ServiceProvider }) {
           ))}
         </select>
       </Field>
+      <label className="flex items-center gap-2.5 pt-7 text-sm text-ink/80">
+        <input type="checkbox" name="preferred" value="1" defaultChecked={p?.preferred ?? false} className="h-4 w-4 rounded border-black/20" />
+        <span className="inline-flex items-center gap-1">Preferred provider <Star className="h-3.5 w-3.5 text-amber-500" /></span>
+      </label>
       <div className="sm:col-span-2">
         <Field label="Notes">
           <textarea name="notes" rows={2} defaultValue={p?.notes ?? ""} className={inputClass} />
@@ -65,7 +88,7 @@ function ProviderForm({
     const fd = new FormData(e.currentTarget);
     if (p) fd.set("id", p.id);
     if (!((fd.get("name") as string) ?? "").trim()) {
-      setError("A provider name is required.");
+      setError("A business name is required.");
       return;
     }
     start(async () => {
@@ -97,11 +120,54 @@ function ProviderForm({
   );
 }
 
-// Overlay genérico (janelinha centralizada com backdrop). Renderizado via PORTAL
-// no document.body: o wrapper do painel tem `animate-fade-up` (transform), e um
-// ancestral com transform quebra `position: fixed` (a modal ancorava lá embaixo
-// na página em vez do centro da tela). O portal escapa esse containing block.
-// max-h + overflow-y-auto pra o form (edit) caber em telas baixas.
+// Estrela clicável (toggla preferred). Otimista. stopPropagation pra não abrir o
+// modal quando clicada na linha.
+function StarToggle({
+  p,
+  toggleAction,
+  canManage,
+  size = "sm",
+}: {
+  p: ServiceProvider;
+  toggleAction: Action;
+  canManage: boolean;
+  size?: "sm" | "lg";
+}) {
+  const [pending, start] = useTransition();
+  const [pref, setPref] = useState(p.preferred);
+  const cls = size === "lg" ? "h-5 w-5" : "h-4 w-4";
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!canManage) return;
+    const next = !pref;
+    setPref(next);
+    const fd = new FormData();
+    fd.set("id", p.id);
+    fd.set("preferred", next ? "1" : "0");
+    start(async () => {
+      try {
+        await toggleAction(fd);
+      } catch {
+        setPref(!next);
+      }
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={pending || !canManage}
+      aria-label={pref ? "Unstar provider" : "Star provider"}
+      title={pref ? "Preferred — click to unstar" : "Mark as preferred"}
+      className="shrink-0 rounded-md p-0.5 transition hover:bg-black/[0.04] disabled:opacity-60"
+    >
+      <Star className={cx(cls, pref ? "fill-amber-400 text-amber-500" : "text-ink/25 hover:text-ink/45")} />
+    </button>
+  );
+}
+
 function Modal({ onClose, children, z = 50 }: { onClose: () => void; children: React.ReactNode; z?: number }) {
   if (typeof document === "undefined") return null;
   return createPortal(
@@ -130,15 +196,16 @@ export function ProvidersTable({
   createAction,
   updateAction,
   deleteAction,
+  toggleAction,
 }: {
   providers: ServiceProvider[];
   canManage: boolean;
   createAction: Action;
   updateAction: Action;
   deleteAction: Action;
+  toggleAction: Action;
 }) {
   const [query, setQuery] = useState("");
-  // Modal aberto: { provider, editing } — provider null = criar novo.
   const [open, setOpen] = useState<{ provider: ServiceProvider | null; editing: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ServiceProvider | null>(null);
   const [delPending, startDelete] = useTransition();
@@ -147,7 +214,7 @@ export function ProvidersTable({
   const term = query.trim().toLowerCase();
   const filtered = term
     ? providers.filter((p) => {
-        const hay = `${p.name ?? ""} ${p.service_type ?? ""}`.toLowerCase();
+        const hay = `${p.name ?? ""} ${p.service_type ?? ""} ${p.contact_person ?? ""}`.toLowerCase();
         return term.split(/\s+/).every((word) => hay.includes(word));
       })
     : providers;
@@ -176,7 +243,7 @@ export function ProvidersTable({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name…"
+            placeholder="Search name, service or contact…"
             className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-9 pr-3 text-sm text-ink placeholder:text-ink/40 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
           />
         </div>
@@ -200,10 +267,10 @@ export function ProvidersTable({
           <table className="w-full text-left text-sm">
             <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
               <tr>
-                <th className="px-5 py-3 font-bold">Name</th>
+                <th className="px-5 py-3 font-bold">Business</th>
                 <th className="px-5 py-3 font-bold">Service</th>
                 <th className="px-5 py-3 font-bold">Contact</th>
-                <th className="px-5 py-3 font-bold">Notes</th>
+                <th className="px-5 py-3 font-bold">Phone</th>
               </tr>
             </thead>
             <tbody>
@@ -217,7 +284,12 @@ export function ProvidersTable({
                     (i % 2 === 1 ? "bg-black/[0.015]" : "")
                   }
                 >
-                  <td className="px-5 py-3.5 font-semibold text-ink">{p.name}</td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <StarToggle p={p} toggleAction={toggleAction} canManage={canManage} />
+                      <span className="font-semibold text-ink">{p.name}</span>
+                    </div>
+                  </td>
                   <td className="px-5 py-3.5">
                     {p.service_type ? (
                       <Badge tone="orange">{p.service_type}</Badge>
@@ -226,15 +298,10 @@ export function ProvidersTable({
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-ink/65">
-                    {p.phone ?? p.email ?? "—"}
-                    {p.phone && p.email && <span className="block text-xs text-ink/45">{p.email}</span>}
+                    {p.contact_person ?? "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-ink/55">
-                    {p.notes ? (
-                      <span className="line-clamp-1 max-w-xs">{p.notes}</span>
-                    ) : (
-                      <span className="text-ink/35">—</span>
-                    )}
+                  <td className="px-5 py-3.5 text-ink/65">
+                    {p.phone ?? p.contact_phone ?? "—"}
                   </td>
                 </tr>
               ))}
@@ -243,25 +310,30 @@ export function ProvidersTable({
         </div>
       )}
 
-      {/* Janelinha do provider (detalhe / edição / criação) */}
+      {/* Janelinha do provider */}
       {open && (
         <Modal onClose={() => setOpen(null)}>
           <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
-            <div>
-              <h3 className="h-display text-lg text-ink">
-                {open.provider ? (open.editing ? `Edit ${open.provider.name}` : open.provider.name) : "New provider"}
-              </h3>
-              {open.provider && !open.editing && open.provider.service_type && (
-                <span className="mt-1 inline-block">
-                  <Badge tone="orange">{open.provider.service_type}</Badge>
-                </span>
+            <div className="flex items-start gap-2">
+              {open.provider && !open.editing && (
+                <StarToggle p={open.provider} toggleAction={toggleAction} canManage={canManage} size="lg" />
               )}
+              <div>
+                <h3 className="h-display text-lg text-ink">
+                  {open.provider ? (open.editing ? `Edit ${open.provider.name}` : open.provider.name) : "New provider"}
+                </h3>
+                {open.provider && !open.editing && open.provider.service_type && (
+                  <span className="mt-1 inline-block">
+                    <Badge tone="orange">{open.provider.service_type}</Badge>
+                  </span>
+                )}
+              </div>
             </div>
             <button
               type="button"
               onClick={() => setOpen(null)}
               aria-label="Close"
-              className="grid h-8 w-8 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
             >
               <X className="h-4 w-4" />
             </button>
@@ -279,7 +351,9 @@ export function ProvidersTable({
             ) : open.provider ? (
               <>
                 <div className="mb-5">
-                  <DetailRow label="Phone" value={open.provider.phone} />
+                  <DetailRow label="Point of contact" value={open.provider.contact_person} />
+                  <DetailRow label="Contact’s number" value={open.provider.contact_phone} />
+                  <DetailRow label="Office number" value={open.provider.phone} />
                   <DetailRow label="Email" value={open.provider.email} accent />
                   <DetailRow label="Notify via" value={open.provider.notify_via ? NOTIFY_VIA_LABEL[open.provider.notify_via] : null} />
                   <DetailRow
@@ -311,7 +385,7 @@ export function ProvidersTable({
         </Modal>
       )}
 
-      {/* Segundo modal: confirmação de delete ("are you sure?") */}
+      {/* Confirmação de delete */}
       {confirmDelete && (
         <Modal onClose={() => !delPending && setConfirmDelete(null)} z={60}>
           <div className="px-6 py-5">
@@ -322,21 +396,11 @@ export function ProvidersTable({
             </p>
             {delError && <p className="mt-3 text-sm text-red-600">{delError}</p>}
             <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => runDelete(confirmDelete)}
-                disabled={delPending}
-                className={buttonClass("danger")}
-              >
+              <button type="button" onClick={() => runDelete(confirmDelete)} disabled={delPending} className={buttonClass("danger")}>
                 {delPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 {delPending ? "Deleting…" : "Yes, delete"}
               </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                disabled={delPending}
-                className={buttonClass("ghost")}
-              >
+              <button type="button" onClick={() => setConfirmDelete(null)} disabled={delPending} className={buttonClass("ghost")}>
                 Cancel
               </button>
             </div>

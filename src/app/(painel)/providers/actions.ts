@@ -35,6 +35,9 @@ export async function createProviderAction(fd: FormData) {
     service_type: str(fd, "service_type"),
     phone: str(fd, "phone"),
     email: str(fd, "email"),
+    contact_person: str(fd, "contact_person"),
+    contact_phone: str(fd, "contact_phone"),
+    preferred: str(fd, "preferred") === "1",
     notify_via: notifyVia(fd),
     notes: str(fd, "notes"),
   });
@@ -56,10 +59,28 @@ export async function updateProviderAction(fd: FormData) {
       service_type: str(fd, "service_type"),
       phone: str(fd, "phone"),
       email: str(fd, "email"),
+      contact_person: str(fd, "contact_person"),
+      contact_phone: str(fd, "contact_phone"),
+      preferred: str(fd, "preferred") === "1",
       notify_via: notifyVia(fd),
       notes: str(fd, "notes"),
       updated_at: new Date().toISOString(),
     })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/providers");
+}
+
+// Toggle rápido do star (preferred) — sem abrir o form inteiro.
+export async function togglePreferredAction(fd: FormData) {
+  await assertCanManage();
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing provider reference.");
+  const preferred = str(fd, "preferred") === "1";
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("service_providers")
+    .update({ preferred, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/providers");
