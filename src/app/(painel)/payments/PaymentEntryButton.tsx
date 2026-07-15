@@ -162,7 +162,12 @@ function FullPaymentControl({
   );
 }
 
-export function PaymentEntryButton({
+// Janela controlada (open/onClose). Aberta pelo CLIQUE NA LINHA do pagamento
+// (row-click) em todas as telas de aluguel year-round: aba Due, Monthly, Past e
+// a aba Payments de cada propriedade. Conteúdo idêntico à antiga PaymentEntryButton.
+export function PaymentWindow({
+  open,
+  onClose,
   payment,
   canManage,
   supportsParts,
@@ -171,6 +176,8 @@ export function PaymentEntryButton({
   updatePartAction,
   deletePartAction,
 }: {
+  open: boolean;
+  onClose: () => void;
   payment: Payment;
   canManage: boolean;
   // Aluguel (monthly/first/last) suporta parcelas; depósito etc. não → só o atalho.
@@ -180,12 +187,78 @@ export function PaymentEntryButton({
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
-  if (!canManage) return null;
+  if (!open || !canManage) return null;
 
   const addr = payment.property?.address ?? "Payment";
   const showPanel = supportsParts;
 
+  return (
+    <Modal onClose={onClose}>
+      <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
+        <div className="min-w-0">
+          <h3 className="h-display text-lg text-ink">Record payment</h3>
+          <p className="truncate text-xs text-ink/55">
+            {addr}
+            {payment.property?.address2 ? ` · ${payment.property.address2}` : ""}
+            {payment.tenant?.name ? ` · ${payment.tenant.name}` : ""}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="space-y-5 px-6 py-5">
+        {/* Resumo */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/[0.06] bg-black/[0.015] px-4 py-3 text-sm">
+          <span className="text-ink/60">
+            {PAYMENT_KIND_LABEL[payment.kind]} rent · due {date(payment.due_date)}
+          </span>
+          <span className="font-semibold text-ink">{money(payment.rent_amount)}</span>
+        </div>
+
+        {/* Parcelas / progresso (só aluguel) */}
+        {showPanel && (
+          <RentInstallmentsPanel
+            payment={payment}
+            canManage={canManage}
+            addPartAction={addPartAction}
+            updatePartAction={updatePartAction}
+            deletePartAction={deletePartAction}
+          />
+        )}
+
+        {/* Atalho recebido de uma vez (exige recibo) / reabrir */}
+        <div className="border-t border-black/[0.06] pt-4">
+          <FullPaymentControl
+            payment={payment}
+            remaining={Math.max(0, (payment.rent_amount ?? 0) - (payment.amount_paid ?? 0))}
+            setStatus={setStatus}
+            addPartAction={addPartAction}
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Botão-gatilho (compat). A maioria das telas abre pela linha (row-click).
+export function PaymentEntryButton(props: {
+  payment: Payment;
+  canManage: boolean;
+  supportsParts: boolean;
+  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!props.canManage) return null;
   return (
     <>
       <button
@@ -195,60 +268,7 @@ export function PaymentEntryButton({
       >
         <Wallet className="h-3.5 w-3.5" /> Record payment
       </button>
-
-      {open && (
-        <Modal onClose={() => setOpen(false)}>
-          <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
-            <div className="min-w-0">
-              <h3 className="h-display text-lg text-ink">Record payment</h3>
-              <p className="truncate text-xs text-ink/55">
-                {addr}
-                {payment.property?.address2 ? ` · ${payment.property.address2}` : ""}
-                {payment.tenant?.name ? ` · ${payment.tenant.name}` : ""}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="space-y-5 px-6 py-5">
-            {/* Resumo */}
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/[0.06] bg-black/[0.015] px-4 py-3 text-sm">
-              <span className="text-ink/60">
-                {PAYMENT_KIND_LABEL[payment.kind]} rent · due {date(payment.due_date)}
-              </span>
-              <span className="font-semibold text-ink">{money(payment.rent_amount)}</span>
-            </div>
-
-            {/* Parcelas / progresso (só aluguel) */}
-            {showPanel && (
-              <RentInstallmentsPanel
-                payment={payment}
-                canManage={canManage}
-                addPartAction={addPartAction}
-                updatePartAction={updatePartAction}
-                deletePartAction={deletePartAction}
-              />
-            )}
-
-            {/* Atalho recebido de uma vez (exige recibo) / reabrir */}
-            <div className="border-t border-black/[0.06] pt-4">
-              <FullPaymentControl
-                payment={payment}
-                remaining={Math.max(0, (payment.rent_amount ?? 0) - (payment.amount_paid ?? 0))}
-                setStatus={setStatus}
-                addPartAction={addPartAction}
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
+      <PaymentWindow open={open} onClose={() => setOpen(false)} {...props} />
     </>
   );
 }

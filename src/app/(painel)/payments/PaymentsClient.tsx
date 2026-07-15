@@ -31,7 +31,7 @@ import type { Payment, PaymentKind, PaymentStatus } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
 import { PaymentRow, CommissionPaidToggle } from "./PaymentsTable";
-import { PaymentEntryButton } from "./PaymentEntryButton";
+import { PaymentWindow } from "./PaymentEntryButton";
 import { OwnerPayoutControl, ownerOwed, type OwnerPayoutActions } from "./OwnerPayoutControl";
 
 type TabKey = "due" | "monthly" | "past" | "deposit" | "owner_payouts";
@@ -154,20 +154,13 @@ function MarkReceived({
 }
 
 // ---- Célula de propriedade / inquilino (compartilhada) ---------------------
+// Célula do endereço: DESTACADA (verde) e SEM link — a linha inteira é clicável e
+// abre a janela do pagamento (padrão clients/properties + providers).
 function PropertyCell({ p }: { p: Payment }) {
   const addr = p.property?.address ?? "—";
   return (
     <td className="px-5 py-3.5">
-      {p.property ? (
-        <Link
-          href={`/propriedades/${p.property.id}`}
-          className="font-semibold text-ink hover:text-primary"
-        >
-          {addr}
-        </Link>
-      ) : (
-        <span className="font-semibold text-ink/60">{addr}</span>
-      )}
+      <span className={cx("font-semibold", p.property ? "text-primary" : "text-ink/60")}>{addr}</span>
       {p.property?.address2 && (
         <span className="block text-xs text-ink/45">{p.property.address2}</span>
       )}
@@ -176,17 +169,7 @@ function PropertyCell({ p }: { p: Payment }) {
 }
 
 function TenantCell({ p }: { p: Payment }) {
-  return (
-    <td className="px-5 py-3.5 text-ink/65">
-      {p.tenant ? (
-        <Link href={`/clientes/${p.tenant.id}`} className="hover:text-primary">
-          {p.tenant.name}
-        </Link>
-      ) : (
-        "—"
-      )}
-    </td>
-  );
+  return <td className="px-5 py-3.5 text-ink/65">{p.tenant?.name ?? "—"}</td>;
 }
 
 // ---- Chip de resumo (Due tab) ----------------------------------------------
@@ -263,10 +246,18 @@ function DueRow({
   const remaining = Math.max(0, rent - paid);
   const isPartial = paid > 0;
   const pct = rent > 0 ? Math.min(100, Math.round((paid / rent) * 100)) : 0;
+  const [payOpen, setPayOpen] = useState(false);
 
   return (
     <>
-      <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
+      <tr
+        className={cx(
+          "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
+          zebra && "bg-black/[0.015]",
+          canManage && "cursor-pointer"
+        )}
+        onClick={canManage ? () => setPayOpen(true) : undefined}
+      >
         <PropertyCell p={p} />
         <TenantCell p={p} />
         <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">
@@ -291,40 +282,80 @@ function DueRow({
           </span>
           <KindTag kind={p.kind} />
         </td>
-        <td className="px-5 py-3.5 text-right">
+        <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="inline-flex flex-wrap items-center justify-end gap-2">
             {p.commission != null && p.commission > 0 && (
               <CommissionPaidToggle payment={p} setCommissionPaid={setCommissionPaid} />
             )}
-            <PaymentEntryButton
-              payment={p}
-              canManage={canManage}
-              supportsParts={isRentKind(p)}
-              setStatus={setStatus}
-              addPartAction={addPartAction}
-              updatePartAction={updatePartAction}
-              deletePartAction={deletePartAction}
-            />
           </div>
         </td>
       </tr>
+      <PaymentWindow
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+        payment={p}
+        canManage={canManage}
+        supportsParts={isRentKind(p)}
+        setStatus={setStatus}
+        addPartAction={addPartAction}
+        updatePartAction={updatePartAction}
+        deletePartAction={deletePartAction}
+      />
     </>
   );
 }
 
-// Linha enxuta da aba Past payments (received-only, read).
-function PastRow({ p, zebra }: { p: Payment; zebra: boolean }) {
+// Linha da aba Past payments (received). Clicar na linha abre a janela do
+// pagamento (ver recibos/parcelas, reabrir se preciso) — mesmo padrão das outras.
+function PastRow({
+  p,
+  zebra,
+  canManage,
+  setStatus,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
+}: {
+  p: Payment;
+  zebra: boolean;
+  canManage: boolean;
+  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
+}) {
   const paid = p.received_at ?? p.due_date;
+  const [payOpen, setPayOpen] = useState(false);
   return (
-    <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
-      <PropertyCell p={p} />
-      <TenantCell p={p} />
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">
-        {date(paid)}
-        <KindTag kind={p.kind} />
-      </td>
-    </tr>
+    <>
+      <tr
+        className={cx(
+          "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
+          zebra && "bg-black/[0.015]",
+          canManage && "cursor-pointer"
+        )}
+        onClick={canManage ? () => setPayOpen(true) : undefined}
+      >
+        <PropertyCell p={p} />
+        <TenantCell p={p} />
+        <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
+        <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">
+          {date(paid)}
+          <KindTag kind={p.kind} />
+        </td>
+      </tr>
+      <PaymentWindow
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+        payment={p}
+        canManage={canManage}
+        supportsParts={isRentKind(p)}
+        setStatus={setStatus}
+        addPartAction={addPartAction}
+        updatePartAction={updatePartAction}
+        deletePartAction={deletePartAction}
+      />
+    </>
   );
 }
 
@@ -841,7 +872,16 @@ export function PaymentsClient({
                 </thead>
                 <tbody>
                   {pastPayments.map((p, i) => (
-                    <PastRow key={p.id} p={p} zebra={i % 2 === 1} />
+                    <PastRow
+                      key={p.id}
+                      p={p}
+                      zebra={i % 2 === 1}
+                      canManage={canManage}
+                      setStatus={setStatus}
+                      addPartAction={addPartAction}
+                      updatePartAction={updatePartAction}
+                      deletePartAction={deletePartAction}
+                    />
                   ))}
                 </tbody>
               </table>

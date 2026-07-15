@@ -5,12 +5,11 @@
 // caixa), delete com confirmação leve, e edição inline. Mesmo visual das outras
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
-import Link from "next/link";
-import { Search, CheckCircle2, Undo2, Loader2, ChevronRight, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
+import { Search, CheckCircle2, Undo2, Loader2, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
 import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
 import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
 import { PaymentReceipt } from "./PaymentReceipt";
-import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
+import { PaymentWindow } from "./PaymentEntryButton";
 import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { money, date, cx } from "@/lib/format";
 import {
@@ -366,7 +365,7 @@ export function PaymentRow({
   ownerActions?: OwnerPayoutActions;
 }) {
   const [editing, setEditing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
   const [ownerExpanded, setOwnerExpanded] = useState(false);
 
   if (editing) {
@@ -395,34 +394,28 @@ export function PaymentRow({
 
   return (
     <>
-    <tr className={cx("border-t border-black/[0.05] transition hover:bg-primary/[0.04]", zebra && "bg-black/[0.015]")}>
+    {/* Linha clicável (aluguel): clicar em qualquer parte NÃO-interativa abre a
+        janela de Record payment. As células de Receipt e Ações têm stopPropagation. */}
+    <tr
+      className={cx(
+        "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
+        zebra && "bg-black/[0.015]",
+        canParts && canManage && "cursor-pointer"
+      )}
+      onClick={canParts && canManage ? () => setPayOpen(true) : undefined}
+    >
       {!hideProperty && (
         <td className="px-5 py-3.5">
-          {payment.property ? (
-            <Link
-              href={`/propriedades/${payment.property.id}`}
-              className="font-semibold text-ink hover:text-primary"
-            >
-              {addr}
-            </Link>
-          ) : (
-            <span className="font-semibold text-ink/60">{addr}</span>
-          )}
+          <span className={cx("font-semibold", payment.property ? "text-primary" : "text-ink/60")}>
+            {addr}
+          </span>
           {payment.property?.address2 && (
             <span className="block text-xs text-ink/45">{payment.property.address2}</span>
           )}
         </td>
       )}
       {!hideProperty && (
-        <td className="px-5 py-3.5 text-ink/65">
-          {payment.tenant ? (
-            <Link href={`/clientes/${payment.tenant.id}`} className="hover:text-primary">
-              {payment.tenant.name}
-            </Link>
-          ) : (
-            "—"
-          )}
-        </td>
+        <td className="px-5 py-3.5 text-ink/65">{payment.tenant?.name ?? "—"}</td>
       )}
       <td className="px-5 py-3.5">
         <Badge tone={kindTone(payment.kind)}>{PAYMENT_KIND_LABEL[payment.kind]}</Badge>
@@ -437,7 +430,7 @@ export function PaymentRow({
         {payment.received_at ? date(payment.received_at) : <span className="text-ink/30">—</span>}
       </td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(payment.rent_amount)}</td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/70">
+      <td className="whitespace-nowrap px-5 py-3.5 text-ink/70" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-col items-start gap-1.5">
           <span>{money(payment.commission)}</span>
           {payment.commission != null && payment.commission > 0 && (
@@ -454,7 +447,7 @@ export function PaymentRow({
       <td className="px-5 py-3.5">
         <StatusBadge payment={payment} />
       </td>
-      <td className="px-5 py-3.5">
+      <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
         {(() => {
           // ALL rent receipts for this payment: payment-level AND per-installment
           // (the query already loads both under payment.attachments). Owner-payout
@@ -473,24 +466,8 @@ export function PaymentRow({
         })()}
       </td>
       {canManage && (
-        <td className="px-5 py-3.5">
+        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-2">
-            {canParts && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg border border-black/[0.10] bg-white px-2 py-1.5 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
-                aria-expanded={expanded}
-              >
-                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                Payments
-                {payment.parts && payment.parts.length > 0 && (
-                  <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
-                    {payment.parts.length}
-                  </span>
-                )}
-              </button>
-            )}
             {showOwnerPayout && (
               <button
                 type="button"
@@ -515,18 +492,18 @@ export function PaymentRow({
         </td>
       )}
     </tr>
-    {canParts && expanded && (
-      <tr className="border-t border-black/[0.05] bg-black/[0.015]">
-        <td colSpan={colSpan} className="px-5 py-4">
-          <RentInstallmentsPanel
-            payment={payment}
-            canManage={canManage}
-            addPartAction={addPartAction!}
-            updatePartAction={updatePartAction!}
-            deletePartAction={deletePartAction!}
-          />
-        </td>
-      </tr>
+    {canParts && (
+      <PaymentWindow
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+        payment={payment}
+        canManage={canManage}
+        supportsParts={supportsParts(payment)}
+        setStatus={setStatus}
+        addPartAction={addPartAction!}
+        updatePartAction={updatePartAction!}
+        deletePartAction={deletePartAction!}
+      />
     )}
     {showOwnerPayout && ownerExpanded && (
       <tr className="border-t border-black/[0.05] bg-black/[0.015]">
