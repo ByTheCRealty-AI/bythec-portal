@@ -13,6 +13,7 @@ import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
+import { BulkDocumentImport } from "@/components/inline-forms/BulkDocumentImport";
 import { NoteRow } from "@/components/inline-forms/NoteRow";
 import { ServiceRow } from "@/components/inline-forms/ServiceRow";
 import { RequestRow } from "@/components/inline-forms/RequestRow";
@@ -29,6 +30,7 @@ import {
   deleteRequestAction,
   deletePropertyDocumentAction,
   updateDocumentTenancyAction,
+  importPropertyDocumentsAction,
 } from "../actions";
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
@@ -607,13 +609,21 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const documentsTab = (
     <div className="space-y-6">
       {canUploadDocs && (
-        <DocumentAddForm
-          parentType="property"
-          parentId={p.id}
-          action={addDocumentAction}
-          currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
-          tenantOptions={tenantPickerOptions}
-        />
+        <div className="space-y-3">
+          <DocumentAddForm
+            parentType="property"
+            parentId={p.id}
+            action={addDocumentAction}
+            currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
+            tenantOptions={tenantPickerOptions}
+          />
+          <BulkDocumentImport
+            propertyId={p.id}
+            currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
+            tenantOptions={tenantPickerOptions}
+            action={importPropertyDocumentsAction}
+          />
+        </div>
       )}
       {documents.length === 0 ? (
         <EmptyState

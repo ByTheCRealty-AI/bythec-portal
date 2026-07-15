@@ -588,3 +588,108 @@ export async function deletePropertyDocumentAction(fd: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
 }
+
+// ---- Bulk import (OneDrive -> portal) --------------------------------------
+// The files are uploaded CLIENT-SIDE (browser, user's session → Storage RLS)
+// before this runs; here we only INSERT the documents rows for a whole batch.
+// Idempotent: skips any file whose source_path is already imported for this
+// property (so a re-run never double-inserts). Gate: properties.edit OR
+// operations.edit (RLS reforça no banco).
+type ImportDocInput = {
+  file_url: string;
+  file_name: string;
+  content_type: string | null;
+  doc_date: string | null; // YYYY-MM-DD
+  source_path: string; // original OneDrive relative path (provenance + idempotency)
+  belongs_to: "property" | "current" | "past_existing" | "past_free";
+  tenant_id?: string | null;
+  tenant_label?: string | null;
+};
+
+export async function importPropertyDocumentsAction(
+  propertyId: string,
+  docs: ImportDocInput[]
+): Promise<{ inserted: number; skipped: number }> {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to import documents.");
+  }
+  if (!propertyId) throw new Error("Missing property reference.");
+  if (!Array.isArray(docs) || docs.length === 0) return { inserted: 0, skipped: 0 };
+
+  const supabase = createClient();
+
+  // Current tenant resolved ONCE on the server (never trusted from the client).
+  const { data: prop, error: pErr } = await supabase
+    .from("properties")
+    .select("tenant_id")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (pErr) throw new Error(pErr.message);
+  const currentTenantId = (prop as { tenant_id: string | null } | null)?.tenant_id ?? null;
+
+  // Idempotency: which source_paths are already imported for this property.
+  const { data: existing } = await supabase
+    .from("documents")
+    .select("source_path")
+    .eq("parent_type", "property")
+    .eq("parent_id", propertyId)
+    .not("source_path", "is", null);
+  const seen = new Set(
+    ((existing ?? []) as { source_path: string | null }[]).map((r) => r.source_path)
+  );
+
+  // Validate the client ids referenced by past_existing (active OR archived).
+  const tenantIds = Array.from(
+    new Set(
+      docs
+        .filter((d) => d.belongs_to === "past_existing" && d.tenant_id)
+        .map((d) => d.tenant_id as string)
+    )
+  );
+  const validTenant = new Set<string>();
+  if (tenantIds.length > 0) {
+    const { data: cli, error: cErr } = await supabase
+      .from("clients")
+      .select("id")
+      .in("id", tenantIds);
+    if (cErr) throw new Error(cErr.message);
+    for (const c of (cli ?? []) as { id: string }[]) validTenant.add(c.id);
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  let skipped = 0;
+  for (const d of docs) {
+    if (!d.file_url || !d.source_path) { skipped++; continue; }
+    if (seen.has(d.source_path)) { skipped++; continue; }
+    let tenant_id: string | null = null;
+    let tenant_label: string | null = null;
+    if (d.belongs_to === "current") {
+      tenant_id = currentTenantId; // may be null (vacant) -> property-level
+    } else if (d.belongs_to === "past_existing") {
+      if (d.tenant_id && validTenant.has(d.tenant_id)) tenant_id = d.tenant_id;
+      else { skipped++; continue; } // referenced a client that doesn't exist
+    } else if (d.belongs_to === "past_free") {
+      tenant_label = (d.tenant_label ?? "").trim() || null;
+    }
+    rows.push({
+      parent_type: "property",
+      parent_id: propertyId,
+      file_url: d.file_url,
+      file_name: d.file_name,
+      content_type: d.content_type,
+      doc_date: d.doc_date,
+      source_path: d.source_path,
+      tenant_id,
+      tenant_label,
+    });
+    seen.add(d.source_path);
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase.from("documents").insert(rows);
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath(`/propriedades/${propertyId}`);
+  return { inserted: rows.length, skipped };
+}
