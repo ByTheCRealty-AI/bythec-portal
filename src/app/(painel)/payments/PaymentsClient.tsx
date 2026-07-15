@@ -230,6 +230,7 @@ function DueRow({
   updatePartAction,
   deletePartAction,
   setCommissionPaid,
+  ownerActions,
 }: {
   p: Payment;
   zebra: boolean;
@@ -240,6 +241,7 @@ function DueRow({
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
   setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+  ownerActions: OwnerPayoutActions;
 }) {
   const paid = p.amount_paid ?? 0;
   const rent = p.rent_amount ?? 0;
@@ -300,6 +302,7 @@ function DueRow({
         addPartAction={addPartAction}
         updatePartAction={updatePartAction}
         deletePartAction={deletePartAction}
+        ownerActions={ownerActions}
       />
     </>
   );
@@ -315,6 +318,7 @@ function PastRow({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  ownerActions,
 }: {
   p: Payment;
   zebra: boolean;
@@ -323,6 +327,7 @@ function PastRow({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
+  ownerActions: OwnerPayoutActions;
 }) {
   const paid = p.received_at ?? p.due_date;
   const [payOpen, setPayOpen] = useState(false);
@@ -354,6 +359,7 @@ function PastRow({
         addPartAction={addPartAction}
         updatePartAction={updatePartAction}
         deletePartAction={deletePartAction}
+        ownerActions={ownerActions}
       />
     </>
   );
@@ -712,6 +718,7 @@ export function PaymentsClient({
                   updatePartAction={updatePartAction}
                   deletePartAction={deletePartAction}
                   setCommissionPaid={setCommissionPaid}
+                  ownerActions={ownerActions}
                 />
               )}
               {dueThisMonth.length > 0 && (
@@ -726,6 +733,7 @@ export function PaymentsClient({
                   updatePartAction={updatePartAction}
                   deletePartAction={deletePartAction}
                   setCommissionPaid={setCommissionPaid}
+                  ownerActions={ownerActions}
                 />
               )}
             </div>
@@ -790,7 +798,6 @@ export function PaymentsClient({
                         <th className="px-5 py-3 font-bold">Commission</th>
                         <th className="px-5 py-3 font-bold">Status</th>
                         <th className="px-5 py-3 font-bold">Receipt</th>
-                        {canManage && <th className="px-5 py-3" />}
                       </tr>
                     </thead>
                     <tbody>
@@ -881,6 +888,7 @@ export function PaymentsClient({
                       addPartAction={addPartAction}
                       updatePartAction={updatePartAction}
                       deletePartAction={deletePartAction}
+                      ownerActions={ownerActions}
                     />
                   ))}
                 </tbody>
@@ -1409,6 +1417,7 @@ function DueSection({
   updatePartAction,
   deletePartAction,
   setCommissionPaid,
+  ownerActions,
 }: {
   title: string;
   subtitle: string;
@@ -1420,6 +1429,7 @@ function DueSection({
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
   setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+  ownerActions: OwnerPayoutActions;
 }) {
   return (
     <section>
@@ -1451,6 +1461,7 @@ function DueSection({
                 updatePartAction={updatePartAction}
                 deletePartAction={deletePartAction}
                 setCommissionPaid={setCommissionPaid}
+                ownerActions={ownerActions}
               />
             ))}
           </tbody>

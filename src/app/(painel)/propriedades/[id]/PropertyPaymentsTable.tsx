@@ -44,7 +44,6 @@ export function PropertyPaymentsTable({
             <th className="px-5 py-3 font-bold">Commission</th>
             <th className="px-5 py-3 font-bold">Status</th>
             <th className="px-5 py-3 font-bold">Receipt</th>
-            {canManage && <th className="px-5 py-3" />}
           </tr>
         </thead>
         <tbody>

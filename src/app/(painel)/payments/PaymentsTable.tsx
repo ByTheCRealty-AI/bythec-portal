@@ -5,11 +5,11 @@
 // caixa), delete com confirmação leve, e edição inline. Mesmo visual das outras
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
-import { Search, Loader2, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
+import { Search, Loader2, Square, CheckSquare } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { PaymentReceipt } from "./PaymentReceipt";
 import { PaymentWindow } from "./PaymentEntryButton";
-import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
+import { type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -169,21 +169,13 @@ export function PaymentRow({
   ownerActions?: OwnerPayoutActions;
 }) {
   const [payOpen, setPayOpen] = useState(false);
-  const [ownerExpanded, setOwnerExpanded] = useState(false);
 
-  // Edição/exclusão do pagamento agora vivem DENTRO da janela (PaymentWindow),
-  // não em botões na linha — a Andrea pediu tudo na janela separada.
+  // Tudo do pagamento — record, mark paid, edit, delete E owner payout — vive
+  // DENTRO da janela (PaymentWindow) que abre no clique da linha. Sem botões na linha.
 
   const addr = payment.property?.address ?? "—";
   const canParts =
     !!addPartAction && !!updatePartAction && !!deletePartAction && supportsParts(payment);
-  // Owner payout only makes sense for "By the C collects" properties, once the
-  // rent is actually received (cash basis) — that's when By the C owes the owner.
-  const showOwnerPayout =
-    canManage &&
-    !!ownerActions &&
-    payment.property?.rent_collection === "bythec" &&
-    payment.status === "received";
 
   return (
     <>
@@ -258,29 +250,6 @@ export function PaymentRow({
           );
         })()}
       </td>
-      {canManage && (
-        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-2">
-            {showOwnerPayout && (
-              <button
-                type="button"
-                onClick={() => setOwnerExpanded((v) => !v)}
-                className={cx(
-                  "inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold transition",
-                  payment.owner_paid
-                    ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/[0.15]"
-                    : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                )}
-                aria-expanded={ownerExpanded}
-                title={payment.owner_paid ? "Owner paid" : "Owner not paid yet"}
-              >
-                {ownerExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Wallet className="h-3.5 w-3.5" />}
-                Owner payout
-              </button>
-            )}
-          </div>
-        </td>
-      )}
     </tr>
     {canParts && (
       <PaymentWindow
@@ -297,14 +266,8 @@ export function PaymentRow({
         updateAction={updateAction}
         deleteAction={deleteAction}
         hideProperty={hideProperty}
+        ownerActions={ownerActions}
       />
-    )}
-    {showOwnerPayout && ownerExpanded && (
-      <tr className="border-t border-black/[0.05] bg-black/[0.015]">
-        <td colSpan={colSpan} className="px-5 py-4">
-          <OwnerPayoutControl payment={payment} canManage={canManage} actions={ownerActions!} />
-        </td>
-      </tr>
     )}
     </>
   );
@@ -426,7 +389,6 @@ export function PaymentsTable({
                 <th className="px-5 py-3 font-bold">Commission</th>
                 <th className="px-5 py-3 font-bold">Status</th>
                 <th className="px-5 py-3 font-bold">Receipt</th>
-                {canManage && <th className="px-5 py-3" />}
               </tr>
             </thead>
             <tbody>

@@ -18,6 +18,7 @@ import { money, date } from "@/lib/format";
 import { Field, inputClass } from "@/components/ui";
 import { RentInstallmentsPanel, uploadReceipts, todayNY } from "./RentInstallmentsPanel";
 import { PaymentEditForm } from "./PaymentEditForm";
+import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
@@ -199,6 +200,9 @@ export function PaymentWindow({
   updateAction?: (fd: FormData) => void | Promise<void>;
   deleteAction?: (fd: FormData) => void | Promise<void>;
   hideProperty?: boolean;
+  // Repasse ao owner (rent_collection='bythec'). Quando passado, a janela mostra
+  // o controle de owner payout (registrar/editar) — antes era um botão na linha.
+  ownerActions?: OwnerPayoutActions;
 }) {
   const router = useRouter();
   const [editMode, setEditMode] = useState(false);
@@ -285,6 +289,13 @@ export function PaymentWindow({
             addPartAction={addPartAction}
           />
         </div>
+
+        {/* Repasse ao owner — só "By the C collects". Registrar/editar aqui na janela. */}
+        {ownerActions && payment.property?.rent_collection === "bythec" && (
+          <div className="border-t border-black/[0.06] pt-4">
+            <OwnerPayoutControl payment={payment} canManage={canManage} actions={ownerActions} />
+          </div>
+        )}
 
         {/* Editar campos do pagamento + excluir (movidos dos botões da linha).
             Só aparecem quando as actions são passadas (Monthly / property page). */}
