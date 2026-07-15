@@ -31,6 +31,7 @@ import {
   deletePropertyDocumentAction,
   updateDocumentTenancyAction,
   importPropertyDocumentsAction,
+  renameDocumentAction,
 } from "../actions";
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
@@ -602,6 +603,8 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
           tenantOptions={tenantPickerOptions}
           updateTenancyAction={updateDocumentTenancyAction}
+          canRename={canUploadDocs}
+          renameAction={renameDocumentAction}
         />
       ))}
     </ul>
@@ -668,6 +671,8 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
               tenantOptions={tenantPickerOptions}
               updateTenancyAction={updateDocumentTenancyAction}
+              canRename={canUploadDocs}
+              renameAction={renameDocumentAction}
             />
           )}
         </div>

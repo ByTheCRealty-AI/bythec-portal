@@ -11,6 +11,9 @@ import {
   Download,
   Loader2,
   Users,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { DeleteControl, EditButton } from "./InlineRowControls";
 import type { Document } from "@/lib/types";
@@ -52,6 +55,8 @@ export function DocumentRow({
   currentTenant = null,
   tenantOptions = [],
   updateTenancyAction,
+  canRename = false,
+  renameAction,
 }: {
   doc: Document;
   canDelete?: boolean;
@@ -62,9 +67,39 @@ export function DocumentRow({
   currentTenant?: { id: string; name: string } | null;
   tenantOptions?: TenantOption[];
   updateTenancyAction?: (fd: FormData) => void | Promise<void>;
+  // Property-only: renomear o nome exibido. Opcional.
+  canRename?: boolean;
+  renameAction?: (fd: FormData) => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [nameVal, setNameVal] = useState(doc.file_name);
+  const [renameErr, setRenameErr] = useState<string | null>(null);
+  const [renamePending, startRename] = useTransition();
+
+  function saveRename(e: React.FormEvent) {
+    e.preventDefault();
+    const name = nameVal.trim();
+    if (!name) {
+      setRenameErr("The name cannot be empty.");
+      return;
+    }
+    if (!renameAction) return;
+    setRenameErr(null);
+    const fd = new FormData();
+    fd.set("id", doc.id);
+    fd.set("parent_id", doc.parent_id);
+    fd.set("file_name", name);
+    startRename(async () => {
+      try {
+        await renameAction(fd);
+        setRenaming(false);
+      } catch (err) {
+        setRenameErr(err instanceof Error ? err.message : "Could not rename. Try again.");
+      }
+    });
+  }
 
   async function download() {
     setError(null);
@@ -98,12 +133,60 @@ export function DocumentRow({
             {iconFor(doc.content_type)}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">{doc.file_name}</p>
+            {renaming ? (
+              <form onSubmit={saveRename} className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={nameVal}
+                  onChange={(e) => setNameVal(e.target.value)}
+                  className={inputClass + " !py-1 !text-sm"}
+                />
+                <button
+                  type="submit"
+                  disabled={renamePending}
+                  aria-label="Save name"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-60"
+                >
+                  {renamePending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenaming(false);
+                    setNameVal(doc.file_name);
+                    setRenameErr(null);
+                  }}
+                  disabled={renamePending}
+                  aria-label="Cancel rename"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-black/[0.10] bg-white text-ink/60 hover:bg-black/[0.03] disabled:opacity-60"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="truncate text-sm font-semibold text-ink">{doc.file_name}</p>
+                {canRename && renameAction && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNameVal(doc.file_name);
+                      setRenaming(true);
+                    }}
+                    aria-label="Rename document"
+                    className="shrink-0 rounded p-1 text-ink/35 transition hover:bg-black/[0.04] hover:text-ink/70"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
             <p className="mt-0.5 text-xs text-ink/45">
               {typeLabel(doc.content_type)}
               {doc.year ? ` · ${doc.year}` : ""} · {doc.doc_date ? "Dated" : "Added"}{" "}
               {date(dateShown)}
             </p>
+            {renameErr && <p className="mt-1 text-xs text-red-600">{renameErr}</p>}
             {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
           </div>
         </div>

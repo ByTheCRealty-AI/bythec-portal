@@ -695,3 +695,28 @@ export async function importPropertyDocumentsAction(
   revalidatePath(`/propriedades/${propertyId}`);
   return { inserted: rows.length, skipped };
 }
+
+// Renomeia o NOME EXIBIDO de um documento (coluna file_name). NÃO mexe no arquivo
+// no Storage (file_url/object path continua o mesmo) — é só o rótulo mostrado no
+// portal. Gate: properties.edit OR operations.edit (RLS reforça no banco).
+export async function renameDocumentAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to rename documents.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing document reference.");
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+  const fileName = str(fd, "file_name");
+  if (!fileName) throw new Error("The document name cannot be empty.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("documents")
+    .update({ file_name: fileName })
+    .eq("id", id)
+    .eq("parent_type", "property");
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}

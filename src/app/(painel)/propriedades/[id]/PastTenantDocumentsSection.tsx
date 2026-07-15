@@ -21,6 +21,8 @@ export function PastTenantDocumentsSection({
   currentTenant,
   tenantOptions,
   updateTenancyAction,
+  canRename,
+  renameAction,
 }: {
   groups: Group[];
   canDelete: boolean;
@@ -29,6 +31,8 @@ export function PastTenantDocumentsSection({
   currentTenant: { id: string; name: string } | null;
   tenantOptions: TenantOption[];
   updateTenancyAction: (fd: FormData) => void | Promise<void>;
+  canRename: boolean;
+  renameAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
@@ -91,6 +95,8 @@ export function PastTenantDocumentsSection({
                         currentTenant={currentTenant}
                         tenantOptions={tenantOptions}
                         updateTenancyAction={updateTenancyAction}
+                        canRename={canRename}
+                        renameAction={renameAction}
                       />
                     ))}
                   </ul>
