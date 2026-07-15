@@ -183,6 +183,7 @@ export function PaymentWindow({
   updateAction,
   deleteAction,
   hideProperty = false,
+  ownerActions,
 }: {
   open: boolean;
   onClose: () => void;
