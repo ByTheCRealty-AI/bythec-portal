@@ -36,6 +36,7 @@ import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
 import { PastTenantPaymentsSection } from "./PastTenantPaymentsSection";
+import { PastTenantDocumentsSection } from "./PastTenantDocumentsSection";
 import { TenancyForm } from "./TenancyForm";
 import {
   addPaymentAction,
@@ -646,20 +647,6 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             </section>
           )}
 
-          {pastDocGroups.map((g) => (
-            <section key={g.key} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-ink/25" />
-                <h3 className="text-sm font-semibold text-ink/70">
-                  {g.name}
-                  {g.archived ? " (archived)" : ""}
-                </h3>
-                <span className="text-xs text-ink/45">Past tenant · {g.docs.length}</span>
-              </div>
-              {docList(g.docs)}
-            </section>
-          ))}
-
           {propertyDocs.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2">
@@ -669,6 +656,19 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               </div>
               {docList(propertyDocs)}
             </section>
+          )}
+
+          {/* Past tenants collapsed by default (mirrors the Payments tab). */}
+          {pastDocGroups.length > 0 && (
+            <PastTenantDocumentsSection
+              groups={pastDocGroups}
+              canDelete={canUploadDocs}
+              deleteAction={deletePropertyDocumentAction}
+              canEditTenancy={canUploadDocs}
+              currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
+              tenantOptions={tenantPickerOptions}
+              updateTenancyAction={updateDocumentTenancyAction}
+            />
           )}
         </div>
       )}
