@@ -501,6 +501,7 @@ export async function updateServiceAction(fd: FormData) {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/services"); // aba global de Services
 }
 
 export async function deleteServiceAction(fd: FormData) {
@@ -517,6 +518,7 @@ export async function deleteServiceAction(fd: FormData) {
   const { error } = await supabase.from("services").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/services"); // aba global de Services
 }
 
 // --- Tenant requests · gate: operations.edit ---

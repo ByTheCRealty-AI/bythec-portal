@@ -4,7 +4,8 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { Hammer } from "lucide-react";
 import type { RequestStatus } from "@/lib/types";
-import { ServicesTable, type ServiceListRow } from "./ServicesTable";
+import { ServicesTable, type ServiceListRow, type ProviderOption } from "./ServicesTable";
+import { updateServiceAction, deleteServiceAction } from "../propriedades/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,22 @@ async function load() {
   }
 }
 
+// Prestadores ativos pro dropdown do form de edição (ordem alfabética).
+async function loadProviders(): Promise<ProviderOption[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("service_providers")
+      .select("id, name")
+      .is("archived_at", null)
+      .order("name", { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as ProviderOption[];
+  } catch {
+    return [];
+  }
+}
+
 export default async function ServicesPage() {
   const profile = await getProfile();
   if (!can(profile, "operations.edit")) {
@@ -51,7 +68,8 @@ export default async function ServicesPage() {
     );
   }
 
-  const { ok, services } = await load();
+  const [{ ok, services }, providers] = await Promise.all([load(), loadProviders()]);
+  const canEdit = can(profile, "operations.edit");
 
   const rows: ServiceListRow[] = services.map((s) => ({
     id: s.id,
@@ -59,6 +77,7 @@ export default async function ServicesPage() {
     property_id: s.property?.id ?? s.property_id,
     property_address: s.property?.address ?? null,
     property_address2: s.property?.address2 ?? null,
+    provider_id: s.provider?.id ?? null,
     provider_name: s.provider?.name ?? null,
     description: s.description,
     status: s.status,
@@ -88,7 +107,13 @@ export default async function ServicesPage() {
           message="Services logged on any property show up here — filter by active or done."
         />
       ) : (
-        <ServicesTable rows={rows} />
+        <ServicesTable
+          rows={rows}
+          providers={providers}
+          canEdit={canEdit}
+          updateAction={updateServiceAction}
+          deleteAction={deleteServiceAction}
+        />
       )}
     </>
   );
