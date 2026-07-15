@@ -3,7 +3,7 @@ import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/component
 import { PROPERTY_TYPE_LABEL, type Property } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can, canDelete } from "@/lib/auth/capabilities";
-import { Home, Plus, Archive } from "lucide-react";
+import { Home, Plus, Archive, FolderUp } from "lucide-react";
 import Link from "next/link";
 import { PropertiesTable } from "./PropertiesTable";
 
@@ -70,9 +70,16 @@ export default async function PropriedadesPage({
         title="Properties"
         subtitle="Every property has an owner. Add a new one or attach it from the client's record."
         action={
-          <Link href="/propriedades/novo" className={buttonClass("primary")}>
-            <Plus className="h-4 w-4" /> New property
-          </Link>
+          <div className="flex items-center gap-3">
+            {can(profile, "properties.edit") && (
+              <Link href="/propriedades/importar" className={buttonClass("ghost")}>
+                <FolderUp className="h-4 w-4" /> Import documents
+              </Link>
+            )}
+            <Link href="/propriedades/novo" className={buttonClass("primary")}>
+              <Plus className="h-4 w-4" /> New property
+            </Link>
+          </div>
         }
       />
 
