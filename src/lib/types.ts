@@ -430,6 +430,11 @@ export interface Document {
   category: string | null;
   tenant_id: string | null;
   tenant_label: string | null;
+  // migration 0023 — import + ordering. doc_date = the document's REAL date (source file's
+  // modified time); orders newest-first within a group. source_path = original OneDrive path
+  // (provenance + import idempotency). Both null for manually-uploaded docs.
+  doc_date: string | null;
+  source_path: string | null;
   created_at: string;
   archived_at: string | null;
 }

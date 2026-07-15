@@ -28,6 +28,7 @@ import {
   updateRequestAction,
   deleteRequestAction,
   deletePropertyDocumentAction,
+  updateDocumentTenancyAction,
 } from "../actions";
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
@@ -138,11 +139,14 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("documents")
       .select(
-        "id, parent_type, parent_id, file_url, file_name, content_type, year, category, tenant_id, tenant_label, created_at, archived_at"
+        "id, parent_type, parent_id, file_url, file_name, content_type, year, category, tenant_id, tenant_label, doc_date, source_path, created_at, archived_at"
       )
       .eq("parent_type", "property")
       .eq("parent_id", p.id)
       .is("archived_at", null)
+      // Newest on top, oldest at the bottom: by the document's real date (doc_date),
+      // dateless ones last, then upload time. Grouping below preserves this order.
+      .order("doc_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
     // Pagamentos desta propriedade (não-arquivados). Mês desc nulls last, depois
     // criação desc — mesmo critério da tela /payments.
@@ -591,6 +595,10 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           doc={d}
           canDelete={canUploadDocs}
           deleteAction={deletePropertyDocumentAction}
+          canEditTenancy={canUploadDocs}
+          currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
+          tenantOptions={tenantPickerOptions}
+          updateTenancyAction={updateDocumentTenancyAction}
         />
       ))}
     </ul>

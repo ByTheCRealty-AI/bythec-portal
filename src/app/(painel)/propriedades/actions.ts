@@ -296,6 +296,51 @@ export async function addServiceAction(fd: FormData) {
   revalidatePath(`/propriedades/${propertyId}`);
 }
 
+// "Belongs to": resolve the form choice to tenant_id / tenant_label. Only ONE is
+// ever set. Shared by add + edit-tenancy so the rules live in one place.
+//  - property       -> both null (default)
+//  - current        -> the property's CURRENT tenant, looked up on the SERVER
+//                      (never trusted from the client)
+//  - past_existing  -> a chosen client (may be archived); validated to exist
+//  - past_free      -> free-text name (+ optional years), not a client
+async function resolveBelongsTo(
+  supabase: ReturnType<typeof createClient>,
+  propertyId: string,
+  fd: FormData
+): Promise<{ tenantId: string | null; tenantLabel: string | null }> {
+  const belongsTo = str(fd, "belongs_to") ?? "property";
+  if (belongsTo === "current") {
+    const { data: prop, error: pErr } = await supabase
+      .from("properties")
+      .select("tenant_id")
+      .eq("id", propertyId)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    const tenantId = (prop as { tenant_id: string | null } | null)?.tenant_id ?? null;
+    if (!tenantId) throw new Error("This property has no current tenant to attach the document to.");
+    return { tenantId, tenantLabel: null };
+  }
+  if (belongsTo === "past_existing") {
+    const chosen = str(fd, "tenant_id");
+    if (!chosen) throw new Error("Pick a past tenant, or choose a different option.");
+    const { data: cli, error: cErr } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", chosen)
+      .maybeSingle();
+    if (cErr) throw new Error(cErr.message);
+    if (!cli) throw new Error("That client could not be found.");
+    return { tenantId: chosen, tenantLabel: null };
+  }
+  if (belongsTo === "past_free") {
+    const name = str(fd, "tenant_label");
+    if (!name) throw new Error("Enter the past tenant's name, or choose a different option.");
+    const years = str(fd, "tenant_years");
+    return { tenantId: null, tenantLabel: years ? `${name} · ${years}` : name };
+  }
+  return { tenantId: null, tenantLabel: null }; // property-level
+}
+
 // Documento preso à propriedade (parent_type='property'). O ARQUIVO já foi
 // subido no browser (Storage RLS com a sessão do usuário); aqui só gravamos a
 // linha em public.documents com o object PATH (bucket é privado — nunca URL
@@ -313,44 +358,7 @@ export async function addDocumentAction(fd: FormData) {
   const year = num(fd, "year") ?? new Date().getFullYear();
 
   const supabase = createClient();
-
-  // "Belongs to": resolve to tenant_id / tenant_label. Only ONE is ever set.
-  //  - property       -> both null (default)
-  //  - current        -> the property's CURRENT tenant, looked up on the server
-  //                      (never trusted from the client)
-  //  - past_existing  -> a chosen client (may be archived); validated to exist
-  //  - past_free      -> free-text name (+ optional years), not a client
-  const belongsTo = str(fd, "belongs_to") ?? "property";
-  let tenantId: string | null = null;
-  let tenantLabel: string | null = null;
-
-  if (belongsTo === "current") {
-    const { data: prop, error: pErr } = await supabase
-      .from("properties")
-      .select("tenant_id")
-      .eq("id", propertyId)
-      .maybeSingle();
-    if (pErr) throw new Error(pErr.message);
-    tenantId = (prop as { tenant_id: string | null } | null)?.tenant_id ?? null;
-    if (!tenantId) throw new Error("This property has no current tenant to attach the document to.");
-  } else if (belongsTo === "past_existing") {
-    const chosen = str(fd, "tenant_id");
-    if (!chosen) throw new Error("Pick a past tenant, or choose a different option.");
-    // Validate the client exists (active or archived).
-    const { data: cli, error: cErr } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("id", chosen)
-      .maybeSingle();
-    if (cErr) throw new Error(cErr.message);
-    if (!cli) throw new Error("That client could not be found.");
-    tenantId = chosen;
-  } else if (belongsTo === "past_free") {
-    const name = str(fd, "tenant_label");
-    if (!name) throw new Error("Enter the past tenant's name, or choose a different option.");
-    const years = str(fd, "tenant_years");
-    tenantLabel = years ? `${name} · ${years}` : name;
-  }
+  const { tenantId, tenantLabel } = await resolveBelongsTo(supabase, propertyId, fd);
 
   const { error } = await supabase.from("documents").insert({
     parent_type: "property",
@@ -362,6 +370,31 @@ export async function addDocumentAction(fd: FormData) {
     tenant_id: tenantId,
     tenant_label: tenantLabel,
   });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// Re-tag an EXISTING property document's "belongs to" (property / current tenant /
+// past tenant). Used to fix docs that came in untagged or mis-filed (e.g. a mass
+// import). Same gate as add; RLS reforça no banco. Only touches tenant_id/tenant_label.
+export async function updateDocumentTenancyAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit") && !can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to edit documents on properties.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing document reference.");
+  const propertyId = str(fd, "parent_id");
+  if (!propertyId) throw new Error("Missing property reference.");
+
+  const supabase = createClient();
+  const { tenantId, tenantLabel } = await resolveBelongsTo(supabase, propertyId, fd);
+
+  const { error } = await supabase
+    .from("documents")
+    .update({ tenant_id: tenantId, tenant_label: tenantLabel })
+    .eq("id", id)
+    .eq("parent_type", "property");
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
 }
