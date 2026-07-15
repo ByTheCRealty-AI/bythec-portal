@@ -1,21 +1,21 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { date } from "@/lib/format";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import {
   FileText,
   FileImage,
   FileSpreadsheet,
-  Download,
   Loader2,
   Users,
   Pencil,
   Check,
   X,
+  Eye,
 } from "lucide-react";
 import { DeleteControl, EditButton } from "./InlineRowControls";
+import { DocumentPreview } from "./DocumentPreview";
 import type { Document } from "@/lib/types";
 
 // Linha de documento na aba Documents. O bucket é PRIVADO, então o download gera
@@ -71,8 +71,7 @@ export function DocumentRow({
   canRename?: boolean;
   renameAction?: (fd: FormData) => void | Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [nameVal, setNameVal] = useState(doc.file_name);
   const [renameErr, setRenameErr] = useState<string | null>(null);
@@ -99,27 +98,6 @@ export function DocumentRow({
         setRenameErr(err instanceof Error ? err.message : "Could not rename. Try again.");
       }
     });
-  }
-
-  async function download() {
-    setError(null);
-    setBusy(true);
-    try {
-      const supabase = createClient();
-      const { data, error: sErr } = await supabase.storage
-        .from("documents")
-        .createSignedUrl(doc.file_url, 60);
-      if (sErr || !data?.signedUrl) {
-        setError(sErr?.message ?? "Could not generate a download link.");
-        setBusy(false);
-        return;
-      }
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed.");
-    } finally {
-      setBusy(false);
-    }
   }
 
   const showTenancyEdit = canEditTenancy && !!updateTenancyAction;
@@ -187,18 +165,15 @@ export function DocumentRow({
               {date(dateShown)}
             </p>
             {renameErr && <p className="mt-1 text-xs text-red-600">{renameErr}</p>}
-            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={download}
-            disabled={busy}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-black/[0.10] bg-white px-3.5 py-2 text-sm text-ink/80 transition-all duration-200 hover:border-black/20 hover:bg-black/[0.03] disabled:opacity-60"
+            onClick={() => setPreview(true)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-black/[0.10] bg-white px-3.5 py-2 text-sm text-ink/80 transition-all duration-200 hover:border-black/20 hover:bg-black/[0.03]"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download
+            <Eye className="h-4 w-4" /> View
           </button>
           {showTenancyEdit && (
             <TenancyEditor
@@ -217,6 +192,7 @@ export function DocumentRow({
           )}
         </div>
       </div>
+      {preview && <DocumentPreview doc={doc} onClose={() => setPreview(false)} />}
     </li>
   );
 }
