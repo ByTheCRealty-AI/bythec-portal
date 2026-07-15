@@ -27,6 +27,19 @@ const CATEGORIES = new Set(["Year Round", "Winter Rentals", "Seasonal"]);
 const SKIP_EXT = new Set([
   "mov", "mp4", "heic", "ds_store", "url", "css", "html", "php", "download", "tif", "gif", "webp",
 ]);
+// Folders (inside a category) that are NOT a single property — ignored entirely.
+const NON_PROPERTY = new Set([
+  "2024 invoices", "2025 invoices", "2026 invoices", "invoices",
+  "seasonal forms", "year round forms", "forms",
+  "inspection reports", "rental application", "cleaners earnings",
+  "taxes that need to be sent",
+]);
+// Container folders holding MANY property subfolders — descend one level.
+const CONTAINERS = new Set(["archived homes"]);
+// Generic organizational subfolders that are NOT a tenant → treat as property-level.
+const NON_TENANT_SUB = new Set(["scanned", "uploaded", "documents", "pictures"]);
+// Any path segment matching this is a photo folder → skip its files (docs/receipts only).
+const PHOTO_RE = /photo|picture/i;
 
 function isTemplateName(name: string): boolean {
   const b = name.toLowerCase();
@@ -85,6 +98,7 @@ type FolderGroup = {
   key: string;
   category: string;
   folderName: string;
+  archived: boolean; // came from an "Archived Homes" container
   files: ParsedFile[];
   matchedId: string; // "" = choose / skip
 };
@@ -150,20 +164,34 @@ export function BulkImportAll({
       segs.shift(); // drop the picked root ("Property Manager")
       const category = segs[0] ?? "";
       if (!CATEGORIES.has(category)) { other++; continue; }
-      const folderName = segs[1] ?? "";
-      if (!folderName || segs.length < 3) { other++; continue; }
-      const rest = segs.slice(2); // [tenantSub?, ..., filename]
+
+      // "Archived Homes" is a container of many property subfolders → descend one level.
+      let idx = 1;
+      let archived = false;
+      if (segs[1] && CONTAINERS.has(segs[1].toLowerCase())) { archived = true; idx = 2; }
+
+      const folderName = segs[idx] ?? "";
+      // Not a real property folder (year-invoice folders, forms, etc.) → ignore.
+      if (!folderName || NON_PROPERTY.has(folderName.toLowerCase())) { other++; continue; }
+      const rest = segs.slice(idx + 1); // [subs..., filename]
+      if (rest.length < 1) { other++; continue; }
+
       const filename = rest[rest.length - 1];
       const mids = rest.slice(0, -1);
-      const tenantSub = mids.length > 0 ? mids[0] : "";
-      const sourcePath = rest.join("/");
+      // Skip photo/picture folders at ANY depth (docs & receipts only).
+      if (mids.some((m) => PHOTO_RE.test(m))) { skipped++; continue; }
       const ext = (filename.split(".").pop() || "").toLowerCase();
-      if (filename === ".DS_Store" || mids.includes("Photos") || SKIP_EXT.has(ext) || isTemplateName(filename)) {
-        skipped++; continue;
+      if (filename === ".DS_Store" || SKIP_EXT.has(ext) || isTemplateName(filename)) { skipped++; continue; }
+
+      // Tenant subfolder = first mid that isn't a generic organizational folder.
+      let tenantSub = "";
+      for (const m of mids) {
+        if (!NON_TENANT_SUB.has(m.toLowerCase())) { tenantSub = m; break; }
       }
+      const sourcePath = rest.join("/");
       const docDate = new Date(f.lastModified).toISOString().slice(0, 10);
-      const key = `${category}/${folderName}`;
-      const g = map.get(key) ?? { key, category, folderName, files: [], matchedId: "" };
+      const key = segs.slice(0, idx + 1).join("/"); // unique per property folder
+      const g = map.get(key) ?? { key, category, folderName, archived, files: [], matchedId: "" };
       g.files.push({ file: f, filename, tenantSub, sourcePath, docDate });
       map.set(key, g);
     }
@@ -326,7 +354,9 @@ export function BulkImportAll({
           <div key={g.key} className="grid grid-cols-1 items-center gap-2 rounded-xl border border-black/[0.08] bg-white p-3 sm:grid-cols-[1fr_1.3fr]">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-ink">{g.folderName}</p>
-              <p className="text-xs text-ink/45">{g.category} · {g.files.length} file{g.files.length === 1 ? "" : "s"}</p>
+              <p className="text-xs text-ink/45">
+                {g.category}{g.archived ? " · Archived" : ""} · {g.files.length} file{g.files.length === 1 ? "" : "s"}
+              </p>
             </div>
             <select
               value={g.matchedId}
