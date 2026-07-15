@@ -48,6 +48,8 @@ import {
   addPaymentPartAction,
   updatePaymentPartAction,
   deletePaymentPartAction,
+  setCommissionPaidAction,
+  setCommissionPaidDateAction,
   setOwnerPaidAction,
   setOwnerPaymentMethodAction,
   setOwnerCheckNumberAction,
@@ -407,6 +409,10 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 setOwnerCheckNumber: setOwnerCheckNumberAction,
                 addReceipt: addOwnerPayoutReceiptAction,
                 deleteReceipt: deleteOwnerPayoutReceiptAction,
+              }}
+              commissionActions={{
+                setCommissionPaid: setCommissionPaidAction,
+                setCommissionPaidDate: setCommissionPaidDateAction,
               }}
             />
           ) : (

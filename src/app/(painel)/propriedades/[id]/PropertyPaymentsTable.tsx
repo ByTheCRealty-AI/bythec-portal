@@ -6,6 +6,7 @@
 // status em regime de caixa, edição inline e delete com confirmação).
 import { PaymentRow } from "../../payments/PaymentsTable";
 import type { OwnerPayoutActions } from "../../payments/OwnerPayoutControl";
+import type { CommissionActions } from "../../payments/CommissionCollectedControl";
 import type { PaymentStatus, Payment } from "@/lib/types";
 
 export function PropertyPaymentsTable({
@@ -18,6 +19,7 @@ export function PropertyPaymentsTable({
   updatePartAction,
   deletePartAction,
   ownerActions,
+  commissionActions,
 }: {
   payments: Payment[];
   canManage: boolean;
@@ -28,6 +30,7 @@ export function PropertyPaymentsTable({
   updatePartAction?: (fd: FormData) => void | Promise<void>;
   deletePartAction?: (fd: FormData) => void | Promise<void>;
   ownerActions?: OwnerPayoutActions;
+  commissionActions?: CommissionActions;
 }) {
   // Kind, Month, Due, Amount, Commission, Status, Receipt (+ actions). Sem Property/Tenant.
   const colSpan = canManage ? 8 : 7;
@@ -62,6 +65,7 @@ export function PropertyPaymentsTable({
               updatePartAction={updatePartAction}
               deletePartAction={deletePartAction}
               ownerActions={ownerActions}
+              commissionActions={commissionActions}
               hideProperty
             />
           ))}

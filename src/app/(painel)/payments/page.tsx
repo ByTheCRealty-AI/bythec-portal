@@ -18,11 +18,16 @@ import {
   updatePaymentPartAction,
   deletePaymentPartAction,
   setCommissionPaidAction,
+  setCommissionPaidDateAction,
   setOwnerPaidAction,
   setOwnerPaymentMethodAction,
   setOwnerCheckNumberAction,
   addOwnerPayoutReceiptAction,
   deleteOwnerPayoutReceiptAction,
+  markDepositReceivedAction,
+  setDepositReceivedDateAction,
+  addDepositReceiptAction,
+  deleteDepositReceiptAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -129,13 +134,22 @@ export default async function PaymentsPage() {
           addPartAction={addPaymentPartAction}
           updatePartAction={updatePaymentPartAction}
           deletePartAction={deletePaymentPartAction}
-          setCommissionPaid={setCommissionPaidAction}
+          commissionActions={{
+            setCommissionPaid: setCommissionPaidAction,
+            setCommissionPaidDate: setCommissionPaidDateAction,
+          }}
           ownerActions={{
             setOwnerPaid: setOwnerPaidAction,
             setOwnerMethod: setOwnerPaymentMethodAction,
             setOwnerCheckNumber: setOwnerCheckNumberAction,
             addReceipt: addOwnerPayoutReceiptAction,
             deleteReceipt: deleteOwnerPayoutReceiptAction,
+          }}
+          depositActions={{
+            markReceived: markDepositReceivedAction,
+            setReceivedDate: setDepositReceivedDateAction,
+            addReceipt: addDepositReceiptAction,
+            deleteReceipt: deleteDepositReceiptAction,
           }}
         />
       )}

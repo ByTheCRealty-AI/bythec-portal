@@ -4,12 +4,13 @@
 // busca por endereço + inquilino, e ações por linha: toggle de status (regime de
 // caixa), delete com confirmação leve, e edição inline. Mesmo visual das outras
 // telas (zebra rows, chips, glass forms).
-import { useState, useTransition } from "react";
-import { Search, Loader2, Square, CheckSquare } from "lucide-react";
+import { useState } from "react";
+import { Search, Square, CheckSquare } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { PaymentReceipt } from "./PaymentReceipt";
 import { PaymentWindow } from "./PaymentEntryButton";
 import { type OwnerPayoutActions } from "./OwnerPayoutControl";
+import { type CommissionActions } from "./CommissionCollectedControl";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -62,61 +63,25 @@ function supportsParts(p: Payment): boolean {
   return RENT_KINDS_FOR_PARTS.has(p.kind);
 }
 
-// Checkbox pra marcar a comissão da By the C como paga/liquidada. Carimba a data
-// ao marcar (server). Otimista via transition; erro reverte + mostra mensagem.
-// Exportado pra reuso na aba Due (PaymentsClient).
-export function CommissionPaidToggle({
-  payment,
-  setCommissionPaid,
-}: {
-  payment: Payment;
-  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
-}) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const paid = payment.commission_paid;
+// Selo de status da comissão (SOMENTE LEITURA) pra célula da linha. Marcar/
+// desmarcar e editar a data agora vivem na janela do pagamento
+// (CommissionCollectedControl) — a linha só informa se já foi coletada ou não.
+export function CommissionStatusBadge({ payment }: { payment: Payment }) {
+  if (payment.commission == null || payment.commission <= 0) return null;
   // Owner-collects (arrangement B): a comissão VEM do owner → "received".
   const ownerRemits = payment.property?.rent_collection === "owner";
-  const label = ownerRemits ? "Commission received" : "Commission paid";
-
-  function run() {
-    setError(null);
-    start(async () => {
-      try {
-        await setCommissionPaid(payment.id, !paid);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not update. Try again.");
-      }
-    });
+  if (payment.commission_paid) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+        <CheckSquare className="h-3 w-3" />
+        {ownerRemits ? "Received" : "Collected"}
+        {payment.commission_paid_at ? ` · ${date(payment.commission_paid_at)}` : ""}
+      </span>
+    );
   }
-
   return (
-    <span className="inline-flex flex-col items-start gap-0.5">
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className={cx(
-          "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-semibold transition disabled:opacity-60",
-          paid
-            ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/[0.15]"
-            : "border-black/[0.12] bg-white text-ink/55 hover:border-primary/40 hover:text-primary"
-        )}
-        title={paid ? `${label} — click to undo` : `Mark commission as ${ownerRemits ? "received" : "paid"}`}
-      >
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : paid ? (
-          <CheckSquare className="h-3.5 w-3.5" />
-        ) : (
-          <Square className="h-3.5 w-3.5" />
-        )}
-        {label}
-      </button>
-      {paid && payment.commission_paid_at && (
-        <span className="text-[10px] text-ink/45">{date(payment.commission_paid_at)}</span>
-      )}
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
+    <span className="inline-flex items-center gap-1 rounded-full border border-black/[0.12] bg-black/[0.02] px-2 py-0.5 text-[11px] font-semibold text-ink/45">
+      <Square className="h-3 w-3" /> Not {ownerRemits ? "received" : "collected"}
     </span>
   );
 }
@@ -143,7 +108,7 @@ export function PaymentRow({
   addPartAction,
   updatePartAction,
   deletePartAction,
-  setCommissionPaid,
+  commissionActions,
   ownerActions,
 }: {
   payment: Payment;
@@ -161,8 +126,10 @@ export function PaymentRow({
   addPartAction?: (fd: FormData) => void | Promise<void>;
   updatePartAction?: (fd: FormData) => void | Promise<void>;
   deletePartAction?: (fd: FormData) => void | Promise<void>;
-  // Toggle "commission paid". Optional so read-only contexts skip it.
-  setCommissionPaid?: (id: string, paid: boolean) => Promise<void>;
+  // Commission actions (mark + editable date). When provided AND commission > 0,
+  // the payment window shows the commission control. The row only shows a status
+  // badge. Optional so read-only contexts skip it.
+  commissionActions?: CommissionActions;
   // Owner-payout actions. When provided AND the property collects rent through
   // By the C AND the payment is received, the row gets an "Owner payout" toggle
   // that expands the payout control. Optional so read-only contexts skip it.
@@ -215,18 +182,10 @@ export function PaymentRow({
         {payment.received_at ? date(payment.received_at) : <span className="text-ink/30">—</span>}
       </td>
       <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(payment.rent_amount)}</td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/70" onClick={(e) => e.stopPropagation()}>
+      <td className="whitespace-nowrap px-5 py-3.5 text-ink/70">
         <div className="flex flex-col items-start gap-1.5">
           <span>{money(payment.commission)}</span>
-          {payment.commission != null && payment.commission > 0 && (
-            canManage && setCommissionPaid ? (
-              <CommissionPaidToggle payment={payment} setCommissionPaid={setCommissionPaid} />
-            ) : payment.commission_paid ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                <CheckSquare className="h-3 w-3" /> {payment.property?.rent_collection === "owner" ? "Received" : "Paid"}
-              </span>
-            ) : null
-          )}
+          <CommissionStatusBadge payment={payment} />
         </div>
       </td>
       <td className="px-5 py-3.5">
@@ -267,6 +226,7 @@ export function PaymentRow({
         deleteAction={deleteAction}
         hideProperty={hideProperty}
         ownerActions={ownerActions}
+        commissionActions={commissionActions}
       />
     )}
     </>

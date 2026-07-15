@@ -702,6 +702,31 @@ export async function setCommissionPaidAction(id: string, paid: boolean) {
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
 
+// Edita a DATA em que a comissão foi coletada (a comissão já precisa estar
+// marcada como paga). Recebe YYYY-MM-DD do <input type="date"> e normaliza pra
+// meio-dia UTC — assim o dia não drifta ao voltar do banco (commission_paid_at é
+// timestamptz) e é lido igual em qualquer fuso dos EUA. null limpa a data.
+export async function setCommissionPaidDateAction(id: string, dateStr: string | null) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  const supabase = createClient();
+
+  const { data: existing } = await supabase
+    .from("payments")
+    .select("property_id, commission_paid")
+    .eq("id", id)
+    .maybeSingle();
+  const row = existing as { property_id: string | null; commission_paid: boolean } | null;
+  if (!row?.commission_paid) throw new Error("Mark the commission collected first, then set the date.");
+
+  const at = dateStr ? `${dateStr}T12:00:00.000Z` : null;
+  const { error } = await supabase.from("payments").update({ commission_paid_at: at }).eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (row.property_id) revalidatePath("/propriedades/" + row.property_id);
+}
+
 // --- OWNER PAYOUTS (rent_collection = 'bythec') -----------------------------
 // Repasse ao owner de um aluguel RECEBIDO. Espelha o payout de invoice de
 // temporada: toggle "paid" (carimba owner_paid_at), método, nº do eCheck, recibo
@@ -725,15 +750,35 @@ export async function setOwnerPaidAction(id: string, paid: boolean) {
   await assertCanManagePayments();
   if (!id) throw new Error("Missing payment reference.");
   const supabase = createClient();
-  const propertyId = await paymentPropertyId(supabase, id);
 
-  const { error } = await supabase
+  const { data: existing } = await supabase
     .from("payments")
-    .update({
-      owner_paid: paid,
-      owner_paid_at: paid ? new Date().toISOString() : null,
-    })
-    .eq("id", id);
+    .select("property_id, commission, commission_paid")
+    .eq("id", id)
+    .maybeSingle();
+  const row = existing as
+    | { property_id: string | null; commission: number | null; commission_paid: boolean }
+    | null;
+  const propertyId = row?.property_id ?? null;
+
+  const now = new Date().toISOString();
+  const update: Record<string, unknown> = {
+    owner_paid: paid,
+    owner_paid_at: paid ? now : null,
+  };
+
+  // Regra do negócio (Andrea): quando By the C coleta o aluguel, a comissão é
+  // coletada NO MOMENTO em que ela paga o owner — ela retém os 10% antes de
+  // repassar. Então marcar "owner pago" auto-marca a comissão como coletada
+  // nessa data. NÃO sobrescreve uma data de comissão já registrada (ela pode ter
+  // editado). Desmarcar owner NÃO desfaz a comissão (evita perda silenciosa; a
+  // Andrea edita/desmarca a comissão pela própria janela).
+  if (paid && (row?.commission ?? 0) > 0 && !row?.commission_paid) {
+    update.commission_paid = true;
+    update.commission_paid_at = now;
+  }
+
+  const { error } = await supabase.from("payments").update(update).eq("id", id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/payments");
@@ -820,6 +865,139 @@ export async function deleteOwnerPayoutReceiptAction(fd: FormData) {
     .delete()
     .eq("id", id)
     .eq("category", "owner_payout");
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (paymentId) {
+    const propertyId = await paymentPropertyId(supabase, paymentId);
+    if (propertyId) revalidatePath("/propriedades/" + propertyId);
+  }
+}
+
+// --- SECURITY DEPOSITS: recibo obrigatório + data editável -------------------
+// Uma parcela de depósito NÃO usa payment_parts. Marcar recebida EXIGE recibo
+// (prova de entrada), grava a data em que caiu (editável) e anexa o comprovante
+// (category='rent_receipt' — o CHECK só aceita rent_receipt|owner_payout, e o
+// recibo do depósito é prova do inquilino). Regime de caixa: amount_paid cheio.
+
+// YYYY-MM-DD -> meio-dia UTC (sem drift de dia no fuso). Sem data válida = hoje.
+function depositReceivedAt(dateStr: string | null): string {
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return `${dateStr}T12:00:00.000Z`;
+  return new Date().toISOString();
+}
+
+// Marca a parcela de depósito como recebida. EXIGE ao menos um recibo (já subido
+// client-side). Carimba received_at (data informada ou hoje) + amount_paid cheio.
+export async function markDepositReceivedAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing deposit reference.");
+  const receipts = parseReceipts(fd);
+  if (!receipts.length) throw new Error("Attach a receipt to mark this deposit received.");
+
+  const { data: existing } = await supabase
+    .from("payments")
+    .select("property_id, rent_amount, kind")
+    .eq("id", id)
+    .maybeSingle();
+  const row = existing as
+    | { property_id: string | null; rent_amount: number | null; kind: string }
+    | null;
+  if (!row) throw new Error("That deposit could not be found.");
+  if (row.kind !== "security_deposit") throw new Error("This is not a security deposit.");
+
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      status: "received" as const,
+      received_at: depositReceivedAt(str(fd, "received_at")),
+      amount_paid: Number(row.rent_amount ?? 0),
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  // category default = 'rent_receipt' (o CHECK só aceita rent_receipt|owner_payout).
+  // O recibo do depósito é prova do inquilino, então 'rent_receipt' encaixa.
+  const rows = receipts.map((r) => ({
+    payment_id: id,
+    file_url: r.url,
+    file_name: r.name,
+    content_type: r.type,
+    category: "rent_receipt",
+  }));
+  const { error: attErr } = await supabase.from("payment_attachments").insert(rows);
+  if (attErr) throw new Error(`Deposit marked received, but the receipt could not be attached: ${attErr.message}`);
+
+  revalidatePath("/payments");
+  if (row.property_id) revalidatePath("/propriedades/" + row.property_id);
+}
+
+// Edita a data em que o depósito foi recebido (já recebido). YYYY-MM-DD.
+export async function setDepositReceivedDateAction(id: string, dateStr: string | null) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing deposit reference.");
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error("Enter a valid date.");
+  const supabase = createClient();
+
+  const propertyId = await paymentPropertyId(supabase, id);
+  const { error } = await supabase
+    .from("payments")
+    .update({ received_at: depositReceivedAt(dateStr) })
+    .eq("id", id)
+    .eq("kind", "security_deposit");
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Anexa um recibo extra a um depósito (category='rent_receipt'). Arquivo já
+// subido client-side. Espelha addOwnerPayoutReceiptAction.
+export async function addDepositReceiptAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const paymentId = str(fd, "payment_id");
+  if (!paymentId) throw new Error("Missing deposit reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing uploaded file reference.");
+
+  const { error } = await supabase.from("payment_attachments").insert({
+    payment_id: paymentId,
+    file_url: fileUrl,
+    file_name: str(fd, "file_name"),
+    content_type: str(fd, "content_type"),
+    category: "rent_receipt",
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  const propertyId = await paymentPropertyId(supabase, paymentId);
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Remove um recibo de depósito: apaga o object do Storage e depois a linha.
+export async function deleteDepositReceiptAction(fd: FormData) {
+  await assertCanManagePayments();
+  const supabase = createClient();
+
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing receipt reference.");
+  const paymentId = str(fd, "payment_id");
+  const fileUrl = str(fd, "file_url");
+
+  if (fileUrl && !/^https?:\/\//i.test(fileUrl)) {
+    const { error: storageError } = await supabase.storage.from("documents").remove([fileUrl]);
+    if (storageError) throw new Error(`Could not remove the file: ${storageError.message}`);
+  }
+
+  const { error } = await supabase
+    .from("payment_attachments")
+    .delete()
+    .eq("id", id)
+    .eq("category", "rent_receipt");
   if (error) throw new Error(error.message);
 
   revalidatePath("/payments");

@@ -24,15 +24,18 @@ import {
   Trash2,
   X,
   Wallet,
+  Receipt,
 } from "lucide-react";
 import { money, date, cx } from "@/lib/format";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import type { Payment, PaymentKind, PaymentStatus } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
-import { PaymentRow, CommissionPaidToggle } from "./PaymentsTable";
+import { PaymentRow, CommissionStatusBadge } from "./PaymentsTable";
 import { PaymentWindow } from "./PaymentEntryButton";
 import { OwnerPayoutControl, ownerOwed, type OwnerPayoutActions } from "./OwnerPayoutControl";
+import { type CommissionActions } from "./CommissionCollectedControl";
+import { DepositReceivedControl, type DepositActions } from "./DepositReceivedControl";
 
 type TabKey = "due" | "monthly" | "past" | "deposit" | "owner_payouts";
 
@@ -113,46 +116,6 @@ function KindTag({ kind }: { kind: PaymentKind }) {
   );
 }
 
-// ---- Mark received (botão usado só na aba Due) ------------------------------
-function MarkReceived({
-  id,
-  setStatus,
-}: {
-  id: string;
-  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
-}) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  function run() {
-    setError(null);
-    start(async () => {
-      try {
-        await setStatus(id, "received");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not update. Try again.");
-      }
-    });
-  }
-  return (
-    <span className="inline-flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary disabled:opacity-60"
-      >
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <CheckCircle2 className="h-3.5 w-3.5" />
-        )}
-        Mark received
-      </button>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
-    </span>
-  );
-}
-
 // ---- Célula de propriedade / inquilino (compartilhada) ---------------------
 // Célula do endereço: DESTACADA (verde) e SEM link — a linha inteira é clicável e
 // abre a janela do pagamento (padrão clients/properties + providers).
@@ -229,7 +192,7 @@ function DueRow({
   addPartAction,
   updatePartAction,
   deletePartAction,
-  setCommissionPaid,
+  commissionActions,
   ownerActions,
 }: {
   p: Payment;
@@ -240,7 +203,7 @@ function DueRow({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
-  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+  commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
 }) {
   const paid = p.amount_paid ?? 0;
@@ -284,11 +247,9 @@ function DueRow({
           </span>
           <KindTag kind={p.kind} />
         </td>
-        <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+        <td className="px-5 py-3.5 text-right">
           <div className="inline-flex flex-wrap items-center justify-end gap-2">
-            {p.commission != null && p.commission > 0 && (
-              <CommissionPaidToggle payment={p} setCommissionPaid={setCommissionPaid} />
-            )}
+            <CommissionStatusBadge payment={p} />
           </div>
         </td>
       </tr>
@@ -303,6 +264,7 @@ function DueRow({
         updatePartAction={updatePartAction}
         deletePartAction={deletePartAction}
         ownerActions={ownerActions}
+        commissionActions={commissionActions}
       />
     </>
   );
@@ -318,6 +280,7 @@ function PastRow({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  commissionActions,
   ownerActions,
 }: {
   p: Payment;
@@ -327,6 +290,7 @@ function PastRow({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
+  commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
 }) {
   const paid = p.received_at ?? p.due_date;
@@ -360,6 +324,7 @@ function PastRow({
         updatePartAction={updatePartAction}
         deletePartAction={deletePartAction}
         ownerActions={ownerActions}
+        commissionActions={commissionActions}
       />
     </>
   );
@@ -380,8 +345,9 @@ export function PaymentsClient({
   addPartAction,
   updatePartAction,
   deletePartAction,
-  setCommissionPaid,
+  commissionActions,
   ownerActions,
+  depositActions,
 }: {
   payments: Payment[];
   properties: PaymentPropertyOption[];
@@ -396,8 +362,9 @@ export function PaymentsClient({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
-  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+  commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
+  depositActions: DepositActions;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
 
@@ -717,7 +684,7 @@ export function PaymentsClient({
                   addPartAction={addPartAction}
                   updatePartAction={updatePartAction}
                   deletePartAction={deletePartAction}
-                  setCommissionPaid={setCommissionPaid}
+                  commissionActions={commissionActions}
                   ownerActions={ownerActions}
                 />
               )}
@@ -732,7 +699,7 @@ export function PaymentsClient({
                   addPartAction={addPartAction}
                   updatePartAction={updatePartAction}
                   deletePartAction={deletePartAction}
-                  setCommissionPaid={setCommissionPaid}
+                  commissionActions={commissionActions}
                   ownerActions={ownerActions}
                 />
               )}
@@ -815,7 +782,7 @@ export function PaymentsClient({
                           addPartAction={addPartAction}
                           updatePartAction={updatePartAction}
                           deletePartAction={deletePartAction}
-                          setCommissionPaid={setCommissionPaid}
+                          commissionActions={commissionActions}
                           ownerActions={ownerActions}
                         />
                       ))}
@@ -888,6 +855,7 @@ export function PaymentsClient({
                       addPartAction={addPartAction}
                       updatePartAction={updatePartAction}
                       deletePartAction={deletePartAction}
+                      commissionActions={commissionActions}
                       ownerActions={ownerActions}
                     />
                   ))}
@@ -917,6 +885,7 @@ export function PaymentsClient({
                   updateAction={updateAction}
                   updateDepositTotalAction={updateDepositTotalAction}
                   deleteDepositGroupAction={deleteDepositGroupAction}
+                  depositActions={depositActions}
                 />
               ))}
             </div>
@@ -1010,6 +979,7 @@ function DepositGroupCard({
   updateAction,
   updateDepositTotalAction,
   deleteDepositGroupAction,
+  depositActions,
 }: {
   group: DepositGroup;
   canManage: boolean;
@@ -1017,6 +987,7 @@ function DepositGroupCard({
   updateAction: (fd: FormData) => void | Promise<void>;
   updateDepositTotalAction: (fd: FormData) => void | Promise<void>;
   deleteDepositGroupAction: (fd: FormData) => void | Promise<void>;
+  depositActions: DepositActions;
 }) {
   const first = group.items[0];
   const totalInstallments = first?.installment_total ?? group.items.length;
@@ -1154,6 +1125,7 @@ function DepositGroupCard({
               canManage={canManage}
               setStatus={setStatus}
               updateAction={updateAction}
+              depositActions={depositActions}
             />
           ))}
         </tbody>
@@ -1174,6 +1146,7 @@ function DepositInstallmentRow({
   canManage,
   setStatus,
   updateAction,
+  depositActions,
 }: {
   p: Payment;
   totalInstallments: number;
@@ -1182,10 +1155,13 @@ function DepositInstallmentRow({
   canManage: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
+  depositActions: DepositActions;
 }) {
   const [editing, setEditing] = useState(false);
+  const [managing, setManaging] = useState(false);
   const no = p.installment_no ?? indexInGroup + 1;
   const total = p.installment_total ?? totalInstallments;
+  const receiptCount = (p.attachments ?? []).filter((a) => a.category !== "owner_payout").length;
 
   if (editing && canManage) {
     return (
@@ -1243,92 +1219,87 @@ function DepositInstallmentRow({
   }
 
   return (
-    <tr
-      className={cx(
-        "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
-        zebra && "bg-black/[0.015]"
-      )}
-    >
-      <td className="px-5 py-3.5 font-semibold text-ink/85">
-        Installment {no} of {total}
-      </td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
-      <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(p.due_date)}</td>
-      <td className="px-5 py-3.5">
-        {p.status === "received" ? (
-          <span className="inline-flex flex-col items-start gap-0.5">
-            <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              Received
-            </span>
-            {p.received_at && (
-              <span className="text-[11px] text-ink/45">{date(p.received_at)}</span>
-            )}
-          </span>
-        ) : (
-          <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
-            Due
-          </span>
+    <>
+      <tr
+        className={cx(
+          "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
+          zebra && "bg-black/[0.015]"
         )}
-      </td>
-      {canManage && (
-        <td className="px-5 py-3.5">
-          <div className="flex items-center justify-end gap-2">
-            {p.status === "due" ? (
-              <MarkReceived id={p.id} setStatus={setStatus} />
-            ) : (
-              <MarkDeposit id={p.id} setStatus={setStatus} />
-            )}
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
-            >
-              <Pencil className="h-3.5 w-3.5" /> Edit
-            </button>
-          </div>
-        </td>
-      )}
-    </tr>
-  );
-}
-
-// Reverter uma parcela recebida pra due (regime de caixa). Espelha MarkReceived.
-function MarkDeposit({
-  id,
-  setStatus,
-}: {
-  id: string;
-  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
-}) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  function run() {
-    setError(null);
-    start(async () => {
-      try {
-        await setStatus(id, "due");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not update. Try again.");
-      }
-    });
-  }
-  return (
-    <span className="inline-flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-secondary/40 hover:bg-secondary/[0.05] hover:text-secondary disabled:opacity-60"
       >
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <CheckCircle2 className="h-3.5 w-3.5" />
+        <td className="px-5 py-3.5 font-semibold text-ink/85">
+          Installment {no} of {total}
+        </td>
+        <td className="whitespace-nowrap px-5 py-3.5 text-ink/85">{money(p.rent_amount)}</td>
+        <td className="whitespace-nowrap px-5 py-3.5 text-ink/65">{date(p.due_date)}</td>
+        <td className="px-5 py-3.5">
+          {p.status === "received" ? (
+            <span className="inline-flex flex-col items-start gap-0.5">
+              <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                Received
+              </span>
+              {p.received_at && (
+                <span className="text-[11px] text-ink/45">{date(p.received_at)}</span>
+              )}
+              {receiptCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-ink/45">
+                  <Receipt className="h-3 w-3" /> {receiptCount} receipt{receiptCount === 1 ? "" : "s"}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+              Due
+            </span>
+          )}
+        </td>
+        {canManage && (
+          <td className="px-5 py-3.5">
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setManaging((v) => !v)}
+                className={cx(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all duration-200",
+                  p.status === "due"
+                    ? "border-primary/30 bg-primary/[0.06] text-primary hover:border-primary/50 hover:bg-primary/[0.10]"
+                    : "border-black/[0.10] bg-white text-ink/70 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
+                )}
+              >
+                {p.status === "due" ? (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Mark received
+                  </>
+                ) : (
+                  <>
+                    <Receipt className="h-3.5 w-3.5" /> Receipt &amp; date
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-2.5 py-1.5 text-xs font-semibold text-ink/70 transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </button>
+            </div>
+          </td>
         )}
-        Mark due
-      </button>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
-    </span>
+      </tr>
+      {managing && canManage && (
+        <tr className="border-t border-black/[0.05] bg-primary/[0.02]">
+          <td colSpan={5} className="px-5 py-4">
+            <DepositReceivedControl
+              payment={p}
+              canManage={canManage}
+              actions={depositActions}
+              setStatus={setStatus}
+              onDone={() => setManaging(false)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -1416,7 +1387,7 @@ function DueSection({
   addPartAction,
   updatePartAction,
   deletePartAction,
-  setCommissionPaid,
+  commissionActions,
   ownerActions,
 }: {
   title: string;
@@ -1428,7 +1399,7 @@ function DueSection({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
-  setCommissionPaid: (id: string, paid: boolean) => Promise<void>;
+  commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
 }) {
   return (
@@ -1445,7 +1416,7 @@ function DueSection({
               <th className="px-5 py-3 font-bold">Tenant</th>
               <th className="px-5 py-3 font-bold">Amount</th>
               <th className="px-5 py-3 font-bold">Due date</th>
-              <th className="px-5 py-3 text-right font-bold">Action</th>
+              <th className="px-5 py-3 text-right font-bold">Commission</th>
             </tr>
           </thead>
           <tbody>
@@ -1460,7 +1431,7 @@ function DueSection({
                 addPartAction={addPartAction}
                 updatePartAction={updatePartAction}
                 deletePartAction={deletePartAction}
-                setCommissionPaid={setCommissionPaid}
+                commissionActions={commissionActions}
                 ownerActions={ownerActions}
               />
             ))}

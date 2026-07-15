@@ -19,6 +19,7 @@ import { Field, inputClass } from "@/components/ui";
 import { RentInstallmentsPanel, uploadReceipts, todayNY } from "./RentInstallmentsPanel";
 import { PaymentEditForm } from "./PaymentEditForm";
 import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
+import { CommissionCollectedControl, type CommissionActions } from "./CommissionCollectedControl";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
@@ -184,6 +185,7 @@ export function PaymentWindow({
   deleteAction,
   hideProperty = false,
   ownerActions,
+  commissionActions,
 }: {
   open: boolean;
   onClose: () => void;
@@ -204,6 +206,9 @@ export function PaymentWindow({
   // Repasse ao owner (rent_collection='bythec'). Quando passado, a janela mostra
   // o controle de owner payout (registrar/editar) — antes era um botão na linha.
   ownerActions?: OwnerPayoutActions;
+  // Comissão da By the C (paga/coletada + data editável). Quando passado E a
+  // comissão > 0, a janela mostra o controle. A linha só exibe o selo de status.
+  commissionActions?: CommissionActions;
 }) {
   const router = useRouter();
   const [editMode, setEditMode] = useState(false);
@@ -295,6 +300,14 @@ export function PaymentWindow({
         {ownerActions && payment.property?.rent_collection === "bythec" && (
           <div className="border-t border-black/[0.06] pt-4">
             <OwnerPayoutControl payment={payment} canManage={canManage} actions={ownerActions} />
+          </div>
+        )}
+
+        {/* Comissão da By the C — coletada? + data editável. Auto-marca quando o
+            owner é pago (bythec). Só quando há comissão a cobrar. */}
+        {commissionActions && (payment.commission ?? 0) > 0 && (
+          <div className="border-t border-black/[0.06] pt-4">
+            <CommissionCollectedControl payment={payment} canManage={canManage} actions={commissionActions} />
           </div>
         )}
 
