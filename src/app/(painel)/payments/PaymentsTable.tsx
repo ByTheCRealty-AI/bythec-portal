@@ -5,16 +5,14 @@
 // caixa), delete com confirmação leve, e edição inline. Mesmo visual das outras
 // telas (zebra rows, chips, glass forms).
 import { useState, useTransition } from "react";
-import { Search, CheckCircle2, Undo2, Loader2, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
-import { Badge, Field, inputClass, buttonClass } from "@/components/ui";
-import { EditButton, DeleteControl } from "@/components/inline-forms/InlineRowControls";
+import { Search, Loader2, ChevronDown, Square, CheckSquare, Wallet } from "lucide-react";
+import { Badge } from "@/components/ui";
 import { PaymentReceipt } from "./PaymentReceipt";
 import { PaymentWindow } from "./PaymentEntryButton";
 import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
-  PAYMENT_STATUS_LABEL,
   type Payment,
   type PaymentKind,
   type PaymentStatus,
@@ -129,200 +127,6 @@ function kindTone(k: PaymentKind): "gold" | "orange" | "neutral" {
   return "neutral";
 }
 
-// Botão de toggle de status (Mark received / Mark due). Otimista via transition;
-// erro volta o estado e mostra a mensagem.
-function StatusToggle({
-  payment,
-  setStatus,
-}: {
-  payment: Payment;
-  setStatus: (id: string, status: PaymentStatus) => Promise<void>;
-}) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const next: PaymentStatus = payment.status === "received" ? "due" : "received";
-
-  function run() {
-    setError(null);
-    start(async () => {
-      try {
-        await setStatus(payment.id, next);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not update. Try again.");
-      }
-    });
-  }
-
-  return (
-    <span className="inline-flex flex-col items-start gap-1">
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className={cx(
-          "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 disabled:opacity-60",
-          next === "received"
-            ? "border-black/[0.10] bg-white text-ink/70 hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
-            : "border-black/[0.10] bg-white text-ink/70 hover:border-secondary/40 hover:bg-secondary/[0.05] hover:text-secondary"
-        )}
-      >
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : next === "received" ? (
-          <CheckCircle2 className="h-3.5 w-3.5" />
-        ) : (
-          <Undo2 className="h-3.5 w-3.5" />
-        )}
-        {next === "received" ? "Mark received" : "Mark due"}
-      </button>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
-    </span>
-  );
-}
-
-// Linha em modo edição: form inline espelhando o PaymentAddForm.
-// hideProperty: usado na aba da propriedade — o property_id é travado (hidden) e
-// o picker some (a propriedade é implícita).
-function EditRow({
-  payment,
-  properties,
-  colSpan,
-  updateAction,
-  onDone,
-  hideProperty = false,
-}: {
-  payment: Payment;
-  properties: PaymentPropertyOption[];
-  colSpan: number;
-  updateAction: (fd: FormData) => void | Promise<void>;
-  onDone: () => void;
-  hideProperty?: boolean;
-}) {
-  return (
-    <tr className="border-t border-black/[0.05] bg-primary/[0.03]">
-      <td colSpan={colSpan} className="px-5 py-4">
-        <form
-          action={async (fd) => {
-            await updateAction(fd);
-            onDone();
-          }}
-          className="space-y-4"
-        >
-          <input type="hidden" name="id" value={payment.id} />
-
-          {hideProperty ? (
-            <input type="hidden" name="property_id" value={payment.property_id} />
-          ) : (
-            <Field label="Property *">
-              <select
-                name="property_id"
-                required
-                defaultValue={payment.property_id}
-                className={inputClass}
-              >
-                {/* Garante que a propriedade atual aparece mesmo se arquivada/de outro tipo. */}
-                {payment.property &&
-                  !properties.some((p) => p.id === payment.property_id) && (
-                    <option value={payment.property_id}>
-                      {payment.property.address}
-                      {payment.property.address2 ? ` · ${payment.property.address2}` : ""}
-                    </option>
-                  )}
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.address}
-                    {p.address2 ? ` · ${p.address2}` : ""}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
-
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field label="Kind">
-              <select name="kind" defaultValue={payment.kind} className={inputClass}>
-                {Object.entries(PAYMENT_KIND_LABEL).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Status">
-              <select name="status" defaultValue={payment.status} className={inputClass}>
-                {Object.entries(PAYMENT_STATUS_LABEL).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Month">
-              <input
-                name="month"
-                type="date"
-                defaultValue={payment.month ?? ""}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Due date">
-              <input
-                name="due_date"
-                type="date"
-                defaultValue={payment.due_date ?? ""}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Amount (USD)">
-              <input
-                name="rent_amount"
-                type="number"
-                step="0.01"
-                min={0}
-                defaultValue={payment.rent_amount ?? ""}
-                className={inputClass}
-                placeholder="2500.00"
-              />
-            </Field>
-            <Field
-              label="Commission (USD)"
-              hint="By the C year-round commission is 10% of monthly rent, counted when received."
-            >
-              <input
-                name="commission"
-                type="number"
-                step="0.01"
-                min={0}
-                defaultValue={payment.commission ?? ""}
-                className={inputClass}
-                placeholder="Optional"
-              />
-            </Field>
-          </div>
-
-          <Field label="Notes">
-            <textarea
-              name="notes"
-              rows={2}
-              defaultValue={payment.notes ?? ""}
-              className={inputClass}
-              placeholder="Optional — e.g. paid by Zelle, partial payment…"
-            />
-          </Field>
-
-          <div className="flex gap-3">
-            <button type="submit" className={buttonClass("primary")}>
-              Save payment
-            </button>
-            <button type="button" onClick={onDone} className={buttonClass("ghost")}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </td>
-    </tr>
-  );
-}
 
 // Linha de pagamento. hideProperty: oculta as colunas Property + Tenant (usado
 // na aba da propriedade, onde a propriedade é implícita).
@@ -364,22 +168,11 @@ export function PaymentRow({
   // that expands the payout control. Optional so read-only contexts skip it.
   ownerActions?: OwnerPayoutActions;
 }) {
-  const [editing, setEditing] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [ownerExpanded, setOwnerExpanded] = useState(false);
 
-  if (editing) {
-    return (
-      <EditRow
-        payment={payment}
-        properties={properties}
-        colSpan={colSpan}
-        updateAction={updateAction}
-        onDone={() => setEditing(false)}
-        hideProperty={hideProperty}
-      />
-    );
-  }
+  // Edição/exclusão do pagamento agora vivem DENTRO da janela (PaymentWindow),
+  // não em botões na linha — a Andrea pediu tudo na janela separada.
 
   const addr = payment.property?.address ?? "—";
   const canParts =
@@ -485,9 +278,6 @@ export function PaymentRow({
                 Owner payout
               </button>
             )}
-            <StatusToggle payment={payment} setStatus={setStatus} />
-            <EditButton onClick={() => setEditing(true)} />
-            <DeleteControl action={deleteAction} hidden={{ id: payment.id }} noun="payment" />
           </div>
         </td>
       )}
@@ -503,6 +293,10 @@ export function PaymentRow({
         addPartAction={addPartAction!}
         updatePartAction={updatePartAction!}
         deletePartAction={deletePartAction!}
+        properties={properties}
+        updateAction={updateAction}
+        deleteAction={deleteAction}
+        hideProperty={hideProperty}
       />
     )}
     {showOwnerPayout && ownerExpanded && (

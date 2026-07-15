@@ -11,11 +11,14 @@
 // =============================================================================
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Loader2, Undo2, Wallet, X } from "lucide-react";
+import { CheckCircle2, Loader2, Undo2, Wallet, Pencil, Trash2, X } from "lucide-react";
 import { money, date } from "@/lib/format";
 import { Field, inputClass } from "@/components/ui";
 import { RentInstallmentsPanel, uploadReceipts, todayNY } from "./RentInstallmentsPanel";
+import { PaymentEditForm } from "./PaymentEditForm";
+import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
 // Janela centralizada — mesmo padrão do modal de providers (portal no body pra
@@ -175,6 +178,10 @@ export function PaymentWindow({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  properties,
+  updateAction,
+  deleteAction,
+  hideProperty = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -186,14 +193,50 @@ export function PaymentWindow({
   addPartAction: (fd: FormData) => void | Promise<void>;
   updatePartAction: (fd: FormData) => void | Promise<void>;
   deletePartAction: (fd: FormData) => void | Promise<void>;
+  // Edição/exclusão do pagamento — opcionais. Quando passados, a janela ganha
+  // "Edit details" + "Delete" (movidos pra cá, tirados dos botões da linha).
+  properties?: PaymentPropertyOption[];
+  updateAction?: (fd: FormData) => void | Promise<void>;
+  deleteAction?: (fd: FormData) => void | Promise<void>;
+  hideProperty?: boolean;
 }) {
+  const router = useRouter();
+  const [editMode, setEditMode] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [delBusy, setDelBusy] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
+
   if (!open || !canManage) return null;
 
   const addr = payment.property?.address ?? "Payment";
   const showPanel = supportsParts;
 
+  function close() {
+    setEditMode(false);
+    setConfirmDelete(false);
+    setDelError(null);
+    onClose();
+  }
+
+  async function remove() {
+    if (!deleteAction) return;
+    setDelError(null);
+    setDelBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set("id", payment.id);
+      fd.set("property_id", payment.property_id);
+      await deleteAction(fd);
+      close();
+      router.refresh();
+    } catch (err) {
+      setDelError(err instanceof Error ? err.message : "Could not delete. Try again.");
+      setDelBusy(false);
+    }
+  }
+
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={close}>
       <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
         <div className="min-w-0">
           <h3 className="h-display text-lg text-ink">Record payment</h3>
@@ -205,7 +248,7 @@ export function PaymentWindow({
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           aria-label="Close"
           className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
         >
@@ -242,6 +285,68 @@ export function PaymentWindow({
             addPartAction={addPartAction}
           />
         </div>
+
+        {/* Editar campos do pagamento + excluir (movidos dos botões da linha).
+            Só aparecem quando as actions são passadas (Monthly / property page). */}
+        {(updateAction || deleteAction) && (
+          <div className="border-t border-black/[0.06] pt-4">
+            {editMode && updateAction && properties ? (
+              <PaymentEditForm
+                payment={payment}
+                properties={properties}
+                updateAction={updateAction}
+                onDone={() => {
+                  setEditMode(false);
+                  router.refresh();
+                }}
+                hideProperty={hideProperty}
+              />
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {updateAction && properties && (
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-3 py-2 text-xs font-semibold text-ink/70 transition hover:border-primary/40 hover:text-primary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit details
+                  </button>
+                )}
+                {deleteAction &&
+                  (confirmDelete ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={remove}
+                        disabled={delBusy}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+                      >
+                        {delBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        Confirm delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(false)}
+                        disabled={delBusy}
+                        className="text-xs text-ink/60 hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </button>
+                  ))}
+              </div>
+            )}
+            {delError && <p className="mt-2 text-[12px] text-red-600">{delError}</p>}
+          </div>
+        )}
       </div>
     </Modal>
   );
