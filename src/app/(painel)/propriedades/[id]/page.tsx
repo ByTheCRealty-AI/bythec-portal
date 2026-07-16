@@ -57,6 +57,10 @@ import {
   setOwnerCheckNumberAction,
   addOwnerPayoutReceiptAction,
   deleteOwnerPayoutReceiptAction,
+  markDepositReceivedAction,
+  setDepositReceivedDateAction,
+  addDepositReceiptAction,
+  deleteDepositReceiptAction,
 } from "../../payments/actions";
 import {
   PROPERTY_TYPE_LABEL,
@@ -418,6 +422,12 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 setCommissionPaid: setCommissionPaidAction,
                 setCommissionPaidDate: setCommissionPaidDateAction,
               }}
+              depositActions={{
+                markReceived: markDepositReceivedAction,
+                setReceivedDate: setDepositReceivedDateAction,
+                addReceipt: addDepositReceiptAction,
+                deleteReceipt: deleteDepositReceiptAction,
+              }}
             />
           ) : (
             <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-8 text-center text-sm text-ink/55 shadow-card">
@@ -434,6 +444,23 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               addPartAction={addPaymentPartAction}
               updatePartAction={updatePaymentPartAction}
               deletePartAction={deletePaymentPartAction}
+              ownerActions={{
+                setOwnerPaid: setOwnerPaidAction,
+                setOwnerMethod: setOwnerPaymentMethodAction,
+                setOwnerCheckNumber: setOwnerCheckNumberAction,
+                addReceipt: addOwnerPayoutReceiptAction,
+                deleteReceipt: deleteOwnerPayoutReceiptAction,
+              }}
+              commissionActions={{
+                setCommissionPaid: setCommissionPaidAction,
+                setCommissionPaidDate: setCommissionPaidDateAction,
+              }}
+              depositActions={{
+                markReceived: markDepositReceivedAction,
+                setReceivedDate: setDepositReceivedDateAction,
+                addReceipt: addDepositReceiptAction,
+                deleteReceipt: deleteDepositReceiptAction,
+              }}
             />
           )}
         </>

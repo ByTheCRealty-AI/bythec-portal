@@ -199,6 +199,9 @@ function DueRow({
   deletePartAction,
   commissionActions,
   ownerActions,
+  properties,
+  updateAction,
+  deleteAction,
 }: {
   p: Payment;
   zebra: boolean;
@@ -210,6 +213,9 @@ function DueRow({
   deletePartAction: (fd: FormData) => void | Promise<void>;
   commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
+  properties: PaymentPropertyOption[];
+  updateAction: (fd: FormData) => void | Promise<void>;
+  deleteAction: (fd: FormData) => void | Promise<void>;
 }) {
   const paid = p.amount_paid ?? 0;
   const rent = p.rent_amount ?? 0;
@@ -268,6 +274,9 @@ function DueRow({
         addPartAction={addPartAction}
         updatePartAction={updatePartAction}
         deletePartAction={deletePartAction}
+        properties={properties}
+        updateAction={updateAction}
+        deleteAction={deleteAction}
         ownerActions={ownerActions}
         commissionActions={commissionActions}
       />
@@ -287,6 +296,9 @@ function PastRow({
   deletePartAction,
   commissionActions,
   ownerActions,
+  properties,
+  updateAction,
+  deleteAction,
 }: {
   p: Payment;
   zebra: boolean;
@@ -297,6 +309,9 @@ function PastRow({
   deletePartAction: (fd: FormData) => void | Promise<void>;
   commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
+  properties: PaymentPropertyOption[];
+  updateAction: (fd: FormData) => void | Promise<void>;
+  deleteAction: (fd: FormData) => void | Promise<void>;
 }) {
   const paid = p.received_at ?? p.due_date;
   const [payOpen, setPayOpen] = useState(false);
@@ -328,6 +343,9 @@ function PastRow({
         addPartAction={addPartAction}
         updatePartAction={updatePartAction}
         deletePartAction={deletePartAction}
+        properties={properties}
+        updateAction={updateAction}
+        deleteAction={deleteAction}
         ownerActions={ownerActions}
         commissionActions={commissionActions}
       />
@@ -690,6 +708,9 @@ export function PaymentsClient({
                   deletePartAction={deletePartAction}
                   commissionActions={commissionActions}
                   ownerActions={ownerActions}
+                  properties={properties}
+                  updateAction={updateAction}
+                  deleteAction={deleteAction}
                 />
               )}
               {dueThisMonth.length > 0 && (
@@ -705,6 +726,9 @@ export function PaymentsClient({
                   deletePartAction={deletePartAction}
                   commissionActions={commissionActions}
                   ownerActions={ownerActions}
+                  properties={properties}
+                  updateAction={updateAction}
+                  deleteAction={deleteAction}
                 />
               )}
             </div>
@@ -861,6 +885,9 @@ export function PaymentsClient({
                       deletePartAction={deletePartAction}
                       commissionActions={commissionActions}
                       ownerActions={ownerActions}
+                      properties={properties}
+                      updateAction={updateAction}
+                      deleteAction={deleteAction}
                     />
                   ))}
                 </tbody>
@@ -1398,6 +1425,9 @@ function DueSection({
   deletePartAction,
   commissionActions,
   ownerActions,
+  properties,
+  updateAction,
+  deleteAction,
 }: {
   title: string;
   subtitle: string;
@@ -1410,6 +1440,9 @@ function DueSection({
   deletePartAction: (fd: FormData) => void | Promise<void>;
   commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
+  properties: PaymentPropertyOption[];
+  updateAction: (fd: FormData) => void | Promise<void>;
+  deleteAction: (fd: FormData) => void | Promise<void>;
 }) {
   return (
     <section>
@@ -1442,6 +1475,9 @@ function DueSection({
                 deletePartAction={deletePartAction}
                 commissionActions={commissionActions}
                 ownerActions={ownerActions}
+                properties={properties}
+                updateAction={updateAction}
+                deleteAction={deleteAction}
               />
             ))}
           </tbody>

@@ -21,6 +21,7 @@ import { PaymentEditForm } from "./PaymentEditForm";
 import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { CommissionCollectedControl, type CommissionActions } from "./CommissionCollectedControl";
 import { ReceivedDateEditor } from "./ReceivedDateEditor";
+import { DepositReceivedControl, type DepositActions } from "./DepositReceivedControl";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
@@ -187,6 +188,7 @@ export function PaymentWindow({
   hideProperty = false,
   ownerActions,
   commissionActions,
+  depositActions,
 }: {
   open: boolean;
   onClose: () => void;
@@ -195,9 +197,10 @@ export function PaymentWindow({
   // Aluguel (monthly/first/last) suporta parcelas; depósito etc. não → só o atalho.
   supportsParts: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
-  addPartAction: (fd: FormData) => void | Promise<void>;
-  updatePartAction: (fd: FormData) => void | Promise<void>;
-  deletePartAction: (fd: FormData) => void | Promise<void>;
+  // Parcelas — só aluguel. Opcionais: um depósito abre a janela sem elas.
+  addPartAction?: (fd: FormData) => void | Promise<void>;
+  updatePartAction?: (fd: FormData) => void | Promise<void>;
+  deletePartAction?: (fd: FormData) => void | Promise<void>;
   // Edição/exclusão do pagamento — opcionais. Quando passados, a janela ganha
   // "Edit details" + "Delete" (movidos pra cá, tirados dos botões da linha).
   properties?: PaymentPropertyOption[];
@@ -210,6 +213,10 @@ export function PaymentWindow({
   // Comissão da By the C (paga/coletada + data editável). Quando passado E a
   // comissão > 0, a janela mostra o controle. A linha só exibe o selo de status.
   commissionActions?: CommissionActions;
+  // Security deposit: quando passado E o pagamento é depósito, a janela mostra o
+  // controle de recebimento (recibo obrigatório + data + recibos), no lugar dos
+  // controles de aluguel. Reusado na aba Payments da propriedade.
+  depositActions?: DepositActions;
 }) {
   const router = useRouter();
   const [editMode, setEditMode] = useState(false);
@@ -220,7 +227,10 @@ export function PaymentWindow({
   if (!open || !canManage) return null;
 
   const addr = payment.property?.address ?? "Payment";
-  const showPanel = supportsParts;
+  const isDeposit = payment.kind === "security_deposit";
+  // Painel de parcelas: só aluguel, e só quando as actions de parcela existem.
+  const showPanel =
+    supportsParts && !isDeposit && !!addPartAction && !!updatePartAction && !!deletePartAction;
 
   function close() {
     setEditMode(false);
@@ -250,7 +260,7 @@ export function PaymentWindow({
     <Modal onClose={close}>
       <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
         <div className="min-w-0">
-          <h3 className="h-display text-lg text-ink">Record payment</h3>
+          <h3 className="h-display text-lg text-ink">{isDeposit ? "Security deposit" : "Record payment"}</h3>
           <p className="truncate text-xs text-ink/55">
             {addr}
             {payment.property?.address2 ? ` · ${payment.property.address2}` : ""}
@@ -271,52 +281,74 @@ export function PaymentWindow({
         {/* Resumo */}
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/[0.06] bg-black/[0.015] px-4 py-3 text-sm">
           <span className="text-ink/60">
-            {PAYMENT_KIND_LABEL[payment.kind]} rent · due {date(payment.due_date)}
+            {isDeposit
+              ? `Security deposit${
+                  payment.installment_total
+                    ? ` · installment ${payment.installment_no ?? "?"}/${payment.installment_total}`
+                    : ""
+                }`
+              : `${PAYMENT_KIND_LABEL[payment.kind]} rent · due ${date(payment.due_date)}`}
           </span>
           <span className="font-semibold text-ink">{money(payment.rent_amount)}</span>
         </div>
 
-        {/* Parcelas / progresso (só aluguel) */}
-        {showPanel && (
-          <RentInstallmentsPanel
+        {/* ---- Depósito: recibo obrigatório + data editável + recibos ---- */}
+        {isDeposit && depositActions ? (
+          <DepositReceivedControl
             payment={payment}
             canManage={canManage}
-            addPartAction={addPartAction}
-            updatePartAction={updatePartAction}
-            deletePartAction={deletePartAction}
-          />
-        )}
-
-        {/* Atalho recebido de uma vez (exige recibo) / reabrir */}
-        <div className="border-t border-black/[0.06] pt-4">
-          <FullPaymentControl
-            payment={payment}
-            remaining={Math.max(0, (payment.rent_amount ?? 0) - (payment.amount_paid ?? 0))}
+            actions={depositActions}
             setStatus={setStatus}
-            addPartAction={addPartAction}
+            onDone={() => router.refresh()}
           />
-        </div>
+        ) : (
+          !isDeposit && (
+            <>
+              {/* Parcelas / progresso (só aluguel) */}
+              {showPanel && (
+                <RentInstallmentsPanel
+                  payment={payment}
+                  canManage={canManage}
+                  addPartAction={addPartAction!}
+                  updatePartAction={updatePartAction!}
+                  deletePartAction={deletePartAction!}
+                />
+              )}
 
-        {/* Editar a data recebida — qualquer aluguel já received (first/last/monthly). */}
-        {payment.status === "received" && (
-          <div className="border-t border-black/[0.06] pt-4">
-            <ReceivedDateEditor payment={payment} canManage={canManage} />
-          </div>
-        )}
+              {/* Atalho recebido de uma vez (exige recibo) / reabrir */}
+              {addPartAction && (
+                <div className="border-t border-black/[0.06] pt-4">
+                  <FullPaymentControl
+                    payment={payment}
+                    remaining={Math.max(0, (payment.rent_amount ?? 0) - (payment.amount_paid ?? 0))}
+                    setStatus={setStatus}
+                    addPartAction={addPartAction}
+                  />
+                </div>
+              )}
 
-        {/* Repasse ao owner — só "By the C collects". Registrar/editar aqui na janela. */}
-        {ownerActions && payment.property?.rent_collection === "bythec" && (
-          <div className="border-t border-black/[0.06] pt-4">
-            <OwnerPayoutControl payment={payment} canManage={canManage} actions={ownerActions} />
-          </div>
-        )}
+              {/* Editar a data recebida — qualquer aluguel já received. */}
+              {payment.status === "received" && (
+                <div className="border-t border-black/[0.06] pt-4">
+                  <ReceivedDateEditor payment={payment} canManage={canManage} />
+                </div>
+              )}
 
-        {/* Comissão da By the C — coletada? + data editável. Auto-marca quando o
-            owner é pago (bythec). Só quando há comissão a cobrar. */}
-        {commissionActions && (payment.commission ?? 0) > 0 && (
-          <div className="border-t border-black/[0.06] pt-4">
-            <CommissionCollectedControl payment={payment} canManage={canManage} actions={commissionActions} />
-          </div>
+              {/* Repasse ao owner — só "By the C collects" (nunca depósito). */}
+              {ownerActions && payment.property?.rent_collection === "bythec" && (
+                <div className="border-t border-black/[0.06] pt-4">
+                  <OwnerPayoutControl payment={payment} canManage={canManage} actions={ownerActions} />
+                </div>
+              )}
+
+              {/* Comissão da By the C — coletada? + data editável. */}
+              {commissionActions && (payment.commission ?? 0) > 0 && (
+                <div className="border-t border-black/[0.06] pt-4">
+                  <CommissionCollectedControl payment={payment} canManage={canManage} actions={commissionActions} />
+                </div>
+              )}
+            </>
+          )
         )}
 
         {/* Editar campos do pagamento + excluir (movidos dos botões da linha).

@@ -7,6 +7,7 @@
 import { PaymentRow } from "../../payments/PaymentsTable";
 import type { OwnerPayoutActions } from "../../payments/OwnerPayoutControl";
 import type { CommissionActions } from "../../payments/CommissionCollectedControl";
+import type { DepositActions } from "../../payments/DepositReceivedControl";
 import type { PaymentStatus, Payment } from "@/lib/types";
 
 export function PropertyPaymentsTable({
@@ -20,6 +21,7 @@ export function PropertyPaymentsTable({
   deletePartAction,
   ownerActions,
   commissionActions,
+  depositActions,
 }: {
   payments: Payment[];
   canManage: boolean;
@@ -31,6 +33,7 @@ export function PropertyPaymentsTable({
   deletePartAction?: (fd: FormData) => void | Promise<void>;
   ownerActions?: OwnerPayoutActions;
   commissionActions?: CommissionActions;
+  depositActions?: DepositActions;
 }) {
   // Kind, Month, Due, Amount, Commission, Status, Receipt (+ actions). Sem Property/Tenant.
   const colSpan = canManage ? 8 : 7;
@@ -66,6 +69,7 @@ export function PropertyPaymentsTable({
               deletePartAction={deletePartAction}
               ownerActions={ownerActions}
               commissionActions={commissionActions}
+              depositActions={depositActions}
               hideProperty
             />
           ))}

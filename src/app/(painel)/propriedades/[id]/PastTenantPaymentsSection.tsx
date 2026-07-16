@@ -7,6 +7,9 @@
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
+import type { OwnerPayoutActions } from "../../payments/OwnerPayoutControl";
+import type { CommissionActions } from "../../payments/CommissionCollectedControl";
+import type { DepositActions } from "../../payments/DepositReceivedControl";
 import type { PaymentStatus, Payment } from "@/lib/types";
 
 type Group = { key: string; name: string; range: string | null; payments: Payment[] };
@@ -20,6 +23,9 @@ export function PastTenantPaymentsSection({
   addPartAction,
   updatePartAction,
   deletePartAction,
+  ownerActions,
+  commissionActions,
+  depositActions,
 }: {
   groups: Group[];
   canManage: boolean;
@@ -29,6 +35,9 @@ export function PastTenantPaymentsSection({
   addPartAction?: (fd: FormData) => void | Promise<void>;
   updatePartAction?: (fd: FormData) => void | Promise<void>;
   deletePartAction?: (fd: FormData) => void | Promise<void>;
+  ownerActions?: OwnerPayoutActions;
+  commissionActions?: CommissionActions;
+  depositActions?: DepositActions;
 }) {
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
@@ -90,6 +99,9 @@ export function PastTenantPaymentsSection({
                       addPartAction={addPartAction}
                       updatePartAction={updatePartAction}
                       deletePartAction={deletePartAction}
+                      ownerActions={ownerActions}
+                      commissionActions={commissionActions}
+                      depositActions={depositActions}
                     />
                   </div>
                 )}

@@ -11,6 +11,7 @@ import { PaymentReceipt } from "./PaymentReceipt";
 import { PaymentWindow } from "./PaymentEntryButton";
 import { type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { type CommissionActions } from "./CommissionCollectedControl";
+import { type DepositActions } from "./DepositReceivedControl";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -111,6 +112,7 @@ export function PaymentRow({
   deletePartAction,
   commissionActions,
   ownerActions,
+  depositActions,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
@@ -135,15 +137,21 @@ export function PaymentRow({
   // By the C AND the payment is received, the row gets an "Owner payout" toggle
   // that expands the payout control. Optional so read-only contexts skip it.
   ownerActions?: OwnerPayoutActions;
+  // Deposit actions. When provided AND the row is a security deposit, clicking the
+  // row opens the window with the deposit control (receipt/date/receipts).
+  depositActions?: DepositActions;
 }) {
   const [payOpen, setPayOpen] = useState(false);
 
-  // Tudo do pagamento — record, mark paid, edit, delete E owner payout — vive
-  // DENTRO da janela (PaymentWindow) que abre no clique da linha. Sem botões na linha.
+  // Tudo do pagamento — record, mark paid, edit, delete, owner payout E depósito —
+  // vive DENTRO da janela (PaymentWindow) que abre no clique da linha.
 
   const addr = payment.property?.address ?? "—";
+  const isDeposit = payment.kind === "security_deposit";
   const canParts =
     !!addPartAction && !!updatePartAction && !!deletePartAction && supportsParts(payment);
+  // A linha abre a janela pra aluguel (parcelas) E pra depósito (quando há actions).
+  const canOpen = canManage && (canParts || (isDeposit && !!depositActions));
 
   return (
     <>
@@ -153,9 +161,9 @@ export function PaymentRow({
       className={cx(
         "border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
         zebra && "bg-black/[0.015]",
-        canParts && canManage && "cursor-pointer"
+        canOpen && "cursor-pointer"
       )}
-      onClick={canParts && canManage ? () => setPayOpen(true) : undefined}
+      onClick={canOpen ? () => setPayOpen(true) : undefined}
     >
       {!hideProperty && (
         <td className="px-5 py-3.5">
@@ -211,7 +219,7 @@ export function PaymentRow({
         })()}
       </td>
     </tr>
-    {canParts && (
+    {canOpen && (
       <PaymentWindow
         open={payOpen}
         onClose={() => setPayOpen(false)}
@@ -219,15 +227,16 @@ export function PaymentRow({
         canManage={canManage}
         supportsParts={supportsParts(payment)}
         setStatus={setStatus}
-        addPartAction={addPartAction!}
-        updatePartAction={updatePartAction!}
-        deletePartAction={deletePartAction!}
+        addPartAction={addPartAction}
+        updatePartAction={updatePartAction}
+        deletePartAction={deletePartAction}
         properties={properties}
         updateAction={updateAction}
         deleteAction={deleteAction}
         hideProperty={hideProperty}
         ownerActions={ownerActions}
         commissionActions={commissionActions}
+        depositActions={depositActions}
       />
     )}
     </>
