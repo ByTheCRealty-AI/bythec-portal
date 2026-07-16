@@ -45,6 +45,10 @@ export function PaymentEditForm({
       className="space-y-4"
     >
       <input type="hidden" name="id" value={payment.id} />
+      {/* Preserva a data recebida ao salvar (senão updatePaymentAction reseta pra
+          hoje). Editar a data em si é pelo painel "Date received" da janela. */}
+      <input type="hidden" name="received_at" value={receivedDateValue(payment.received_at)} />
+
 
       {hideProperty ? (
         <input type="hidden" name="property_id" value={payment.property_id} />
@@ -91,14 +95,6 @@ export function PaymentEditForm({
         </Field>
         <Field label="Due date">
           <input name="due_date" type="date" defaultValue={payment.due_date ?? ""} className={inputClass} />
-        </Field>
-        <Field label="Date received" hint="Applies when status is Received. Last month has no due date or month.">
-          <input
-            name="received_at"
-            type="date"
-            defaultValue={receivedDateValue(payment.received_at)}
-            className={inputClass}
-          />
         </Field>
         <Field label="Amount (USD)">
           <input

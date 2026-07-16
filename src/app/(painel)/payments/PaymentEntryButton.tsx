@@ -20,6 +20,7 @@ import { RentInstallmentsPanel, uploadReceipts, todayNY } from "./RentInstallmen
 import { PaymentEditForm } from "./PaymentEditForm";
 import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { CommissionCollectedControl, type CommissionActions } from "./CommissionCollectedControl";
+import { ReceivedDateEditor } from "./ReceivedDateEditor";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
@@ -295,6 +296,13 @@ export function PaymentWindow({
             addPartAction={addPartAction}
           />
         </div>
+
+        {/* Editar a data recebida — qualquer aluguel já received (first/last/monthly). */}
+        {payment.status === "received" && (
+          <div className="border-t border-black/[0.06] pt-4">
+            <ReceivedDateEditor payment={payment} canManage={canManage} />
+          </div>
+        )}
 
         {/* Repasse ao owner — só "By the C collects". Registrar/editar aqui na janela. */}
         {ownerActions && payment.property?.rent_collection === "bythec" && (

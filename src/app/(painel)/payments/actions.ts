@@ -470,6 +470,26 @@ export async function setPaymentStatusAction(id: string, status: PaymentStatus) 
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
 
+// Edita a DATA RECEBIDA de QUALQUER pagamento já received (first/last/monthly —
+// depósito usa setDepositReceivedDateAction). YYYY-MM-DD -> meio-dia UTC (sem
+// drift de dia no fuso). Chamada direto da janela do pagamento (ReceivedDateEditor).
+export async function setPaymentReceivedDateAction(id: string, dateStr: string | null) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error("Enter a valid date.");
+  const supabase = createClient();
+
+  const propertyId = await paymentPropertyId(supabase, id);
+  const { error } = await supabase
+    .from("payments")
+    .update({ received_at: `${dateStr}T12:00:00.000Z` })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
 // --- PAGAMENTOS PARCIAIS (payment_parts) ------------------------------------
 // Um aluguel (monthly / first_month / last_month) pode ser quitado em N parcelas.
 // Cada parcela tem valor + data + método + comprovantes próprios (qualquer mídia,
