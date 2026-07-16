@@ -409,6 +409,17 @@ export async function updatePaymentAction(fd: FormData) {
 
   const status = statusOf(fd);
 
+  // received_at editável: se o form manda uma data (YYYY-MM-DD) e o status é
+  // received, usa ela (meio-dia UTC, sem drift). Sem data, cai em now(). due=null.
+  // Serve pro last_month (sem due/month) — a Andrea fixa a data que caiu.
+  const receivedInput = str(fd, "received_at");
+  const receivedAt =
+    status === "received"
+      ? receivedInput && /^\d{4}-\d{2}-\d{2}$/.test(receivedInput)
+        ? `${receivedInput}T12:00:00.000Z`
+        : new Date().toISOString()
+      : null;
+
   const { error } = await supabase
     .from("payments")
     .update({
@@ -420,7 +431,7 @@ export async function updatePaymentAction(fd: FormData) {
       rent_amount: num(fd, "rent_amount") ?? 0,
       commission: num(fd, "commission"),
       status,
-      received_at: status === "received" ? new Date().toISOString() : null,
+      received_at: receivedAt,
       notes: str(fd, "notes"),
     })
     .eq("id", id);

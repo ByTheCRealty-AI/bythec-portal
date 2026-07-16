@@ -109,8 +109,13 @@ function paymentMonthKey(p: Payment): string | null {
 function KindTag({ kind }: { kind: PaymentKind }) {
   if (kind !== "first_month" && kind !== "last_month") return null;
   const label = kind === "first_month" ? "First month" : "Last month";
+  // First month azul, last month laranja (secondary) — cores distintas.
+  const cls =
+    kind === "first_month"
+      ? "border-blue-200 bg-blue-50 text-blue-700"
+      : "border-secondary/25 bg-secondary/10 text-secondary";
   return (
-    <span className="ml-2 inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-secondary">
+    <span className={cx("ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", cls)}>
       {label}
     </span>
   );
@@ -503,14 +508,13 @@ export function PaymentsClient({
         sortRef: ymdOf(sorted[0]?.due_date) ?? "",
       };
     });
-    // Grupos com parcela em aberto primeiro; dentro, mais recente por due_date.
-    groups.sort((a, b) => {
-      const aOpen = a.receivedCount < a.items.length;
-      const bOpen = b.receivedCount < b.items.length;
-      if (aOpen !== bOpen) return aOpen ? -1 : 1;
-      return b.sortRef.localeCompare(a.sortRef);
-    });
-    return groups;
+    // Só depósitos AINDA EM ABERTO nesta aba global: quando todas as parcelas já
+    // caíram, o depósito some daqui (declutter). Ele continua acessível na aba
+    // Payments da propriedade (que carrega todos os pagamentos, inclusive quitados).
+    const openGroups = groups.filter((g) => g.receivedCount < g.items.length);
+    // Mais recente por due_date.
+    openGroups.sort((a, b) => b.sortRef.localeCompare(a.sortRef));
+    return openGroups;
   }, [depositPayments]);
 
   // ---- Owner payouts tab: received "By the C collects" rents not yet paid to
@@ -1180,6 +1184,11 @@ function DepositInstallmentRow({
             <input type="hidden" name="status" value={p.status} />
             <input type="hidden" name="month" value={p.month ?? ""} />
             <input type="hidden" name="notes" value={p.notes ?? ""} />
+            {/* Preserva a data recebida ao editar valor/vencimento (senão o
+                updatePaymentAction resetaria pra hoje). A gestão da data fica no
+                painel "Mark received". */}
+            <input type="hidden" name="received_at" value={ymdOf(p.received_at) ?? ""} />
+
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field label="Amount (USD)">
                 <input

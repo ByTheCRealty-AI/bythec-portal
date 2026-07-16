@@ -10,12 +10,13 @@ export function Card({ className, children }: { className?: string; children: Re
 
 // ---- Badge -----------------------------------------------------------------
 // Tons mantidos por nome (usados nas páginas); recoloridos para o tema claro/verde.
-type BadgeTone = "gold" | "orange" | "neutral" | "muted";
+type BadgeTone = "gold" | "orange" | "neutral" | "muted" | "blue";
 const TONE: Record<BadgeTone, string> = {
   gold: "bg-primary/10 text-primary border-primary/25",
   orange: "bg-secondary/10 text-secondary border-secondary/25",
   neutral: "bg-black/[0.04] text-ink/70 border-black/10",
   muted: "bg-black/[0.03] text-ink/45 border-black/[0.07]",
+  blue: "bg-blue-50 text-blue-700 border-blue-200",
 };
 
 export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {

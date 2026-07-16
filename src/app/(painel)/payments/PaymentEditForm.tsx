@@ -8,6 +8,21 @@ import { Field, inputClass, buttonClass } from "@/components/ui";
 import { PAYMENT_KIND_LABEL, PAYMENT_STATUS_LABEL, type Payment } from "@/lib/types";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 
+// ISO (timestamptz) -> YYYY-MM-DD no fuso de NY, pro <input type="date">.
+function receivedDateValue(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 export function PaymentEditForm({
   payment,
   properties,
@@ -76,6 +91,14 @@ export function PaymentEditForm({
         </Field>
         <Field label="Due date">
           <input name="due_date" type="date" defaultValue={payment.due_date ?? ""} className={inputClass} />
+        </Field>
+        <Field label="Date received" hint="Applies when status is Received. Last month has no due date or month.">
+          <input
+            name="received_at"
+            type="date"
+            defaultValue={receivedDateValue(payment.received_at)}
+            className={inputClass}
+          />
         </Field>
         <Field label="Amount (USD)">
           <input
