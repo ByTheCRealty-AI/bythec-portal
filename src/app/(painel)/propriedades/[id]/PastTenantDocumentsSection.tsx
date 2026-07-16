@@ -7,7 +7,7 @@
 // re-tag e download continuam funcionando).
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
-import { DocumentRow } from "@/components/inline-forms/DocumentRow";
+import { SortableDocumentList } from "@/components/inline-forms/SortableDocumentList";
 import type { Document } from "@/lib/types";
 
 type TenantOption = { id: string; name: string; archived: boolean };
@@ -23,6 +23,9 @@ export function PastTenantDocumentsSection({
   updateTenancyAction,
   canRename,
   renameAction,
+  canReorder,
+  propertyId,
+  reorderAction,
 }: {
   groups: Group[];
   canDelete: boolean;
@@ -33,7 +36,20 @@ export function PastTenantDocumentsSection({
   updateTenancyAction: (fd: FormData) => void | Promise<void>;
   canRename: boolean;
   renameAction: (fd: FormData) => void | Promise<void>;
+  canReorder: boolean;
+  propertyId: string;
+  reorderAction: (propertyId: string, orderedIds: string[]) => Promise<void>;
 }) {
+  const rowProps = {
+    canDelete,
+    deleteAction,
+    canEditTenancy,
+    currentTenant,
+    tenantOptions,
+    updateTenancyAction,
+    canRename,
+    renameAction,
+  };
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const total = groups.reduce((n, g) => n + g.docs.length, 0);
@@ -84,22 +100,15 @@ export function PastTenantDocumentsSection({
                   </span>
                 </button>
                 {isOpen && (
-                  <ul className="space-y-3 px-3 pb-3">
-                    {g.docs.map((d) => (
-                      <DocumentRow
-                        key={d.id}
-                        doc={d}
-                        canDelete={canDelete}
-                        deleteAction={deleteAction}
-                        canEditTenancy={canEditTenancy}
-                        currentTenant={currentTenant}
-                        tenantOptions={tenantOptions}
-                        updateTenancyAction={updateTenancyAction}
-                        canRename={canRename}
-                        renameAction={renameAction}
-                      />
-                    ))}
-                  </ul>
+                  <div className="px-3 pb-3">
+                    <SortableDocumentList
+                      docs={g.docs}
+                      propertyId={propertyId}
+                      canReorder={canReorder}
+                      reorderAction={reorderAction}
+                      rowProps={rowProps}
+                    />
+                  </div>
                 )}
               </div>
             );

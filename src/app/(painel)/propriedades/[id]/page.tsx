@@ -7,13 +7,14 @@ import { PropriedadeArchiveButton } from "../PropriedadeArchiveButton";
 import { PropriedadeDeleteButton } from "../PropriedadeDeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete, can } from "@/lib/auth/capabilities";
+import { canDelete, can, canReorderDocuments } from "@/lib/auth/capabilities";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
 import { BulkDocumentImport } from "@/components/inline-forms/BulkDocumentImport";
+import { SortableDocumentList } from "@/components/inline-forms/SortableDocumentList";
 import { NoteRow } from "@/components/inline-forms/NoteRow";
 import { ServiceRow } from "@/components/inline-forms/ServiceRow";
 import { RequestRow } from "@/components/inline-forms/RequestRow";
@@ -32,6 +33,7 @@ import {
   updateDocumentTenancyAction,
   importPropertyDocumentsAction,
   renameDocumentAction,
+  reorderDocumentsAction,
 } from "../actions";
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
@@ -145,13 +147,15 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("documents")
       .select(
-        "id, parent_type, parent_id, file_url, file_name, content_type, year, category, tenant_id, tenant_label, doc_date, source_path, created_at, archived_at"
+        "id, parent_type, parent_id, file_url, file_name, content_type, year, category, tenant_id, tenant_label, doc_date, source_path, sort_order, created_at, archived_at"
       )
       .eq("parent_type", "property")
       .eq("parent_id", p.id)
       .is("archived_at", null)
-      // Newest on top, oldest at the bottom: by the document's real date (doc_date),
-      // dateless ones last, then upload time. Grouping below preserves this order.
+      // Manual order first (sort_order asc, set by owner/manager), then the default:
+      // newest on top by doc_date (dateless last), then upload time. Grouping below
+      // preserves this order within each tenant section.
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("doc_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
     // Pagamentos desta propriedade (não-arquivados). Mês desc nulls last, depois
@@ -597,23 +601,27 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     a.name.localeCompare(b.name)
   );
 
+  // Reordenar documentos à mão: SÓ owner + manager (a secretária edita mas não
+  // reordena). O server (reorderDocumentsAction) reforça o gate por papel.
+  const canReorderDocs = canReorderDocuments(profile);
+  const docRowProps = {
+    canDelete: canUploadDocs,
+    deleteAction: deletePropertyDocumentAction,
+    canEditTenancy: canUploadDocs,
+    currentTenant: p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null,
+    tenantOptions: tenantPickerOptions,
+    updateTenancyAction: updateDocumentTenancyAction,
+    canRename: canUploadDocs,
+    renameAction: renameDocumentAction,
+  };
   const docList = (docs: Document[]) => (
-    <ul className="space-y-3">
-      {docs.map((d) => (
-        <DocumentRow
-          key={d.id}
-          doc={d}
-          canDelete={canUploadDocs}
-          deleteAction={deletePropertyDocumentAction}
-          canEditTenancy={canUploadDocs}
-          currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
-          tenantOptions={tenantPickerOptions}
-          updateTenancyAction={updateDocumentTenancyAction}
-          canRename={canUploadDocs}
-          renameAction={renameDocumentAction}
-        />
-      ))}
-    </ul>
+    <SortableDocumentList
+      docs={docs}
+      propertyId={p.id}
+      canReorder={canReorderDocs}
+      reorderAction={reorderDocumentsAction}
+      rowProps={docRowProps}
+    />
   );
 
   const documentsTab = (
@@ -679,6 +687,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               updateTenancyAction={updateDocumentTenancyAction}
               canRename={canUploadDocs}
               renameAction={renameDocumentAction}
+              canReorder={canReorderDocs}
+              propertyId={p.id}
+              reorderAction={reorderDocumentsAction}
             />
           )}
         </div>

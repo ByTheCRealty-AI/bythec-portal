@@ -226,6 +226,15 @@ export function canDelete(
   return !!profile && profile.active && profile.role === "owner";
 }
 
+// Reordenar documentos manualmente: SÓ owner + manager (a secretária tem
+// properties.edit mas NÃO reordena — pedido da Andrea "eu e a manager"). Gate
+// por PAPEL, não por cap (properties.edit inclui a secretária).
+export function canReorderDocuments(
+  profile: Pick<ProfileLike, "role" | "active"> | null | undefined
+): boolean {
+  return !!profile && profile.active && (profile.role === "owner" || profile.role === "manager");
+}
+
 export const ROLE_LABEL: Record<AppRole, string> = {
   owner: "Owner",
   manager: "Manager",

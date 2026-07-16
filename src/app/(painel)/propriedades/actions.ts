@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { PropertyType, RequestStatus } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete, can } from "@/lib/auth/capabilities";
+import { canDelete, can, canReorderDocuments } from "@/lib/auth/capabilities";
 import { generateMonthlyPaymentsAction } from "../payments/actions";
 
 function str(fd: FormData, key: string): string | null {
@@ -718,5 +718,34 @@ export async function renameDocumentAction(fd: FormData) {
     .eq("id", id)
     .eq("parent_type", "property");
   if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${propertyId}`);
+}
+
+// ---- Manual document ordering (owner + manager only) ------------------------
+// Persiste a ordem escolhida à mão: sort_order = posição (0,1,2…) na lista dada.
+// `orderedIds` = os documentos de UMA seção (current / property / um past tenant)
+// na ordem final. Só toca sort_order; grava em paralelo. Gate por PAPEL
+// (owner/manager) — a secretária tem properties.edit mas NÃO reordena.
+export async function reorderDocumentsAction(propertyId: string, orderedIds: string[]) {
+  const profile = await getProfile();
+  if (!canReorderDocuments(profile)) {
+    throw new Error("Only the owner and manager can reorder documents.");
+  }
+  if (!propertyId) throw new Error("Missing property reference.");
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) return;
+
+  const supabase = createClient();
+  const results = await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase
+        .from("documents")
+        .update({ sort_order: i })
+        .eq("id", id)
+        .eq("parent_type", "property")
+        .eq("parent_id", propertyId)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw new Error(failed.error.message);
   revalidatePath(`/propriedades/${propertyId}`);
 }

@@ -435,6 +435,9 @@ export interface Document {
   // (provenance + import idempotency). Both null for manually-uploaded docs.
   doc_date: string | null;
   source_path: string | null;
+  // migration 0024 — manual ordering (owner/manager). When set, orders the doc
+  // within its tenant group (ascending); null falls back to doc_date desc.
+  sort_order: number | null;
   created_at: string;
   archived_at: string | null;
 }
