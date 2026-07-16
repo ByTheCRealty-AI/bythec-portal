@@ -68,7 +68,6 @@ export default async function PropriedadesPage({
     <>
       <PageHeader
         title="Properties"
-        subtitle="Every property has an owner. Add a new one or attach it from the client's record."
         action={
           <div className="flex items-center gap-3">
             {can(profile, "properties.edit") && (

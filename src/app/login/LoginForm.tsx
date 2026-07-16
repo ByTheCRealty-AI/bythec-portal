@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import { Loader2 } from "lucide-react";
@@ -93,6 +94,15 @@ export function LoginForm({ next }: { next: string }) {
           placeholder="••••••••"
         />
       </Field>
+
+      <div className="-mt-1 text-right">
+        <Link
+          href="/auth/forgot-password"
+          className="text-sm font-medium text-primary hover:text-secondary"
+        >
+          Forgot password?
+        </Link>
+      </div>
 
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">
