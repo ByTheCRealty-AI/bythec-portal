@@ -134,6 +134,50 @@ export default async function FinancesPage({
 
   const dealsForYear = isAll ? closedDeals : closedDeals.filter((d) => yearOf(d.deal_closed_at) === selYear);
 
+  // ---- Monthly earnings (RECEIVED per period) ----
+  // For a specific year: 12 months. For "All time": one row per year. Buckets by
+  // when the money came in (received/paid/closed date).
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  type Row = { yr: number; seasonal: number; service: number; sales: number };
+  const buckets = new Map<string, Row>();
+  const bucketKey = (s: string | null): string | null => {
+    const y = yearOf(s);
+    if (y == null) return null;
+    if (isAll) return String(y);
+    if (y !== selYear) return null;
+    const m = Number(String(s).slice(5, 7));
+    return m >= 1 && m <= 12 ? String(m) : null;
+  };
+  const addTo = (key: string | null, field: keyof Row, amt: number) => {
+    if (key == null || !amt) return;
+    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, sales: 0 };
+    b[field] += amt;
+    buckets.set(key, b);
+  };
+  for (const p of payments) {
+    if (p.status !== "received") continue;
+    addTo(bucketKey((p.received_at as string) ?? (p.month as string) ?? (p.due_date as string)), "yr", n(p.commission));
+  }
+  for (const iv of invoices) {
+    if (!iv.paid) continue;
+    const when = (iv.paid_date as string) ?? (iv.date as string);
+    if (iv.kind === "seasonal") addTo(bucketKey(when), "seasonal", n(iv.bythec_commission));
+    else if (iv.kind === "service") addTo(bucketKey(when), "service", n(iv.labor_total) + n(iv.material_total));
+  }
+  for (const d of closedDeals) {
+    if (d.sale_commission_received) addTo(bucketKey(d.deal_closed_at), "sales", n(d.sale_commission));
+  }
+  const periodRows = (
+    isAll
+      ? years.map((y) => ({ label: String(y), key: String(y) }))
+      : MONTHS.map((m, i) => ({ label: m, key: String(i + 1) }))
+  ).map(({ label, key }) => {
+    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, sales: 0 };
+    return { label, ...b, total: b.yr + b.seasonal + b.service + b.sales };
+  });
+  const maxPeriod = Math.max(1, ...periodRows.map((r) => r.total));
+  const periodsTotal = periodRows.reduce((s, r) => s + r.total, 0);
+
   const streams = [
     { key: "yr", label: "Year-round rent commission", icon: Home, s: yearRound },
     { key: "seasonal", label: "Seasonal commission (Airbnb/VRBO)", icon: CalendarDays, s: seasonal },
@@ -203,6 +247,57 @@ export default async function FinancesPage({
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Monthly (or yearly) earnings received */}
+      <div className="mt-8">
+        <h2 className="h-display mb-1 text-base text-ink">
+          {isAll ? "Earnings by year" : `Monthly earnings · ${sel}`}
+        </h2>
+        <p className="mb-3 text-sm text-ink/55">Received by By the C each {isAll ? "year" : "month"}, by stream.</p>
+        <div className="overflow-x-auto rounded-2xl border border-black/[0.08] bg-white shadow-card">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
+              <tr>
+                <th className="px-4 py-3 font-bold">{isAll ? "Year" : "Month"}</th>
+                <th className="px-4 py-3 text-right font-bold">Year-round</th>
+                <th className="px-4 py-3 text-right font-bold">Seasonal</th>
+                <th className="px-4 py-3 text-right font-bold">Service</th>
+                <th className="px-4 py-3 text-right font-bold">Sales</th>
+                <th className="px-4 py-3 text-right font-bold">Received</th>
+              </tr>
+            </thead>
+            <tbody>
+              {periodRows.map((r, i) => (
+                <tr key={r.label} className={i % 2 === 1 ? "bg-black/[0.012]" : ""}>
+                  <td className="px-4 py-2.5 font-medium text-ink/80">{r.label}</td>
+                  <td className="px-4 py-2.5 text-right text-ink/60">{r.yr ? money(r.yr) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right text-ink/60">{r.seasonal ? money(r.seasonal) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right text-ink/60">{r.service ? money(r.service) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right text-ink/60">{r.sales ? money(r.sales) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <span
+                        className="hidden h-1.5 rounded-full bg-primary/25 sm:block"
+                        style={{ width: `${Math.round((r.total / maxPeriod) * 64)}px` }}
+                      />
+                      <span className={"font-semibold " + (r.total ? "text-primary" : "text-ink/30")}>
+                        {r.total ? money(r.total) : "$0"}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-black/[0.08] bg-black/[0.02]">
+                <td className="px-4 py-3 font-bold text-ink">Total</td>
+                <td colSpan={4} />
+                <td className="px-4 py-3 text-right font-bold text-primary">{money(periodsTotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       {/* Sales commission entry */}
