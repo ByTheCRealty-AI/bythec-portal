@@ -85,7 +85,7 @@ export function NoteRow({
           </div>
           <p className="whitespace-pre-wrap text-sm text-ink/80">{note.body || "—"}</p>
           {note.created_by_name && (
-            <p className="mt-2 text-[11px] text-ink/40">Added by {note.created_by_name}</p>
+            <p className="mt-2 text-[11px] text-ink/40">{note.created_by_name}</p>
           )}
         </div>
         {canEdit && (
