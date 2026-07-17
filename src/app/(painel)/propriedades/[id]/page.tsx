@@ -7,7 +7,7 @@ import { PropriedadeArchiveButton } from "../PropriedadeArchiveButton";
 import { PropriedadeDeleteButton } from "../PropriedadeDeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete, can } from "@/lib/auth/capabilities";
+import { canDelete, can, canReorderDocuments } from "@/lib/auth/capabilities";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
@@ -157,9 +157,10 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .eq("parent_type", "property")
       .eq("parent_id", p.id)
       .is("archived_at", null)
-      // ALWAYS newest → oldest by the document's date (every doc has one now),
-      // then upload time as tiebreaker. This holds in every tenant group and stays
-      // correct when a doc is re-assigned to another tenant (it keeps its date).
+      // Manual order first where an owner/manager set it (sort_order asc), otherwise
+      // newest → oldest by date (every doc has one). A group nobody reordered stays
+      // pure newest→oldest; a reordered group follows the manual arrangement.
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("doc_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
     // Pagamentos desta propriedade (não-arquivados). Mês desc nulls last, depois
@@ -630,12 +631,10 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     a.name.localeCompare(b.name)
   );
 
-  // Documentos agora ordenam SEMPRE por data (newest→oldest) automaticamente —
-  // a Andrea pediu ordem automática, não manual. Por isso o botão "Reorder" fica
-  // DESLIGADO (ordem manual conflita com a ordenação por data). A coluna sort_order,
-  // reorderDocumentsAction e o SortableDocumentList continuam no código — é só religar
-  // este flag (canReorderDocuments(profile)) se um dia ela quiser reordenar à mão.
-  const canReorderDocs = false;
+  // Reorder LIGADO pra owner + manager (a Andrea pediu que a manager reordene os
+  // documentos). Default segue newest→oldest por data; quem tiver a cap arrasta pra
+  // sobrepor a ordem de um grupo (sort_order). A secretária NÃO reordena.
+  const canReorderDocs = canReorderDocuments(profile);
   const docRowProps = {
     canDelete: canUploadDocs,
     deleteAction: deletePropertyDocumentAction,

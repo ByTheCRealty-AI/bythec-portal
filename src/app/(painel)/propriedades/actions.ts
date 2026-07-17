@@ -392,9 +392,11 @@ export async function updateDocumentTenancyAction(fd: FormData) {
   const supabase = createClient();
   const { tenantId, tenantLabel } = await resolveBelongsTo(supabase, propertyId, fd);
 
+  // Reset sort_order ao re-taggar: o doc entra no NOVO grupo pela data (newest→oldest),
+  // sem carregar a posição manual que tinha no grupo antigo.
   const { error } = await supabase
     .from("documents")
-    .update({ tenant_id: tenantId, tenant_label: tenantLabel })
+    .update({ tenant_id: tenantId, tenant_label: tenantLabel, sort_order: null })
     .eq("id", id)
     .eq("parent_type", "property");
   if (error) throw new Error(error.message);
