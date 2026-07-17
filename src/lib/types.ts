@@ -134,6 +134,10 @@ export interface Client {
   // stamped when the deal leaves active and cleared when reopened.
   deal_status: DealStatus | null;
   deal_closed_at: string | null;
+  // Brokerage commission earned on this deal (migration 0026). Entered by
+  // owner/manager in Finances for closed deals. received = paid to By the C.
+  sale_commission: number | null;
+  sale_commission_received: boolean;
 }
 
 export interface Property {
