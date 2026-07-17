@@ -29,6 +29,7 @@ import {
   type Document,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
+import { operatorNameMap, withCreatorNames } from "@/lib/operators";
 import { Home, Pencil, FileText, StickyNote } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -74,11 +75,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   // Notes (polymorphic) attached to this client.
   const { data: notesData } = await supabase
     .from("notes")
-    .select("id, body, year, created_at, updated_at, parent_type, parent_id")
+    .select("id, body, year, created_at, updated_at, parent_type, parent_id, created_by")
     .eq("parent_type", "client")
     .eq("parent_id", client.id)
     .order("created_at", { ascending: false });
-  const notes = (notesData ?? []) as Note[];
+  const notes = withCreatorNames((notesData ?? []) as Note[], await operatorNameMap(supabase));
 
   // Documents (polymorphic) attached to this client.
   const { data: documentsData } = await supabase

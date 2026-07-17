@@ -172,6 +172,7 @@ export async function addClientNoteAction(fd: FormData) {
     parent_id: clientId,
     body,
     year,
+    created_by: profile?.id ?? null,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/clientes/${clientId}`);

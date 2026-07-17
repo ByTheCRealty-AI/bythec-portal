@@ -14,6 +14,7 @@ export interface RequestRow {
   status: RequestStatus;
   property_address: string | null;
   tenant_name: string | null;
+  created_by_name: string | null;
 }
 
 type Filter = "" | "open" | "done";
@@ -100,6 +101,7 @@ export function RequestsTable({ rows }: { rows: RequestRow[] }) {
                 <th className="px-5 py-3 font-bold">Tenant</th>
                 <th className="px-5 py-3 font-bold">Description</th>
                 <th className="px-5 py-3 font-bold">Status</th>
+                <th className="px-5 py-3 font-bold">Created by</th>
               </tr>
             </thead>
             <tbody>
@@ -123,6 +125,9 @@ export function RequestsTable({ rows }: { rows: RequestRow[] }) {
                   </td>
                   <td className="px-5 py-3.5">
                     <StatusBadge status={r.status} />
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3.5 text-ink/55">
+                    {r.created_by_name ?? <span className="text-ink/30">—</span>}
                   </td>
                 </tr>
               ))}

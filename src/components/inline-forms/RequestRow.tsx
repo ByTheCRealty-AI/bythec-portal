@@ -102,6 +102,9 @@ export function RequestRow({
       <div className="min-w-0">
         <p className="text-sm text-ink/85">{request.description || "—"}</p>
         <p className="mt-0.5 text-xs text-ink/45">{date(request.date ?? request.created_at)}</p>
+        {request.created_by_name && (
+          <p className="mt-1 text-[11px] text-ink/40">Added by {request.created_by_name}</p>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <StatusBadge status={request.status} />

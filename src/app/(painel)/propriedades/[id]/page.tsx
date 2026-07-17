@@ -73,6 +73,7 @@ import {
   type Payment,
 } from "@/lib/types";
 import { money, date } from "@/lib/format";
+import { operatorNameMap, withCreatorNames } from "@/lib/operators";
 import { Pencil, User, StickyNote, Wrench, HardHat, FileText, Wallet } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -127,20 +128,20 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   ] = await Promise.all([
     supabase
       .from("notes")
-      .select("id, body, year, created_at, updated_at, parent_type, parent_id")
+      .select("id, body, year, created_at, updated_at, parent_type, parent_id, created_by")
       .eq("parent_type", "property")
       .eq("parent_id", p.id)
       .order("created_at", { ascending: false }),
     supabase
       .from("services")
       .select(
-        "id, service_request_date, description, status, price, created_at, provider:provider_id(id,name)"
+        "id, service_request_date, description, status, price, created_at, created_by, provider:provider_id(id,name)"
       )
       .eq("property_id", p.id)
       .order("created_at", { ascending: false }),
     supabase
       .from("tenant_requests")
-      .select("id, date, description, status, created_at")
+      .select("id, date, description, status, created_at, created_by")
       .eq("property_id", p.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -181,9 +182,11 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .order("name", { ascending: true }),
   ]);
 
-  const notes = (notesData ?? []) as Note[];
-  const services = (servicesData ?? []) as unknown as Service[];
-  const requests = (requestsData ?? []) as unknown as TenantRequest[];
+  // Nomes dos criadores (owner/manager/secretary) pra exibir "Added by X".
+  const creatorNames = await operatorNameMap(supabase);
+  const notes = withCreatorNames((notesData ?? []) as Note[], creatorNames);
+  const services = withCreatorNames((servicesData ?? []) as unknown as Service[], creatorNames);
+  const requests = withCreatorNames((requestsData ?? []) as unknown as TenantRequest[], creatorNames);
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = (documentsData ?? []) as Document[];
   const payments = (paymentsData ?? []) as unknown as Payment[];

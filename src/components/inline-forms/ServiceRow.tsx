@@ -139,7 +139,12 @@ export function ServiceRow({
       <td className="whitespace-nowrap px-4 py-3 text-ink/65">
         {date(service.service_request_date ?? service.created_at)}
       </td>
-      <td className="px-4 py-3 text-ink/85">{service.description || "—"}</td>
+      <td className="px-4 py-3 text-ink/85">
+        {service.description || "—"}
+        {service.created_by_name && (
+          <span className="mt-0.5 block text-[11px] text-ink/40">Added by {service.created_by_name}</span>
+        )}
+      </td>
       <td className="px-4 py-3 text-ink/65">{service.provider?.name ?? "—"}</td>
       <td className="px-4 py-3 text-right text-ink/85">{money(service.price)}</td>
       <td className="px-4 py-3">

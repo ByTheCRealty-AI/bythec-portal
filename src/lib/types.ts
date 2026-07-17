@@ -381,6 +381,9 @@ export interface TenantRequest {
   // joins opcionais
   property?: Pick<Property, "id" | "address"> | null;
   tenant?: Pick<Client, "id" | "name"> | null;
+  // Autoria.
+  created_by?: string | null;
+  created_by_name?: string | null;
 }
 
 export interface Service {
@@ -396,6 +399,9 @@ export interface Service {
   created_at: string;
   // join opcional
   provider?: Pick<ServiceProvider, "id" | "name"> | null;
+  // Autoria.
+  created_by?: string | null;
+  created_by_name?: string | null;
 }
 
 export type NoteParentType = "client" | "property" | "listing";
@@ -408,6 +414,9 @@ export interface Note {
   year: number | null;
   created_at: string;
   updated_at: string;
+  // Autoria: id do criador + nome resolvido (via operator_names) pra exibir.
+  created_by?: string | null;
+  created_by_name?: string | null;
 }
 
 // Documents (polymorphic). file_url stores the STORAGE OBJECT PATH (bucket is

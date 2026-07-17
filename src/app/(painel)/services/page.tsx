@@ -6,6 +6,7 @@ import { Hammer } from "lucide-react";
 import type { RequestStatus } from "@/lib/types";
 import { ServicesTable, type ServiceListRow, type ProviderOption } from "./ServicesTable";
 import { updateServiceAction, deleteServiceAction } from "../propriedades/actions";
+import { operatorNameMap } from "@/lib/operators";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ type RawService = {
   done_at: string | null;
   price: number | null;
   created_at: string;
+  created_by: string | null;
   property?: { id: string; address: string; address2: string | null } | null;
   provider?: { id: string; name: string } | null;
 };
@@ -31,13 +33,14 @@ async function load() {
     const { data, error } = await supabase
       .from("services")
       .select(
-        "id, property_id, service_request_date, description, status, done_at, price, created_at, property:property_id(id, address, address2), provider:provider_id(id, name)"
+        "id, property_id, service_request_date, description, status, done_at, price, created_at, created_by, property:property_id(id, address, address2), provider:provider_id(id, name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return { ok: true as const, services: (data ?? []) as unknown as RawService[] };
+    const names = await operatorNameMap(supabase);
+    return { ok: true as const, services: (data ?? []) as unknown as RawService[], names };
   } catch {
-    return { ok: false as const, services: [] as RawService[] };
+    return { ok: false as const, services: [] as RawService[], names: new Map<string, string>() };
   }
 }
 
@@ -68,7 +71,7 @@ export default async function ServicesPage() {
     );
   }
 
-  const [{ ok, services }, providers] = await Promise.all([load(), loadProviders()]);
+  const [{ ok, services, names }, providers] = await Promise.all([load(), loadProviders()]);
   const canEdit = can(profile, "operations.edit");
 
   const rows: ServiceListRow[] = services.map((s) => ({
@@ -83,6 +86,7 @@ export default async function ServicesPage() {
     status: s.status,
     done_at: s.done_at,
     price: s.price,
+    created_by_name: s.created_by ? names.get(s.created_by) ?? null : null,
   }));
 
   return (

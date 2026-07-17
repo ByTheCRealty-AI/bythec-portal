@@ -265,6 +265,7 @@ export async function addPropertyNoteAction(fd: FormData) {
     parent_id: propertyId,
     body,
     year,
+    created_by: profile?.id ?? null,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
@@ -291,6 +292,7 @@ export async function addServiceAction(fd: FormData) {
     status,
     price: num(fd, "price"),
     provider_id: str(fd, "provider_id"),
+    created_by: profile?.id ?? null,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
@@ -420,6 +422,7 @@ export async function addRequestAction(fd: FormData) {
     date: str(fd, "date") ?? today(),
     description,
     status,
+    created_by: profile?.id ?? null,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);

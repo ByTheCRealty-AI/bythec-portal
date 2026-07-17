@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { Wrench } from "lucide-react";
 import type { TenantRequest } from "@/lib/types";
+import { operatorNameMap } from "@/lib/operators";
 import { RequestsTable, type RequestRow } from "./RequestsTable";
 
 export const dynamic = "force-dynamic";
@@ -14,13 +15,14 @@ async function load() {
     const { data, error } = await supabase
       .from("tenant_requests")
       .select(
-        "id, date, description, status, done_at, created_at, property:property_id(id,address), tenant:tenant_id(id,name)"
+        "id, date, description, status, done_at, created_at, created_by, property:property_id(id,address), tenant:tenant_id(id,name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return { ok: true as const, requests: (data ?? []) as unknown as TenantRequest[] };
+    const names = await operatorNameMap(supabase);
+    return { ok: true as const, requests: (data ?? []) as unknown as TenantRequest[], names };
   } catch {
-    return { ok: false as const, requests: [] as TenantRequest[] };
+    return { ok: false as const, requests: [] as TenantRequest[], names: new Map<string, string>() };
   }
 }
 
@@ -35,7 +37,7 @@ export default async function RequestsPage() {
     );
   }
 
-  const { ok, requests } = await load();
+  const { ok, requests, names } = await load();
 
   const rows: RequestRow[] = requests.map((r) => ({
     id: r.id,
@@ -44,6 +46,7 @@ export default async function RequestsPage() {
     status: r.status,
     property_address: r.property?.address ?? null,
     tenant_name: r.tenant?.name ?? null,
+    created_by_name: r.created_by ? names.get(r.created_by) ?? null : null,
   }));
 
   return (
