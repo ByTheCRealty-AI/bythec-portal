@@ -32,6 +32,7 @@ export type Capability =
   | "invoices.service" // criar/ver SOMENTE invoices de serviço
   | "invoices.seasonal" // criar/ver SOMENTE invoices de temporada (Airbnb/VRBO)
   | "payments.annual" // gerir pagamentos de aluguel year-round
+  | "expenses.manage" // ver/gerir a aba Expenses (owner+manager+secretária) — NÃO abre Finances
   | "reminders.view" // ver o quadro compartilhado de lembretes/follow-ups
   | "reminders.manage" // criar/atribuir/completar/editar/arquivar lembretes
   | "clients.own" // ver/gerir SOMENTE os clientes que o próprio usuário criou (realtor)
@@ -50,6 +51,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "invoices.service",
   "invoices.seasonal",
   "payments.annual",
+  "expenses.manage",
   "reminders.view",
   "reminders.manage",
   "clients.own",
@@ -70,6 +72,7 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "invoices.service": "Service invoices — create & view (service type only)",
   "invoices.seasonal": "Seasonal invoices — create & view (Airbnb / VRBO)",
   "payments.annual": "Year-round payments — manage rent payments",
+  "expenses.manage": "Expenses — view & manage the expenses list",
   "reminders.view": "Reminders — see the shared follow-up board",
   "reminders.manage": "Reminders — create, assign, complete & archive",
   "clients.own": "Clients — view & manage only their own (scoped)",
@@ -98,6 +101,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "invoices.service",
     "invoices.seasonal",
     "payments.annual",
+    "expenses.manage",
     "reminders.view",
     "reminders.manage",
     "clients.own",
@@ -113,15 +117,16 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "properties.edit",
     "operations.edit",
     "invoices.service",
-    "invoices.seasonal", // vê/cria TODAS as invoices; NÃO vê commissions/payouts/expenses
+    "invoices.seasonal", // vê/cria TODAS as invoices; NÃO vê commissions/payouts
     "payments.annual",
+    "expenses.manage", // vê/gerencia Expenses; mas NÃO Finances (sem financials.full)
     "reminders.view",
     "reminders.manage",
     "clients.own",
     "properties.own",
     "providers.view",
     "listings.view",
-    // SEM financials.full, SEM gestão de usuários
+    // SEM financials.full (Finances), SEM gestão de usuários
   ],
   // Externos: sem capacidade interna, EXCETO o quadro de lembretes — realtor
   // participa do board (pode ser designado e ver os follow-ups). Além disso o

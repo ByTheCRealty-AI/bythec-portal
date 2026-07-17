@@ -41,7 +41,7 @@ const NAV: Item[] = [
   { href: "/propriedades", label: "Properties", icon: Home, ready: true, cap: "properties.own" },
   { href: "/invoices", label: "Invoices", icon: FileText, ready: true, cap: "invoices.service" },
   { href: "/payments", label: "Payments", icon: Wallet, ready: true, cap: "payments.annual" },
-  { href: "/expenses", label: "Expenses", icon: Receipt, ready: false, cap: "financials.full" },
+  { href: "/expenses", label: "Expenses", icon: Receipt, ready: true, cap: "expenses.manage" },
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/services", label: "Services", icon: Hammer, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "providers.view" },

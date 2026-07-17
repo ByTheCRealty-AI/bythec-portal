@@ -453,6 +453,55 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
 };
 
 // =============================================================================
+// Expenses — despesas do negócio / por propriedade. Tabela `expenses` (0003 +
+// enum paid_by). Aba Expenses = owner + manager + secretária (cap expenses.manage).
+// =============================================================================
+export type PaidBy = "bythec" | "owner" | "tenant" | "other";
+export const PAID_BY_LABEL: Record<PaidBy, string> = {
+  bythec: "By the C",
+  owner: "Owner",
+  tenant: "Tenant",
+  other: "Other",
+};
+
+// Categorias sugeridas (texto livre no banco; dropdown com opção de digitar).
+export const EXPENSE_CATEGORY_OPTIONS: string[] = [
+  "Maintenance / Repairs",
+  "Cleaning",
+  "Landscaping / Lawn",
+  "Utilities",
+  "Supplies",
+  "Insurance",
+  "Taxes / Fees",
+  "Permits / Registration",
+  "Marketing / Advertising",
+  "Software / Subscriptions",
+  "Office",
+  "Travel / Mileage",
+  "Professional Services",
+  "Other",
+];
+
+export interface Expense {
+  id: string;
+  description: string;
+  price: number;
+  date: string;
+  due_date: string | null;
+  paid: boolean;
+  paid_by: PaidBy | null;
+  category: string | null;
+  vendor: string | null;
+  property_id: string | null;
+  client_id: string | null;
+  archived_at: string | null;
+  created_at: string;
+  // joins opcionais
+  property?: Pick<Property, "id" | "address" | "address2"> | null;
+  client?: Pick<Client, "id" | "name"> | null;
+}
+
+// =============================================================================
 // Payments — aluguel year-round / off-season. REGIME DE CAIXA (due -> received).
 // Espelha a tabela `payments` na DB live (0002_finance + coluna `kind`).
 // =============================================================================
