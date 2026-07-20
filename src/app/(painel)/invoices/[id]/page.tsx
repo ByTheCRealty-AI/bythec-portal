@@ -101,9 +101,10 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
     : [];
 
   const serviceAddress =
-    invoice.property?.address ??
-    invoice.service_address ??
-    null;
+    (invoice.property
+      ? invoice.property.address +
+        (invoice.property.address2 ? ` · ${invoice.property.address2}` : "")
+      : invoice.service_address) ?? null;
 
   return (
     <>

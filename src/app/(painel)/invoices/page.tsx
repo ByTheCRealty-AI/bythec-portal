@@ -15,7 +15,7 @@ async function load() {
     const { data, error } = await supabase
       .from("invoices")
       .select(
-        "id, invoice_number, kind, platform, date, paid, cleaner_paid, cleaning_goes_to, total_paid_by_guest, labor_total, material_total, client:client_id(id,name), property:property_id(id,address)"
+        "id, invoice_number, kind, platform, date, paid, cleaner_paid, cleaning_goes_to, total_paid_by_guest, labor_total, material_total, client:client_id(id,name), property:property_id(id,address,address2)"
       )
       .is("archived_at", null)
       .order("invoice_number", { ascending: false });
@@ -70,7 +70,9 @@ export default async function InvoicesPage({
         ? i.total_paid_by_guest ?? 0
         : (i.labor_total ?? 0) + (i.material_total ?? 0),
     client_name: i.client?.name ?? null,
-    property_address: i.property?.address ?? null,
+    property_address: i.property
+      ? i.property.address + (i.property.address2 ? ` · ${i.property.address2}` : "")
+      : null,
     // Cleaner ainda não pago: só seasonal com cleaning fee pra By the C.
     cleaner_unpaid:
       i.kind === "seasonal" && i.cleaning_goes_to === "bythec" && !i.cleaner_paid,

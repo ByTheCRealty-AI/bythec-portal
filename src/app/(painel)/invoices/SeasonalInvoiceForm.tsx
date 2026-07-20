@@ -243,7 +243,10 @@ export function SeasonalInvoiceForm({
             >
               <option value="" disabled>Select property…</option>
               {clientProps.map((p) => (
-                <option key={p.id} value={p.id}>{p.address}</option>
+                <option key={p.id} value={p.id}>
+                  {p.address}
+                  {p.address2 ? ` · ${p.address2}` : ""}
+                </option>
               ))}
             </select>
           </Field>
