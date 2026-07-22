@@ -168,6 +168,7 @@ export default async function PropriedadesPage({
           properties={properties}
           initialQuery={searchParams.q ?? ""}
           archivedView={archivedView}
+          activeType={active}
         />
       )}
     </>

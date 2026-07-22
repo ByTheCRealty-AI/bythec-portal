@@ -21,15 +21,28 @@ function toneFor(t: PropertyType): "gold" | "orange" | "neutral" {
   return "neutral";
 }
 
+// Badge do status de venda. active=verde, pending=laranja, sold=neutro, resto=muted.
+function saleStatusTone(s: string | null): "gold" | "orange" | "neutral" | "muted" {
+  if (s === "active") return "gold";
+  if (s === "pending") return "orange";
+  if (s === "sold") return "neutral";
+  return "muted";
+}
+
 export function PropertiesTable({
   properties,
   initialQuery = "",
   archivedView = false,
+  activeType = "",
 }: {
   properties: PropertyRow[];
   initialQuery?: string;
   archivedView?: boolean;
+  // Filtro de tipo ativo (?tipo=). Em 'for_sale' a tabela troca Tenant/Rent pelas
+  // colunas de venda (Sale price / My commission / Status).
+  activeType?: string;
 }) {
+  const forSaleView = activeType === "for_sale";
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
 
@@ -75,10 +88,21 @@ export function PropertiesTable({
             <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
               <tr>
                 <th className="px-5 py-3 font-bold">Address</th>
-                <th className="px-5 py-3 font-bold">Type</th>
-                <th className="px-5 py-3 font-bold">Owner</th>
-                <th className="px-5 py-3 font-bold">Tenant</th>
-                <th className="px-5 py-3 font-bold">Rent</th>
+                {forSaleView ? (
+                  <>
+                    <th className="px-5 py-3 font-bold">Owner</th>
+                    <th className="px-5 py-3 text-right font-bold">Sale price</th>
+                    <th className="px-5 py-3 text-right font-bold">My commission</th>
+                    <th className="px-5 py-3 font-bold">Status</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-5 py-3 font-bold">Type</th>
+                    <th className="px-5 py-3 font-bold">Owner</th>
+                    <th className="px-5 py-3 font-bold">Tenant</th>
+                    <th className="px-5 py-3 font-bold">Rent</th>
+                  </>
+                )}
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -112,36 +136,78 @@ export function PropertiesTable({
                     </span>
                     {p.address2 && <span className="block text-xs text-ink/45">{p.address2}</span>}
                   </td>
-                  <td className="px-5 py-3.5">
-                    <Badge tone={toneFor(p.property_type)}>{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
-                  </td>
-                  <td className="px-5 py-3.5 text-ink/65">
-                    {p.owner ? (
-                      <Link
-                        href={`/clientes/${p.owner.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-primary"
-                      >
-                        {p.owner.name}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-ink/65">
-                    {p.tenant ? (
-                      <Link
-                        href={`/clientes/${p.tenant.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-primary"
-                      >
-                        {p.tenant.name}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-ink/70">{money(p.rent_price)}</td>
+                  {forSaleView ? (
+                    <>
+                      <td className="px-5 py-3.5 text-ink/65">
+                        {p.owner ? (
+                          <Link
+                            href={`/clientes/${p.owner.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-primary"
+                          >
+                            {p.owner.name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-ink/80">{money(p.sale_price)}</td>
+                      <td className="px-5 py-3.5 text-right">
+                        {p.sale_commission != null ? (
+                          <span className="font-semibold text-primary">
+                            {money(p.sale_commission)}
+                            {p.sale_commission_rate != null && (
+                              <span className="ml-1 font-normal text-ink/40">· {p.sale_commission_rate}%</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-ink/35">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {p.sale_status ? (
+                          <Badge tone={saleStatusTone(p.sale_status)}>
+                            {p.sale_status.charAt(0).toUpperCase() + p.sale_status.slice(1)}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-5 py-3.5">
+                        <Badge tone={toneFor(p.property_type)}>{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
+                      </td>
+                      <td className="px-5 py-3.5 text-ink/65">
+                        {p.owner ? (
+                          <Link
+                            href={`/clientes/${p.owner.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-primary"
+                          >
+                            {p.owner.name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-ink/65">
+                        {p.tenant ? (
+                          <Link
+                            href={`/clientes/${p.tenant.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-primary"
+                          >
+                            {p.tenant.name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-ink/70">{money(p.rent_price)}</td>
+                    </>
+                  )}
                   <td className="px-5 py-3.5 text-right">
                     <Link href={`/propriedades/${p.id}`} className="inline-flex text-ink/40 hover:text-primary">
                       <ChevronRight className="h-4 w-4" />
