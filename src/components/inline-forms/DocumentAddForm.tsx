@@ -38,6 +38,7 @@ export function DocumentAddForm({
   action,
   currentTenant = null,
   tenantOptions = [],
+  hideTenantOptions = false,
 }: {
   parentType: "client" | "property";
   parentId: string;
@@ -45,6 +46,9 @@ export function DocumentAddForm({
   // Property-only "belongs to" inputs. Ignored for clients.
   currentTenant?: { id: string; name: string } | null;
   tenantOptions?: TenantOption[];
+  // For Sale properties têm nada de inquilino: esconde o seletor "Belongs to" e
+  // o doc é sempre atribuído à propriedade (property-level).
+  hideTenantOptions?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,7 +56,7 @@ export function DocumentAddForm({
   const fileRef = useRef<HTMLInputElement>(null);
   const currentYear = new Date().getFullYear();
   const target = parentType === "client" ? "client" : "property";
-  const showBelongsTo = parentType === "property";
+  const showBelongsTo = parentType === "property" && !hideTenantOptions;
 
   // "Belongs to" state (property only). UI-level "belongs" is resolved to the
   // server enum on submit. Past tenant can be an existing client OR a free name.

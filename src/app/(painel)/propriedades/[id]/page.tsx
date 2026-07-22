@@ -613,6 +613,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   // ---- Aba Documents (upload no browser + lista + download via signed URL) ----
   // Gate: properties.edit OU operations.edit (RLS reforça no banco).
   const canUploadDocs = canEditProperty || canEditOps;
+  // For Sale: sem inquilino. Documentos são só da propriedade — esconde o seletor
+  // "Belongs to" (add) e o botão "Tenant" (re-tag) nas rows.
+  const isForSaleProp = p.property_type === "for_sale";
 
   // "Belongs to" grouping: Current tenant -> Past tenant(s) -> Property docs.
   //  - current: tenant_id == current tenant (only when the property is occupied).
@@ -657,7 +660,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const docRowProps = {
     canDelete: canUploadDocs,
     deleteAction: deletePropertyDocumentAction,
-    canEditTenancy: canUploadDocs,
+    canEditTenancy: canUploadDocs && !isForSaleProp,
     currentTenant: p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null,
     tenantOptions: tenantPickerOptions,
     updateTenancyAction: updateDocumentTenancyAction,
@@ -684,6 +687,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             action={addDocumentAction}
             currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
             tenantOptions={tenantPickerOptions}
+            hideTenantOptions={isForSaleProp}
           />
           <BulkDocumentImport
             propertyId={p.id}
