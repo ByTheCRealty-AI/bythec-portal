@@ -11,6 +11,7 @@ import {
   type PropertyType,
 } from "@/lib/types";
 import { createPropriedadeStandaloneAction } from "./actions";
+import { SaleFields } from "./SaleFields";
 
 type OwnerOption = { id: string; name: string };
 
@@ -20,6 +21,7 @@ type OwnerOption = { id: string; name: string };
 export function PropriedadeNovoForm({ owners }: { owners: OwnerOption[] }) {
   const [type, setType] = useState<PropertyType | "">("");
   const isRental = type === "year_round_rental" || type === "off_season_rental";
+  const isForSale = type === "for_sale";
 
   // Sem clientes cadastrados não dá pra pendurar propriedade. CTA pro fluxo de
   // criação de cliente (empty state nunca vazio).
@@ -88,46 +90,51 @@ export function PropriedadeNovoForm({ owners }: { owners: OwnerOption[] }) {
         </div>
       </section>
 
-      {/* Comissão */}
-      <section className="glass p-6">
-        <h2 className="h-display mb-5 text-base text-ink">Commission</h2>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field
-            label="Commission (% / amount per home)"
-            hint="For vacation rentals, the % is confirmed with Andrea."
-          >
-            <input
-              name="commission_fee"
-              type="number"
-              step="0.01"
-              className={inputClass}
-              placeholder="12.50"
-            />
-          </Field>
-          <Field label="Seasonal commission %" hint="By the C seasonal cut. Default 10%.">
-            <input
-              name="seasonal_commission_pct"
-              type="number"
-              step="0.1"
-              defaultValue="10"
-              className={inputClass}
-              placeholder="10"
-            />
-          </Field>
-          <Field
-            label="Commission based on"
-            hint="Most homes: host payout. A few (e.g. Rainbow): total paid by guest."
-          >
-            <select name="seasonal_commission_base" defaultValue="host_payout" className={inputClass}>
-              {Object.entries(SEASONAL_COMMISSION_BASE_LABEL).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-      </section>
+      {/* Comissão — só pra NÃO-venda (venda usa a seção Sale). */}
+      {!isForSale && (
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Commission</h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field
+              label="Commission (% / amount per home)"
+              hint="For vacation rentals, the % is confirmed with Andrea."
+            >
+              <input
+                name="commission_fee"
+                type="number"
+                step="0.01"
+                className={inputClass}
+                placeholder="12.50"
+              />
+            </Field>
+            <Field label="Seasonal commission %" hint="By the C seasonal cut. Default 10%.">
+              <input
+                name="seasonal_commission_pct"
+                type="number"
+                step="0.1"
+                defaultValue="10"
+                className={inputClass}
+                placeholder="10"
+              />
+            </Field>
+            <Field
+              label="Commission based on"
+              hint="Most homes: host payout. A few (e.g. Rainbow): total paid by guest."
+            >
+              <select name="seasonal_commission_base" defaultValue="host_payout" className={inputClass}>
+                {Object.entries(SEASONAL_COMMISSION_BASE_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </section>
+      )}
+
+      {/* Sale — só For Sale (preço + comissão da By the C). */}
+      {isForSale && <SaleFields />}
 
       {/* Aluguel — só para year-round / off-season (vacation rental não tem). */}
       {isRental && (

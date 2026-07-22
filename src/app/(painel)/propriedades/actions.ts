@@ -58,6 +58,9 @@ export async function createPropriedadeStandaloneAction(fd: FormData) {
       rental_start: str(fd, "rental_start"),
       rental_end: str(fd, "rental_end"),
       rent_collection: str(fd, "rent_collection") === "owner" ? "owner" : "bythec",
+      sale_price: num(fd, "sale_price"),
+      sale_commission_rate: num(fd, "sale_commission_rate"),
+      sale_commission: num(fd, "sale_commission"),
       notes: str(fd, "notes"),
     })
     .select("id")
@@ -87,6 +90,9 @@ export async function updatePropriedadeAction(id: string, fd: FormData) {
       rental_start: str(fd, "rental_start"),
       rental_end: str(fd, "rental_end"),
       rent_collection: str(fd, "rent_collection") === "owner" ? "owner" : "bythec",
+      sale_price: num(fd, "sale_price"),
+      sale_commission_rate: num(fd, "sale_commission_rate"),
+      sale_commission: num(fd, "sale_commission"),
       notes: str(fd, "notes"),
     })
     .eq("id", id);

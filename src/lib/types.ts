@@ -170,6 +170,11 @@ export interface Property {
   // Sales (brokerage) — only meaningful on for_sale properties.
   realtor_id: string | null;
   sale_status: string | null;
+  // For Sale: list price + By the C's sale commission (migration 0027). rate = %
+  // (drives the $ in the UI); sale_commission = $ earned (authoritative).
+  sale_price: number | null;
+  sale_commission_rate: number | null;
+  sale_commission: number | null;
   // join opcional
   owner?: Pick<Client, "id" | "name" | "email"> | null;
 }

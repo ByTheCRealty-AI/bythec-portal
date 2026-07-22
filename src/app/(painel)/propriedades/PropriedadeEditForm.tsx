@@ -1,0 +1,160 @@
+"use client";
+
+// Form de EDIÇÃO de propriedade (client) — reativo ao Type: For Sale mostra a
+// seção Sale e esconde Commission(seasonal) + Lease/rent; rental mostra rent.
+// Espelha o PropriedadeNovoForm, mas com defaults do registro existente.
+import { useState } from "react";
+import Link from "next/link";
+import { Field, inputClass, buttonClass } from "@/components/ui";
+import {
+  PROPERTY_TYPE_LABEL,
+  SEASONAL_COMMISSION_BASE_LABEL,
+  RENT_COLLECTION_LABEL,
+  type Property,
+  type PropertyType,
+} from "@/lib/types";
+import { SaleFields } from "./SaleFields";
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+export function PropriedadeEditForm({
+  property: p,
+  action,
+}: {
+  property: Property;
+  action: (fd: FormData) => void | Promise<void>;
+}) {
+  const [type, setType] = useState<PropertyType>(p.property_type);
+  const isRental = type === "year_round_rental" || type === "off_season_rental";
+  const isForSale = type === "for_sale";
+
+  return (
+    <form action={action} className="space-y-8">
+      <section className="glass p-6">
+        <h2 className="h-display mb-5 text-base text-ink">Property</h2>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field label="Address *" hint="From our records, with unit number — never from Google.">
+            <input name="address" required defaultValue={p.address} className={inputClass} />
+          </Field>
+          <Field label="Unit / apt">
+            <input name="address2" defaultValue={p.address2 ?? ""} className={inputClass} />
+          </Field>
+          <Field label="Type *">
+            <select
+              name="property_type"
+              required
+              value={type}
+              onChange={(e) => setType(e.target.value as PropertyType)}
+              className={inputClass}
+            >
+              {Object.entries(PROPERTY_TYPE_LABEL).map(([v, label]) => (
+                <option key={v} value={v}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </section>
+
+      {!isForSale && (
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Commission</h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field label="Commission">
+              <input
+                name="commission_fee"
+                type="number"
+                step="0.01"
+                defaultValue={p.commission_fee ?? ""}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Seasonal commission %" hint="By the C seasonal cut. Default 10%.">
+              <input
+                name="seasonal_commission_pct"
+                type="number"
+                step="0.1"
+                defaultValue={p.seasonal_commission_rate != null ? round1(p.seasonal_commission_rate * 100) : 10}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Commission based on" hint="Most homes: host payout. A few (e.g. Rainbow): total paid by guest.">
+              <select
+                name="seasonal_commission_base"
+                defaultValue={p.seasonal_commission_base ?? "host_payout"}
+                className={inputClass}
+              >
+                {Object.entries(SEASONAL_COMMISSION_BASE_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </section>
+      )}
+
+      {isForSale && (
+        <SaleFields
+          defaults={{ price: p.sale_price, rate: p.sale_commission_rate, amount: p.sale_commission }}
+        />
+      )}
+
+      {isRental && (
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Lease and rent</h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field label="Monthly rent (USD)">
+              <input name="rent_price" type="number" step="0.01" defaultValue={p.rent_price ?? ""} className={inputClass} />
+            </Field>
+            <Field label="Rent due day">
+              <input name="rent_due_day" type="number" min={1} max={31} defaultValue={p.rent_due_day ?? ""} className={inputClass} />
+            </Field>
+            <Field label="Lease start">
+              <input name="rental_start" type="date" defaultValue={p.rental_start ?? ""} className={inputClass} />
+            </Field>
+            <Field label="Lease end">
+              <input name="rental_end" type="date" defaultValue={p.rental_end ?? ""} className={inputClass} />
+            </Field>
+            <Field label="Frequency">
+              <select name="rent_frequency" defaultValue={p.rent_frequency ?? "monthly"} className={inputClass}>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="annual">Annual</option>
+              </select>
+            </Field>
+            <Field label="Rent collection" hint="Who collects the rent from the tenant. Rent + commission are tracked either way.">
+              <select name="rent_collection" defaultValue={p.rent_collection ?? "bythec"} className={inputClass}>
+                {Object.entries(RENT_COLLECTION_LABEL).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </section>
+      )}
+
+      <section className="glass p-6">
+        <h2 className="h-display mb-5 text-base text-ink">Notes</h2>
+        <Field label="Internal notes">
+          <textarea name="notes" rows={3} defaultValue={p.notes ?? ""} className={inputClass} />
+        </Field>
+      </section>
+
+      <div className="flex items-center gap-3">
+        <button type="submit" className={buttonClass("primary")}>
+          Save changes
+        </button>
+        <Link href={`/propriedades/${p.id}`} className={buttonClass("ghost")}>
+          Cancel
+        </Link>
+      </div>
+    </form>
+  );
+}

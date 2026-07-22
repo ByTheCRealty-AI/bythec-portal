@@ -353,6 +353,25 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         </Card>
       )}
 
+      {p.property_type === "for_sale" && (
+        <Card className="md:col-span-2">
+          <h3 className="h-display mb-3 text-sm text-ink/70">Sale</h3>
+          <div className="grid grid-cols-2 gap-x-8 sm:grid-cols-3">
+            <Row label="Sale price" value={money(p.sale_price)} />
+            <Row
+              label="My commission"
+              value={
+                p.sale_commission != null
+                  ? money(p.sale_commission) +
+                    (p.sale_commission_rate != null ? ` · ${p.sale_commission_rate}%` : "")
+                  : null
+              }
+            />
+            <Row label="Status" value={p.sale_status ?? null} />
+          </div>
+        </Card>
+      )}
+
       {p.notes && (
         <Card className="md:col-span-2">
           <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>
