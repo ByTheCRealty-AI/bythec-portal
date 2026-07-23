@@ -490,6 +490,53 @@ export async function setPaymentReceivedDateAction(id: string, dateStr: string |
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
 
+// --- REASSIGN DE INQUILINO (lease takeover) ---------------------------------
+// Move UM pagamento pra outro inquilino (tenant_id). Usado quando alguém assume
+// o lease de outro (ex.: Marta assumiu o do Robert em 15 Oak Neck #23). Não mexe
+// em status/valor — só muda de quem é a linha. Gate + revalidação padrão.
+export async function reassignPaymentTenantAction(id: string, tenantId: string) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  if (!tenantId) throw new Error("Pick a tenant.");
+  const supabase = createClient();
+
+  const { data: cli } = await supabase.from("clients").select("id").eq("id", tenantId).maybeSingle();
+  if (!cli) throw new Error("That tenant could not be found.");
+
+  const propertyId = await paymentPropertyId(supabase, id);
+  const { error } = await supabase.from("payments").update({ tenant_id: tenantId }).eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
+// Move em LOTE todo o aluguel AINDA DEVIDO (monthly/first/last, status=due) de um
+// inquilino pra outro, DENTRO de uma propriedade. Pra lease takeover: as mensais
+// futuras nasceram no inquilino antigo e passam pro novo de uma vez. Só toca DUE
+// (recebidas ficam com quem pagou). Retorna nada; revalida a propriedade.
+export async function moveUnpaidRentAction(fd: FormData) {
+  await assertCanManagePayments();
+  const propertyId = str(fd, "property_id");
+  const fromTenantId = str(fd, "from_tenant_id");
+  const toTenantId = str(fd, "to_tenant_id");
+  if (!propertyId || !fromTenantId || !toTenantId) throw new Error("Missing references.");
+  if (fromTenantId === toTenantId) throw new Error("Pick a different tenant.");
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ tenant_id: toTenantId })
+    .eq("property_id", propertyId)
+    .eq("tenant_id", fromTenantId)
+    .in("kind", ["monthly", "first_month", "last_month"])
+    .eq("status", "due");
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  revalidatePath("/propriedades/" + propertyId);
+}
+
 // --- PAGAMENTOS PARCIAIS (payment_parts) ------------------------------------
 // Um aluguel (monthly / first_month / last_month) pode ser quitado em N parcelas.
 // Cada parcela tem valor + data + método + comprovantes próprios (qualquer mídia,

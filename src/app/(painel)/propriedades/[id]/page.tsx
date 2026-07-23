@@ -229,6 +229,15 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     }
   }
 
+  // Inquilinos desta propriedade (atual + passados) pro reassign de pagamento.
+  const currentTenant = currentTenantId
+    ? { id: currentTenantId, name: p.tenant?.name ?? "Current tenant" }
+    : null;
+  const tenantOptions = [
+    ...(currentTenant ? [currentTenant] : []),
+    ...Array.from(pastNameById.entries()).map(([id, name]) => ({ id, name })),
+  ];
+
   const yearOf = (pay: Payment): number | null => {
     const d = pay.month ?? pay.due_date ?? pay.created_at ?? null;
     if (!d) return null;
@@ -450,6 +459,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 addReceipt: addDepositReceiptAction,
                 deleteReceipt: deleteDepositReceiptAction,
               }}
+              tenants={tenantOptions}
             />
           ) : (
             <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-8 text-center text-sm text-ink/55 shadow-card">
@@ -483,6 +493,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 addReceipt: addDepositReceiptAction,
                 deleteReceipt: deleteDepositReceiptAction,
               }}
+              tenants={tenantOptions}
+              propertyId={p.id}
+              currentTenant={currentTenant}
             />
           )}
         </>

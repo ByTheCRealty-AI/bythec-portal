@@ -12,6 +12,7 @@ import { PaymentWindow } from "./PaymentEntryButton";
 import { type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { type CommissionActions } from "./CommissionCollectedControl";
 import { type DepositActions } from "./DepositReceivedControl";
+import { type TenantOption } from "./TenantReassignControl";
 import { money, date, cx } from "@/lib/format";
 import {
   PAYMENT_KIND_LABEL,
@@ -113,6 +114,7 @@ export function PaymentRow({
   commissionActions,
   ownerActions,
   depositActions,
+  tenants,
 }: {
   payment: Payment;
   properties: PaymentPropertyOption[];
@@ -140,6 +142,8 @@ export function PaymentRow({
   // Deposit actions. When provided AND the row is a security deposit, clicking the
   // row opens the window with the deposit control (receipt/date/receipts).
   depositActions?: DepositActions;
+  // Property tenants (current + past) for moving a payment to another tenant.
+  tenants?: TenantOption[];
 }) {
   const [payOpen, setPayOpen] = useState(false);
 
@@ -237,6 +241,7 @@ export function PaymentRow({
         ownerActions={ownerActions}
         commissionActions={commissionActions}
         depositActions={depositActions}
+        tenants={tenants}
       />
     )}
     </>

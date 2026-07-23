@@ -22,6 +22,7 @@ import { OwnerPayoutControl, type OwnerPayoutActions } from "./OwnerPayoutContro
 import { CommissionCollectedControl, type CommissionActions } from "./CommissionCollectedControl";
 import { ReceivedDateEditor } from "./ReceivedDateEditor";
 import { DepositReceivedControl, type DepositActions } from "./DepositReceivedControl";
+import { TenantReassignControl, type TenantOption } from "./TenantReassignControl";
 import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PAYMENT_METHODS, PAYMENT_KIND_LABEL, type Payment, type PaymentStatus } from "@/lib/types";
 
@@ -189,6 +190,7 @@ export function PaymentWindow({
   ownerActions,
   commissionActions,
   depositActions,
+  tenants,
 }: {
   open: boolean;
   onClose: () => void;
@@ -217,6 +219,9 @@ export function PaymentWindow({
   // controle de recebimento (recibo obrigatório + data + recibos), no lugar dos
   // controles de aluguel. Reusado na aba Payments da propriedade.
   depositActions?: DepositActions;
+  // Inquilinos da propriedade (atual + passados) pra mover o pagamento de um pra
+  // outro (lease takeover). Quando passado E não é depósito, mostra o controle.
+  tenants?: TenantOption[];
 }) {
   const router = useRouter();
   const [editMode, setEditMode] = useState(false);
@@ -345,6 +350,13 @@ export function PaymentWindow({
               {commissionActions && (payment.commission ?? 0) > 0 && (
                 <div className="border-t border-black/[0.06] pt-4">
                   <CommissionCollectedControl payment={payment} canManage={canManage} actions={commissionActions} />
+                </div>
+              )}
+
+              {/* Reassign de inquilino — mover ESTA mensal pra outro inquilino. */}
+              {tenants && tenants.length > 0 && (
+                <div className="border-t border-black/[0.06] pt-4">
+                  <TenantReassignControl payment={payment} tenants={tenants} canManage={canManage} />
                 </div>
               )}
             </>
