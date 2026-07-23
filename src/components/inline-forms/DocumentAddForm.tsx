@@ -18,7 +18,7 @@ import { Plus, Upload, Loader2 } from "lucide-react";
 // "Belongs to" (a própria propriedade / inquilino atual / inquilino passado).
 // Pra clientes o form fica exatamente como era.
 
-const MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+const MAX_BYTES = 50 * 1024 * 1024; // 50 MB (teto do plano free) — permite vídeos curtos
 
 // Sanitiza o nome pro path de storage: só [a-zA-Z0-9._-], resto vira "_".
 function safeName(name: string): string {
@@ -90,7 +90,7 @@ export function DocumentAddForm({
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError("File is too large. Maximum size is 25 MB.");
+      setError("File is too large. Maximum size is 50 MB.");
       return;
     }
 
@@ -174,7 +174,7 @@ export function DocumentAddForm({
         <span className="text-xs text-ink/45">Attached to this {target}</span>
       </div>
 
-      <Field label="File *" hint="Up to 25 MB. PDFs, images, documents.">
+      <Field label="File *" hint="Up to 50 MB. PDFs, images, documents, short videos.">
         <input ref={fileRef} name="file" type="file" required className={inputClass} />
       </Field>
 
