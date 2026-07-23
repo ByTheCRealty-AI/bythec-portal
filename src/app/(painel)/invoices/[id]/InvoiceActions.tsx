@@ -70,9 +70,12 @@ export function InvoiceActions({
         </button>
       )}
 
-      <button onClick={() => window.print()} className={buttonClass("ghost")}>
+      {/* Print / Save as PDF = o PDF COMBINADO (invoice + recibos), mesmo destino
+          do botão "Download invoice + receipts" da seção de documentos. Substitui
+          o antigo window.print() (que saía só a folha do invoice, sem recibos). */}
+      <a href={`/invoices/${id}/combined-pdf`} className={buttonClass("ghost")}>
         <Printer className="h-4 w-4" /> Print / Save as PDF
-      </button>
+      </a>
 
       <Link href={`/invoices/${id}/editar`} className={buttonClass("ghost")}>
         <Pencil className="h-4 w-4" /> Edit
