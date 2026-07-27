@@ -300,11 +300,14 @@ function EditPartForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    // Captura o form ANTES do await — depois do await o React zera e.currentTarget
+    // e `new FormData(null)` explode ("parameter 1 is not of type HTMLFormElement").
+    const form = e.currentTarget;
     setBusy(true);
     try {
       const files = Array.from(fileRef.current?.files ?? []);
       const refs = await uploadReceipts(files);
-      const fd = new FormData(e.currentTarget);
+      const fd = new FormData(form);
       fd.delete("receipt_files");
       fd.set("receipts_json", JSON.stringify(refs));
       await updatePartAction(fd);
