@@ -7,12 +7,13 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Search, X, Loader2, Trash2 } from "lucide-react";
+import { Search, X, Loader2, Trash2, Plus, Check, RotateCcw } from "lucide-react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import { money, date, cx } from "@/lib/format";
 import type { RequestStatus } from "@/lib/types";
 
 export type ProviderOption = { id: string; name: string };
+export type PropertyOption = { id: string; address: string; address2: string | null };
 
 export interface ServiceListRow {
   id: string;
@@ -65,18 +66,36 @@ function EditServiceModal({
   providers,
   updateAction,
   deleteAction,
+  setStatusAction,
   onClose,
 }: {
   service: ServiceListRow;
   providers: ProviderOption[];
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
+  setStatusAction: (id: string, done: boolean) => Promise<void>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const done = service.status === "done";
+
+  // Marca concluído / reabre e fecha a janela (a lista atualiza). Separado do
+  // "Save changes" — é 1 clique. Carimba done_at no servidor.
+  async function toggleDone() {
+    setError(null);
+    setBusy(true);
+    try {
+      await setStatusAction(service.id, !done);
+      onClose();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update. Try again.");
+      setBusy(false);
+    }
+  }
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -131,6 +150,35 @@ function EditServiceModal({
       <form onSubmit={save} className="space-y-4 px-6 py-5">
         <input type="hidden" name="id" value={service.id} />
         <input type="hidden" name="property_id" value={service.property_id} />
+        {/* Status preservado no Save; alterado só pelo botão Mark as done / Reopen. */}
+        <input type="hidden" name="status" value={service.status} />
+
+        {/* Status + ação de 1 clique — a primeira coisa ao abrir o serviço. */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-black/[0.06] bg-black/[0.015] px-3.5 py-2.5">
+          <span className="inline-flex items-center gap-2 text-sm text-ink/60">
+            Status <StatusBadge status={service.status} />
+          </span>
+          <button
+            type="button"
+            onClick={toggleDone}
+            disabled={busy}
+            className={cx(
+              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold transition disabled:opacity-60",
+              done
+                ? "border-black/[0.10] bg-white text-ink/65 hover:border-secondary/40 hover:text-secondary"
+                : "border-primary/30 bg-primary/[0.06] text-primary hover:border-primary/50 hover:bg-primary/[0.10]"
+            )}
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : done ? (
+              <RotateCcw className="h-4 w-4" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
+            {done ? "Reopen" : "Mark as done"}
+          </button>
+        </div>
 
         <Field label="Description *">
           <textarea
@@ -152,12 +200,6 @@ function EditServiceModal({
                   {p.name}
                 </option>
               ))}
-            </select>
-          </Field>
-          <Field label="Status">
-            <select name="status" defaultValue={service.status} className={inputClass}>
-              <option value="open">Active</option>
-              <option value="done">Done</option>
             </select>
           </Field>
           <Field label="Date">
@@ -232,22 +274,146 @@ function EditServiceModal({
   );
 }
 
+// Modal "Add service" — na aba global precisa escolher a PROPRIEDADE (na tela da
+// propriedade isso é implícito). Mesmos campos do form da propriedade + property.
+function AddServiceModal({
+  properties,
+  providers,
+  addAction,
+  onClose,
+}: {
+  properties: PropertyOption[];
+  providers: ProviderOption[];
+  addAction: (fd: FormData) => void | Promise<void>;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const form = e.currentTarget;
+    setBusy(true);
+    try {
+      await addAction(new FormData(form));
+      onClose();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save. Try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
+        <h3 className="h-display text-lg text-ink">Add service</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <form onSubmit={save} className="space-y-4 px-6 py-5">
+        <Field label="Property *">
+          <select name="property_id" required defaultValue="" className={inputClass}>
+            <option value="" disabled>
+              Select a property…
+            </option>
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.address}
+                {p.address2 ? ` · ${p.address2}` : ""}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Description *">
+          <textarea
+            name="description"
+            required
+            rows={3}
+            className={inputClass}
+            placeholder="What is the service about?"
+          />
+        </Field>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Provider">
+            <select name="provider_id" defaultValue="" className={inputClass}>
+              <option value="">— None —</option>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Status">
+            <select name="status" defaultValue="open" className={inputClass}>
+              <option value="open">Active</option>
+              <option value="done">Done</option>
+            </select>
+          </Field>
+          <Field label="Date">
+            <input name="service_request_date" type="date" defaultValue={today} className={inputClass} />
+          </Field>
+          <Field label="Price (USD)">
+            <input name="price" type="number" step="0.01" min={0} className={inputClass} placeholder="250.00" />
+          </Field>
+        </div>
+
+        {error && (
+          <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{error}</p>
+        )}
+
+        <div className="flex justify-end border-t border-black/[0.06] pt-4">
+          <button type="submit" disabled={busy} className={buttonClass("primary")}>
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              "Add service"
+            )}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function ServicesTable({
   rows,
   providers,
+  properties,
   canEdit,
+  addAction,
   updateAction,
   deleteAction,
+  setStatusAction,
 }: {
   rows: ServiceListRow[];
   providers: ProviderOption[];
+  properties: PropertyOption[];
   canEdit: boolean;
+  addAction: (fd: FormData) => void | Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
+  setStatusAction: (id: string, done: boolean) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>("");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<ServiceListRow | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const chips: Array<{ value: Filter; label: string }> = [
     { value: "", label: "All" },
@@ -270,6 +436,14 @@ export function ServicesTable({
 
   return (
     <>
+      {canEdit && (
+        <div className="mb-4 flex justify-end">
+          <button type="button" onClick={() => setAdding(true)} className={buttonClass("primary")}>
+            <Plus className="h-4 w-4" /> Add service
+          </button>
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {chips.map((c) => {
           const active = filter === c.value;
@@ -377,7 +551,17 @@ export function ServicesTable({
           providers={providers}
           updateAction={updateAction}
           deleteAction={deleteAction}
+          setStatusAction={setStatusAction}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {adding && canEdit && (
+        <AddServiceModal
+          properties={properties}
+          providers={providers}
+          addAction={addAction}
+          onClose={() => setAdding(false)}
         />
       )}
     </>

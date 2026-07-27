@@ -302,6 +302,35 @@ export async function addServiceAction(fd: FormData) {
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/services"); // aba global de Services (add pode vir de lá)
+}
+
+// Toggle rápido de status do serviço (open <-> done) — usado na aba global de
+// Services e onde precisar marcar concluído em 1 clique. Carimba done_at ao
+// concluir; limpa ao reabrir. Gate: operations.edit. Revalida os dois lugares.
+export async function setServiceStatusAction(id: string, done: boolean) {
+  const profile = await getProfile();
+  if (!can(profile, "operations.edit")) {
+    throw new Error("You do not have permission to update services.");
+  }
+  if (!id) throw new Error("Missing service reference.");
+  const supabase = createClient();
+
+  const { data: existing } = await supabase
+    .from("services")
+    .select("property_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("services")
+    .update({ status: done ? "done" : "open", done_at: done ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/services");
+  const propertyId = (existing as { property_id: string | null } | null)?.property_id;
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
 
 // "Belongs to": resolve the form choice to tenant_id / tenant_label. Only ONE is

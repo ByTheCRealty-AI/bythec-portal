@@ -1,11 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, NoAccess, Card } from "@/components/ui";
+import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { Hammer } from "lucide-react";
 import type { RequestStatus } from "@/lib/types";
-import { ServicesTable, type ServiceListRow, type ProviderOption } from "./ServicesTable";
-import { updateServiceAction, deleteServiceAction } from "../propriedades/actions";
+import { ServicesTable, type ServiceListRow, type ProviderOption, type PropertyOption } from "./ServicesTable";
+import {
+  updateServiceAction,
+  deleteServiceAction,
+  addServiceAction,
+  setServiceStatusAction,
+} from "../propriedades/actions";
 import { operatorNameMap } from "@/lib/operators";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +64,23 @@ async function loadProviders(): Promise<ProviderOption[]> {
   }
 }
 
+// Propriedades ativas pro dropdown do "Add service" (a aba global precisa saber
+// em qual propriedade lançar o serviço — na tela da propriedade isso é implícito).
+async function loadProperties(): Promise<PropertyOption[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("properties")
+      .select("id, address, address2")
+      .is("archived_at", null)
+      .order("address", { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as PropertyOption[];
+  } catch {
+    return [];
+  }
+}
+
 export default async function ServicesPage() {
   const profile = await getProfile();
   if (!can(profile, "operations.edit")) {
@@ -71,7 +92,11 @@ export default async function ServicesPage() {
     );
   }
 
-  const [{ ok, services, names }, providers] = await Promise.all([load(), loadProviders()]);
+  const [{ ok, services, names }, providers, properties] = await Promise.all([
+    load(),
+    loadProviders(),
+    loadProperties(),
+  ]);
   const canEdit = can(profile, "operations.edit");
 
   const rows: ServiceListRow[] = services.map((s) => ({
@@ -104,21 +129,16 @@ export default async function ServicesPage() {
         </Card>
       )}
 
-      {rows.length === 0 ? (
-        <EmptyState
-          icon={<Hammer className="h-6 w-6" />}
-          title="No services yet"
-          message="Services logged on any property show up here — filter by active or done."
-        />
-      ) : (
-        <ServicesTable
-          rows={rows}
-          providers={providers}
-          canEdit={canEdit}
-          updateAction={updateServiceAction}
-          deleteAction={deleteServiceAction}
-        />
-      )}
+      <ServicesTable
+        rows={rows}
+        providers={providers}
+        properties={properties}
+        canEdit={canEdit}
+        addAction={addServiceAction}
+        updateAction={updateServiceAction}
+        deleteAction={deleteServiceAction}
+        setStatusAction={setServiceStatusAction}
+      />
     </>
   );
 }
