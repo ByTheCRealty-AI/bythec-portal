@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
 import { CLIENT_TYPE_LABEL, type Client } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
-import { can, canDelete } from "@/lib/auth/capabilities";
+import { can } from "@/lib/auth/capabilities";
 import { Users, Plus, Archive } from "lucide-react";
 import Link from "next/link";
 import { ClientsTable } from "./ClientsTable";
@@ -47,11 +47,12 @@ export default async function ClientesPage({
     );
   }
 
-  // Toggle "Archived" é OWNER ONLY. Se um não-owner forçar ?archived=1 na URL,
-  // ignoramos (cai no default = ativos). RLS no banco também segura.
-  const isOwner = canDelete(profile);
+  // Toggle "Archived" = staff interno (owner/manager/secretary, via clients.edit).
+  // Realtor (clients.own) NÃO vê arquivados. Não-autorizado forçando ?archived=1
+  // cai no default (ativos). RLS no banco também segura.
+  const canArchived = can(profile, "clients.edit");
   const active = searchParams.tipo ?? "";
-  const archivedView = isOwner && searchParams.archived === "1";
+  const archivedView = canArchived && searchParams.archived === "1";
   const { ok, clients } = await load(active || undefined, archivedView);
 
   // Preserva tipo + busca ao alternar entre Active/Archived.
@@ -70,8 +71,8 @@ export default async function ClientesPage({
         }
       />
 
-      {/* Owner only: alternar entre ativos e arquivados */}
-      {isOwner && (
+      {/* Staff interno: alternar entre ativos e arquivados */}
+      {canArchived && (
         <div className="mb-4 flex gap-2">
           <Link
             href={`/clientes?${tipoQs}${qQs}`.replace(/[?&]$/, "")}

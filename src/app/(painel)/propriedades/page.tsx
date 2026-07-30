@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
 import { PROPERTY_TYPE_LABEL, type Property } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
-import { can, canDelete } from "@/lib/auth/capabilities";
+import { can } from "@/lib/auth/capabilities";
 import { Home, Plus, Archive, FolderUp } from "lucide-react";
 import Link from "next/link";
 import { PropertiesTable } from "./PropertiesTable";
@@ -54,10 +54,12 @@ export default async function PropriedadesPage({
     );
   }
 
-  // Toggle "Archived" é OWNER ONLY. Não-owner forçando ?archived=1 cai no default.
-  const isOwner = canDelete(profile);
+  // Toggle "Archived" = staff interno (owner/manager/secretary, via properties.edit).
+  // Realtor (properties.own) NÃO vê arquivadas. Não-autorizado forçando ?archived=1
+  // cai no default (ativas). RLS no banco também segura.
+  const canArchived = can(profile, "properties.edit");
   const active = searchParams.tipo ?? "";
-  const archivedView = isOwner && searchParams.archived === "1";
+  const archivedView = canArchived && searchParams.archived === "1";
   const { ok, properties } = await load(active || undefined, archivedView);
 
   // Preserva tipo + busca ao alternar entre Active/Archived.
@@ -82,8 +84,8 @@ export default async function PropriedadesPage({
         }
       />
 
-      {/* Owner only: alternar entre ativas e arquivadas */}
-      {isOwner && (
+      {/* Staff interno: alternar entre ativas e arquivadas */}
+      {canArchived && (
         <div className="mb-4 flex gap-2">
           <Link
             href={`/propriedades?${tipoQs}${qQs}`.replace(/[?&]$/, "")}
