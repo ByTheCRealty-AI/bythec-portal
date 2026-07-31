@@ -67,9 +67,11 @@ export function ReminderAddForm({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className={buttonClass("primary")}>
-        <Plus className="h-4 w-4" /> New reminder
-      </button>
+      <div className="mb-4">
+        <button onClick={() => setOpen(true)} className={buttonClass("primary")}>
+          <Plus className="h-4 w-4" /> New reminder
+        </button>
+      </div>
     );
   }
 

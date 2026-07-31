@@ -128,7 +128,11 @@ export function RemindersClient({
   deleteAction: (id: string) => Promise<void>;
 }) {
   const router = useRouter();
-  const [person, setPerson] = useState<string>("");
+  // Default: SÓ os lembretes do usuário logado (ele troca pra "Everyone" quando
+  // quiser). Cai em "" se, por algum motivo, o viewer não estiver na lista.
+  const [person, setPerson] = useState<string>(() =>
+    people.some((p) => p.id === viewerId) ? viewerId : ""
+  );
   const [status, setStatus] = useState<StatusFilter>("open");
   const [escalatedOnly, setEscalatedOnly] = useState(false);
   const [query, setQuery] = useState("");
