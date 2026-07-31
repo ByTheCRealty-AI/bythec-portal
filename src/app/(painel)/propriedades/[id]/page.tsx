@@ -184,7 +184,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     // Invoices geradas pra esta propriedade (mais recentes primeiro).
     supabase
       .from("invoices")
-      .select("id, invoice_number, kind, date, paid, total_paid_by_guest, labor_total, material_total")
+      .select("id, invoice_number, kind, date, paid, total_received_by_owner, labor_total, material_total")
       .eq("property_id", p.id)
       .order("date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
@@ -204,7 +204,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     kind: string;
     date: string | null;
     paid: boolean | null;
-    total_paid_by_guest: number | null;
+    total_received_by_owner: number | null;
     labor_total: number | null;
     material_total: number | null;
   }[];
@@ -783,9 +783,11 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   );
 
   // ---- Aba Invoices (faturas geradas pra esta propriedade) -------------------
+  // "To owner" = o que o dono recebe. Seasonal usa total_received_by_owner;
+  // service (labor+material) não tem payout de dono, cai no total do serviço.
   const invoiceTotal = (inv: (typeof invoices)[number]) =>
     inv.kind === "seasonal"
-      ? inv.total_paid_by_guest ?? 0
+      ? inv.total_received_by_owner ?? 0
       : (inv.labor_total ?? 0) + (inv.material_total ?? 0);
 
   const invoicesTab =
@@ -803,7 +805,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               <th className="py-2 font-bold">Invoice</th>
               <th className="py-2 font-bold">Type</th>
               <th className="py-2 font-bold">Date</th>
-              <th className="py-2 text-right font-bold">Total</th>
+              <th className="py-2 text-right font-bold">To owner</th>
               <th className="py-2 text-right font-bold">Status</th>
             </tr>
           </thead>
