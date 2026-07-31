@@ -125,7 +125,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     if (inv.guest_name) rightLines.push(`Guest: ${inv.guest_name}`);
     if (inv.dates_reserved_start || inv.dates_reserved_end)
       rightLines.push(`Dates: ${fmtDate(inv.dates_reserved_start)} – ${fmtDate(inv.dates_reserved_end)}`);
-    if (inv.property?.address) rightLines.push(`Property: ${streetOnly(inv.property.address)}`);
+    if (inv.property?.address) {
+      const unit = inv.property.address2 ? ` · ${inv.property.address2}` : "";
+      rightLines.push(`Property: ${streetOnly(inv.property.address)}${unit}`);
+    }
     if (inv.rental_nights != null) rightLines.push(`Nights: ${inv.rental_nights}`);
   } else {
     const addr = inv.service_address ?? inv.property?.address ?? "";

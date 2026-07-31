@@ -343,7 +343,7 @@ function SeasonalBody({
   invoice,
   billLines,
 }: {
-  invoice: Invoice & { items: InvoiceItem[]; property: Pick<Property, "address"> | null };
+  invoice: Invoice & { items: InvoiceItem[]; property: Pick<Property, "address" | "address2"> | null };
   billLines: string[];
 }) {
   const guestItems = invoice.items.filter((i) => i.guest);
@@ -361,7 +361,9 @@ function SeasonalBody({
             {(invoice.dates_reserved_start || invoice.dates_reserved_end) && (
               <p>Dates: {date(invoice.dates_reserved_start)} – {date(invoice.dates_reserved_end)}</p>
             )}
-            {invoice.property?.address && <p>Property: {invoice.property.address}</p>}
+            {invoice.property?.address && (
+              <p>Property: {invoice.property.address}{invoice.property.address2 ? ` · ${invoice.property.address2}` : ""}</p>
+            )}
             {invoice.rental_nights != null && <p>Nights: {invoice.rental_nights}</p>}
           </div>
         </div>
