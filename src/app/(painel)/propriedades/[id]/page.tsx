@@ -125,6 +125,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     { data: documentsData },
     { data: paymentsData },
     { data: clientsData },
+    { data: invoicesData },
   ] = await Promise.all([
     supabase
       .from("notes")
@@ -180,6 +181,13 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .from("clients")
       .select("id, name, archived_at")
       .order("name", { ascending: true }),
+    // Invoices geradas pra esta propriedade (mais recentes primeiro).
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, kind, date, paid, total_paid_by_guest, labor_total, material_total")
+      .eq("property_id", p.id)
+      .order("date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   // Nomes dos criadores (owner/manager/secretary) pra exibir "Added by X".
@@ -190,6 +198,16 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = (documentsData ?? []) as Document[];
   const payments = (paymentsData ?? []) as unknown as Payment[];
+  const invoices = (invoicesData ?? []) as {
+    id: string;
+    invoice_number: string | null;
+    kind: string;
+    date: string | null;
+    paid: boolean | null;
+    total_paid_by_guest: number | null;
+    labor_total: number | null;
+    material_total: number | null;
+  }[];
   const allClients = (clientsData ?? []) as { id: string; name: string; archived_at: string | null }[];
   // TenancyForm picker stays active-only (you assign a live client as tenant).
   const clientOptions = allClients
@@ -764,6 +782,52 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     </div>
   );
 
+  // ---- Aba Invoices (faturas geradas pra esta propriedade) -------------------
+  const invoiceTotal = (inv: (typeof invoices)[number]) =>
+    inv.kind === "seasonal"
+      ? inv.total_paid_by_guest ?? 0
+      : (inv.labor_total ?? 0) + (inv.material_total ?? 0);
+
+  const invoicesTab =
+    invoices.length === 0 ? (
+      <EmptyState
+        icon={<FileText className="h-5 w-5" />}
+        title="No invoices yet"
+        message="Invoices created for this property appear here, newest first."
+      />
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-black/[0.08] text-xs uppercase tracking-wider text-ink/50">
+            <tr>
+              <th className="py-2 font-bold">Invoice</th>
+              <th className="py-2 font-bold">Type</th>
+              <th className="py-2 font-bold">Date</th>
+              <th className="py-2 text-right font-bold">Total</th>
+              <th className="py-2 text-right font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoices.map((inv) => (
+              <tr key={inv.id} className="border-b border-black/[0.05] hover:bg-black/[0.015]">
+                <td className="py-2.5">
+                  <Link href={`/invoices/${inv.id}`} className="font-medium text-primary hover:underline">
+                    #{inv.invoice_number ?? "—"}
+                  </Link>
+                </td>
+                <td className="py-2.5 capitalize text-ink/75">{inv.kind}</td>
+                <td className="py-2.5 text-ink/75">{date(inv.date)}</td>
+                <td className="py-2.5 text-right text-ink/85">{money(invoiceTotal(inv))}</td>
+                <td className="py-2.5 text-right">
+                  <Badge tone={inv.paid ? "blue" : "neutral"}>{inv.paid ? "Paid" : "Unpaid"}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
   return (
     <>
       <BackButton />
@@ -791,6 +855,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
           { id: "services", label: `Services (${services.length})`, content: servicesTab },
           { id: "requests", label: `Requests (${requests.length})`, content: requestsTab },
+          { id: "invoices", label: `Invoices (${invoices.length})`, content: invoicesTab },
           { id: "documents", label: `Documents (${documents.length})`, content: documentsTab },
         ]}
       />
