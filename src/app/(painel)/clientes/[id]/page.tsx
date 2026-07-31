@@ -91,6 +91,24 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     .order("created_at", { ascending: false });
   const documents = (documentsData ?? []) as Document[];
 
+  // Invoices geradas pra este cliente (mais recentes primeiro).
+  const { data: invoicesData } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, kind, date, paid, total_paid_by_guest, labor_total, material_total")
+    .eq("client_id", client.id)
+    .order("date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  const invoices = (invoicesData ?? []) as {
+    id: string;
+    invoice_number: string | null;
+    kind: string;
+    date: string | null;
+    paid: boolean | null;
+    total_paid_by_guest: number | null;
+    labor_total: number | null;
+    material_total: number | null;
+  }[];
+
   const archived = client.archived_at !== null;
 
   // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
@@ -275,6 +293,52 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     </div>
   );
 
+  // ---- Aba Invoices (faturas geradas pra este cliente) ----
+  const invoiceTotal = (inv: (typeof invoices)[number]) =>
+    inv.kind === "seasonal"
+      ? inv.total_paid_by_guest ?? 0
+      : (inv.labor_total ?? 0) + (inv.material_total ?? 0);
+
+  const invoicesTab =
+    invoices.length === 0 ? (
+      <EmptyState
+        icon={<FileText className="h-5 w-5" />}
+        title="No invoices yet"
+        message="Invoices created for this client appear here, newest first."
+      />
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-black/[0.08] text-xs uppercase tracking-wider text-ink/50">
+            <tr>
+              <th className="py-2 font-bold">Invoice</th>
+              <th className="py-2 font-bold">Type</th>
+              <th className="py-2 font-bold">Date</th>
+              <th className="py-2 text-right font-bold">Total</th>
+              <th className="py-2 text-right font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoices.map((inv) => (
+              <tr key={inv.id} className="border-b border-black/[0.05] hover:bg-black/[0.015]">
+                <td className="py-2.5">
+                  <Link href={`/invoices/${inv.id}`} className="font-medium text-primary hover:underline">
+                    #{inv.invoice_number ?? "—"}
+                  </Link>
+                </td>
+                <td className="py-2.5 capitalize text-ink/75">{inv.kind}</td>
+                <td className="py-2.5 text-ink/75">{date(inv.date)}</td>
+                <td className="py-2.5 text-right text-ink/85">{money(invoiceTotal(inv))}</td>
+                <td className="py-2.5 text-right">
+                  <Badge tone={inv.paid ? "blue" : "neutral"}>{inv.paid ? "Paid" : "Unpaid"}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
   // ---- Aba stub (Requests) ----
   const stub = (label: string, icon: React.ReactNode, msg: string) => (
     <EmptyState icon={icon} title={`${label} under construction`} message={msg} />
@@ -305,6 +369,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           { id: "details", label: "Details", content: detailsTab },
           { id: "properties", label: `Properties (${properties.length + rentedProperties.length})`, content: propertiesTab },
           { id: "notes", label: `Notes (${notes.length})`, content: notesTab },
+          { id: "invoices", label: `Invoices (${invoices.length})`, content: invoicesTab },
           { id: "documents", label: `Documents (${documents.length})`, content: documentsTab },
           { id: "requests", label: "Requests", content: stub("Requests", <Home className="h-6 w-6" />, "Linked tenant requests. Schema ready; UI in upcoming rounds.") },
         ]}
