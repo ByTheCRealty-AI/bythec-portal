@@ -965,6 +965,7 @@ export function PaymentsClient({
                                 className="font-semibold text-ink hover:text-primary"
                               >
                                 {p.property.address}
+                                {p.property.address2 ? ` · ${p.property.address2}` : ""}
                               </Link>
                             ) : (
                               <span className="font-semibold text-ink/60">—</span>
