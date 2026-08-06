@@ -107,13 +107,16 @@ function paymentMonthKey(p: Payment): string | null {
 // Tag pra distinguir first_month / last_month inline nas abas de aluguel.
 // monthly não recebe tag (é o caso padrão).
 function KindTag({ kind }: { kind: PaymentKind }) {
-  if (kind !== "first_month" && kind !== "last_month") return null;
-  const label = kind === "first_month" ? "First month" : "Last month";
-  // First month azul, last month laranja (secondary) — cores distintas.
+  if (kind !== "first_month" && kind !== "last_month" && kind !== "security_deposit") return null;
+  const label =
+    kind === "first_month" ? "First month" : kind === "last_month" ? "Last month" : "Security deposit";
+  // First month azul, last month laranja (secondary), depósito verde (primary) — cores distintas.
   const cls =
     kind === "first_month"
       ? "border-blue-200 bg-blue-50 text-blue-700"
-      : "border-secondary/25 bg-secondary/10 text-secondary";
+      : kind === "last_month"
+      ? "border-secondary/25 bg-secondary/10 text-secondary"
+      : "border-primary/25 bg-primary/10 text-primary";
   return (
     <span className={cx("ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", cls)}>
       {label}
@@ -400,24 +403,42 @@ export function PaymentsClient({
 
   const today = useMemo(() => nyToday(), []);
   const currentMonthKey = `${today.year}-${String(today.month0 + 1).padStart(2, "0")}`;
-  const firstOfMonth = `${currentMonthKey}-01`;
 
-  // ---- Due tab: due com due_date não-nulo, dividido em past due / this month.
+  // "Past due" (vermelho) agora dispara 5 dias corridos APÓS o vencimento — não
+  // mais no vira-mês. cutoff = hoje − 5 dias (YYYY-MM-DD; math de calendário em
+  // UTC pra não sofrer com horário de verão). due_date < cutoff = +5 dias atrasado.
+  const pastDueCutoff = useMemo(() => {
+    const todayYmd = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const [y, m, d] = todayYmd.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 5);
+    return dt.toISOString().slice(0, 10);
+  }, []);
+
+  // ---- Due tab: aluguel + depósito com due_date, dividido em past due / este mês.
+  // Inclui security_deposit (cada parcela aparece na sua data de vencimento). Past
+  // due (vermelho) = mais de 5 dias atrasado; dentro dos 5 dias fica no bloco neutro.
   const { pastDue, dueThisMonth } = useMemo(() => {
     const past: Payment[] = [];
     const month: Payment[] = [];
-    for (const p of rentPayments) {
+    const candidates = payments.filter((p) => isRentKind(p) || p.kind === "security_deposit");
+    for (const p of candidates) {
       if (p.status !== "due") continue;
       const ymd = ymdOf(p.due_date);
-      if (!ymd) continue; // dateless dues nunca aparecem na aba Due
-      if (ymd < firstOfMonth) past.push(p);
-      else if (ymd.slice(0, 7) === currentMonthKey) month.push(p);
-      // due_date futuro (mês seguinte+) não cai em nenhum dos dois grupos.
+      if (!ymd) continue; // sem data de vencimento nunca aparece na aba Due
+      if (ymd < pastDueCutoff) past.push(p); // +5 dias atrasado → vermelho
+      else if (ymd.slice(0, 7) <= currentMonthKey) month.push(p); // este mês ou ≤5 dias atrasado → neutro
+      // due_date de mês futuro ainda não aparece.
     }
     past.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? "")); // mais antigo primeiro
     month.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? ""));
     return { pastDue: past, dueThisMonth: month };
-  }, [rentPayments, firstOfMonth, currentMonthKey]);
+  }, [payments, pastDueCutoff, currentMonthKey]);
 
   const dueCount = pastDue.length + dueThisMonth.length;
 
@@ -698,7 +719,7 @@ export function PaymentsClient({
               {pastDue.length > 0 && (
                 <DueSection
                   title="Past due"
-                  subtitle="Oldest first. These due dates are before this month."
+                  subtitle="Oldest first. Unpaid more than 5 days after the due date."
                   rows={pastDue}
                   danger
                   canManage={canManage}
@@ -970,6 +991,7 @@ export function PaymentsClient({
                             ) : (
                               <span className="font-semibold text-ink/60">—</span>
                             )}
+                            <KindTag kind={p.kind} />
                             {mk && (
                               <>
                                 <span className="text-ink/40">·</span>
