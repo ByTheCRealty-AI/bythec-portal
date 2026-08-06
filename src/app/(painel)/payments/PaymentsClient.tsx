@@ -404,9 +404,9 @@ export function PaymentsClient({
   const today = useMemo(() => nyToday(), []);
   const currentMonthKey = `${today.year}-${String(today.month0 + 1).padStart(2, "0")}`;
 
-  // "Past due" (vermelho) agora dispara 5 dias corridos APÓS o vencimento — não
-  // mais no vira-mês. cutoff = hoje − 5 dias (YYYY-MM-DD; math de calendário em
-  // UTC pra não sofrer com horário de verão). due_date < cutoff = +5 dias atrasado.
+  // "Past due" (vermelho) dispara no 5º dia — ex.: venceu dia 1 → vermelho dia 5
+  // (não mais no vira-mês). cutoff = hoje − 4 dias (YYYY-MM-DD; math de calendário
+  // em UTC pra não sofrer com horário de verão). due_date <= cutoff = past due.
   const pastDueCutoff = useMemo(() => {
     const todayYmd = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",
@@ -416,7 +416,7 @@ export function PaymentsClient({
     }).format(new Date());
     const [y, m, d] = todayYmd.split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));
-    dt.setUTCDate(dt.getUTCDate() - 5);
+    dt.setUTCDate(dt.getUTCDate() - 4);
     return dt.toISOString().slice(0, 10);
   }, []);
 
@@ -431,8 +431,8 @@ export function PaymentsClient({
       if (p.status !== "due") continue;
       const ymd = ymdOf(p.due_date);
       if (!ymd) continue; // sem data de vencimento nunca aparece na aba Due
-      if (ymd < pastDueCutoff) past.push(p); // +5 dias atrasado → vermelho
-      else if (ymd.slice(0, 7) <= currentMonthKey) month.push(p); // este mês ou ≤5 dias atrasado → neutro
+      if (ymd <= pastDueCutoff) past.push(p); // venceu há 4+ dias (ex.: dia 1 → dia 5) → vermelho
+      else if (ymd.slice(0, 7) <= currentMonthKey) month.push(p); // este mês, ainda no prazo → neutro
       // due_date de mês futuro ainda não aparece.
     }
     past.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? "")); // mais antigo primeiro
@@ -719,7 +719,7 @@ export function PaymentsClient({
               {pastDue.length > 0 && (
                 <DueSection
                   title="Past due"
-                  subtitle="Oldest first. Unpaid more than 5 days after the due date."
+                  subtitle="Oldest first. Unpaid by the 5th day after the due date."
                   rows={pastDue}
                   danger
                   canManage={canManage}
