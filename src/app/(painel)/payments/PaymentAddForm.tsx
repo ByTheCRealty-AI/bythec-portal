@@ -80,6 +80,10 @@ export function PaymentAddForm({
   // single amount/date for total + installments + first due date.
   const [kind, setKind] = useState<PaymentKind>("monthly");
   const isDeposit = kind === "security_deposit";
+  // Last month é pré-pago no move-in: a due_date vira a data recebida e o month
+  // fica em branco (definido depois, quando o inquilino chega no último mês). Por
+  // isso escondemos Month/Due date — o servidor preenche sozinho.
+  const isLastMonth = kind === "last_month";
 
   // The deposit option only renders if a depositAction was provided.
   const kindOptions = depositAction
@@ -286,12 +290,21 @@ export function PaymentAddForm({
                 ))}
               </select>
             </Field>
-            <Field label="Month">
-              <input name="month" type="date" className={inputClass} />
-            </Field>
-            <Field label="Due date">
-              <input name="due_date" type="date" className={inputClass} />
-            </Field>
+            {!isLastMonth && (
+              <>
+                <Field label="Month">
+                  <input name="month" type="date" className={inputClass} />
+                </Field>
+                <Field label="Due date">
+                  <input name="due_date" type="date" className={inputClass} />
+                </Field>
+              </>
+            )}
+            {isLastMonth && (
+              <div className="sm:col-span-2 rounded-xl border border-primary/25 bg-primary/[0.06] px-4 py-3 text-xs text-ink/70">
+                Last month is prepaid. The due date is set to the date it was received, and the month is left blank — it fills in later, when the tenant reaches their final month.
+              </div>
+            )}
             <Field label="Amount (USD)">
               <input
                 name="rent_amount"

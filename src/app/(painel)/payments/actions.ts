@@ -85,6 +85,31 @@ export async function addPaymentAction(fd: FormData) {
   if (!prop) throw new Error("That property could not be found.");
 
   const status = statusOf(fd);
+  const kind = kindOf(fd);
+  const now = new Date();
+  const receivedAtIso = status === "received" ? now.toISOString() : null;
+  // Data recebida em NY (YYYY-MM-DD, sem drift de fuso) — vira a due_date do
+  // last_month (regra abaixo). O timestamp received_at continua no ISO normal.
+  const receivedNyDate =
+    status === "received"
+      ? new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/New_York",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(now)
+      : null;
+
+  // Regra de negócio (TRAVADA): o last_month é pré-pago no move-in. A due_date = a
+  // data em que ENTROU (received) e o month fica INDETERMINADO (blank) até o
+  // inquilino chegar no último mês de fato — aí a Andrea seta o month na EDIÇÃO
+  // (ex.: 66 Osprey). Então na CRIAÇÃO sobrescrevemos o form pro last_month.
+  let month = str(fd, "month");
+  let dueDate = str(fd, "due_date");
+  if (kind === "last_month") {
+    month = null;
+    dueDate = receivedNyDate ?? dueDate;
+  }
 
   // Insere o pagamento e recupera o id (necessário pra anexar o recibo, se houver).
   const { data: created, error } = await supabase
@@ -92,13 +117,13 @@ export async function addPaymentAction(fd: FormData) {
     .insert({
       property_id: propertyId,
       tenant_id: (prop as { tenant_id: string | null }).tenant_id, // auto, do servidor
-      kind: kindOf(fd),
-      month: str(fd, "month"),
-      due_date: str(fd, "due_date"),
+      kind,
+      month,
+      due_date: dueDate,
       rent_amount: num(fd, "rent_amount") ?? 0,
       commission: num(fd, "commission"),
       status,
-      received_at: status === "received" ? new Date().toISOString() : null,
+      received_at: receivedAtIso,
       // One-shot add: if it's already received, the full rent is paid; else 0.
       amount_paid: status === "received" ? (num(fd, "rent_amount") ?? 0) : 0,
       notes: str(fd, "notes"),
