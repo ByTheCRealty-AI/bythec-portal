@@ -162,6 +162,10 @@ export interface Property {
   // Quem coleta o aluguel (year-round/off-season). 'bythec' = By the C coleta e
   // paga o owner (menos comissão); 'owner' = owner coleta e remete a comissão.
   rent_collection: RentCollection;
+  // Cleaner padrão desta propriedade — auto-preenche cleaner_id + cleaner_amount_paid
+  // dos invoices de temporada novos (editável por invoice). Interno (pra 1099s).
+  default_cleaner_id: string | null;
+  default_cleaner_amount: number | null;
   notes: string | null;
   photo_url: string | null;
   archived_at: string | null;

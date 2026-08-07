@@ -14,13 +14,21 @@ export default async function EditarPropriedadePage({ params }: { params: { id: 
   const p = data as Property;
   const action = updatePropriedadeAction.bind(null, p.id);
 
+  // Cleaners pro picker de "default cleaner" (todos os providers ativos, alfabético).
+  const { data: cleanersData } = await supabase
+    .from("service_providers")
+    .select("id, name")
+    .is("archived_at", null)
+    .order("name", { ascending: true });
+  const cleaners = (cleanersData ?? []) as { id: string; name: string }[];
+
   return (
     <>
       <PageHeader
         title={`Edit — ${p.address}`}
         subtitle="Editing never erases history. Changing the type carries the history with it."
       />
-      <PropriedadeEditForm property={p} action={action} />
+      <PropriedadeEditForm property={p} action={action} cleaners={cleaners} />
     </>
   );
 }

@@ -173,12 +173,32 @@ export async function createSeasonalInvoice(fd: FormData) {
 
   const platform = str(fd, "platform");
 
+  // Auto-preenche o cleaner padrão da propriedade (só quando a By the C paga o
+  // cleaner). A Andrea pode sobrescrever no payout do invoice. Interno (pra 1099s).
+  const propertyId = str(fd, "property_id");
+  let defaultCleanerId: string | null = null;
+  let defaultCleanerAmount: number | null = null;
+  if (cleaning_goes_to === "bythec" && propertyId) {
+    const { data: prop } = await supabase
+      .from("properties")
+      .select("default_cleaner_id, default_cleaner_amount")
+      .eq("id", propertyId)
+      .maybeSingle();
+    const pp = prop as
+      | { default_cleaner_id: string | null; default_cleaner_amount: number | null }
+      | null;
+    defaultCleanerId = pp?.default_cleaner_id ?? null;
+    defaultCleanerAmount = pp?.default_cleaner_amount ?? null;
+  }
+
   const { data, error } = await supabase
     .from("invoices")
     .insert({
       kind: "seasonal",
       client_id: str(fd, "client_id"),
-      property_id: str(fd, "property_id"),
+      property_id: propertyId,
+      cleaner_id: defaultCleanerId,
+      cleaner_amount_paid: defaultCleanerAmount,
       platform,
       date: str(fd, "date"),
       due_date: str(fd, "due_date"),

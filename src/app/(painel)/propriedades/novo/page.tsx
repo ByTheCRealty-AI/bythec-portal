@@ -26,13 +26,21 @@ export default async function NovaPropriedadePage() {
     .order("name", { ascending: true });
   const owners = (data ?? []) as { id: string; name: string }[];
 
+  // Cleaners pro picker de "default cleaner" (providers ativos, alfabético).
+  const { data: cleanersData } = await supabase
+    .from("service_providers")
+    .select("id, name")
+    .is("archived_at", null)
+    .order("name", { ascending: true });
+  const cleaners = (cleanersData ?? []) as { id: string; name: string }[];
+
   return (
     <>
       <PageHeader
         title="New property"
         subtitle="Pick the owner, then describe the home. A property always belongs to a client."
       />
-      <PropriedadeNovoForm owners={owners} />
+      <PropriedadeNovoForm owners={owners} cleaners={cleaners} />
     </>
   );
 }

@@ -22,9 +22,11 @@ function round1(n: number): number {
 export function PropriedadeEditForm({
   property: p,
   action,
+  cleaners = [],
 }: {
   property: Property;
   action: (fd: FormData) => void | Promise<void>;
+  cleaners?: { id: string; name: string }[];
 }) {
   const [type, setType] = useState<PropertyType>(p.property_type);
   const isRental = type === "year_round_rental" || type === "off_season_rental";
@@ -93,6 +95,26 @@ export function PropriedadeEditForm({
                   </option>
                 ))}
               </select>
+            </Field>
+            <Field label="Default cleaner" hint="Auto-fills the cleaner on new seasonal invoices. Editable per invoice.">
+              <select name="default_cleaner_id" defaultValue={p.default_cleaner_id ?? ""} className={inputClass}>
+                <option value="">No default</option>
+                {cleaners.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Default cleaner amount ($)" hint="What By the C pays this cleaner. Auto-fills new seasonal invoices.">
+              <input
+                name="default_cleaner_amount"
+                type="number"
+                step="0.01"
+                min={0}
+                defaultValue={p.default_cleaner_amount ?? ""}
+                className={inputClass}
+              />
             </Field>
           </div>
         </section>

@@ -18,7 +18,13 @@ type OwnerOption = { id: string; name: string };
 // Formulário standalone de criação de propriedade (/propriedades/novo). Owner é
 // obrigatório (entidade-mãe) e escolhido num picker. Painel largo, seções com
 // títulos, no mesmo estilo do ClienteForm.
-export function PropriedadeNovoForm({ owners }: { owners: OwnerOption[] }) {
+export function PropriedadeNovoForm({
+  owners,
+  cleaners = [],
+}: {
+  owners: OwnerOption[];
+  cleaners?: { id: string; name: string }[];
+}) {
   const [type, setType] = useState<PropertyType | "">("");
   const isRental = type === "year_round_rental" || type === "off_season_rental";
   const isForSale = type === "for_sale";
@@ -128,6 +134,25 @@ export function PropriedadeNovoForm({ owners }: { owners: OwnerOption[] }) {
                   </option>
                 ))}
               </select>
+            </Field>
+            <Field label="Default cleaner" hint="Auto-fills the cleaner on new seasonal invoices. Editable per invoice.">
+              <select name="default_cleaner_id" defaultValue="" className={inputClass}>
+                <option value="">No default</option>
+                {cleaners.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Default cleaner amount ($)" hint="What By the C pays this cleaner. Auto-fills new seasonal invoices.">
+              <input
+                name="default_cleaner_amount"
+                type="number"
+                step="0.01"
+                min={0}
+                className={inputClass}
+              />
             </Field>
           </div>
         </section>
