@@ -55,6 +55,7 @@ import {
   setOwnerPaidAction,
   setOwnerPaymentMethodAction,
   setOwnerCheckNumberAction,
+  setOwnerPaidDateAction,
   addOwnerPayoutReceiptAction,
   deleteOwnerPayoutReceiptAction,
   markDepositReceivedAction,
@@ -464,6 +465,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 setOwnerPaid: setOwnerPaidAction,
                 setOwnerMethod: setOwnerPaymentMethodAction,
                 setOwnerCheckNumber: setOwnerCheckNumberAction,
+                setOwnerPaidDate: setOwnerPaidDateAction,
                 addReceipt: addOwnerPayoutReceiptAction,
                 deleteReceipt: deleteOwnerPayoutReceiptAction,
               }}
@@ -498,6 +500,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 setOwnerPaid: setOwnerPaidAction,
                 setOwnerMethod: setOwnerPaymentMethodAction,
                 setOwnerCheckNumber: setOwnerCheckNumberAction,
+                setOwnerPaidDate: setOwnerPaidDateAction,
                 addReceipt: addOwnerPayoutReceiptAction,
                 deleteReceipt: deleteOwnerPayoutReceiptAction,
               }}

@@ -905,6 +905,25 @@ export async function setOwnerPaymentMethodAction(id: string, method: string | n
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
 
+// Data do repasse ao owner (owner_paid_at, timestamptz → meio-dia UTC pra não
+// driftar). YYYY-MM-DD; vazio limpa. OBRIGATÓRIO na UI quando o método é Zelle.
+export async function setOwnerPaidDateAction(id: string, ymd: string | null) {
+  await assertCanManagePayments();
+  if (!id) throw new Error("Missing payment reference.");
+  const supabase = createClient();
+  const propertyId = await paymentPropertyId(supabase, id);
+  const d = ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd.trim()) ? ymd.trim() : null;
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ owner_paid_at: d ? `${d}T12:00:00.000Z` : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/payments");
+  if (propertyId) revalidatePath("/propriedades/" + propertyId);
+}
+
 // Salva o nº do eCheck do repasse. null limpa.
 export async function setOwnerCheckNumberAction(id: string, checkNumber: string | null) {
   await assertCanManagePayments();

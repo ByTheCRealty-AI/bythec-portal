@@ -117,6 +117,7 @@ export type OwnerPayoutActions = {
   setOwnerPaid: (id: string, paid: boolean) => Promise<void>;
   setOwnerMethod: (id: string, method: string | null) => Promise<void>;
   setOwnerCheckNumber: (id: string, checkNumber: string | null) => Promise<void>;
+  setOwnerPaidDate: (id: string, ymd: string | null) => Promise<void>;
   addReceipt: (fd: FormData) => Promise<void>;
   deleteReceipt: (fd: FormData) => Promise<void>;
 };
@@ -137,11 +138,28 @@ export function OwnerPayoutControl({
   const [pending, start] = useTransition();
   const [localMethod, setLocalMethod] = useState<string>(payment.owner_payment_method ?? "");
   const [localCheck, setLocalCheck] = useState<string>(payment.owner_check_number ?? "");
+  const [localDate, setLocalDate] = useState<string>(
+    payment.owner_paid_at ? payment.owner_paid_at.slice(0, 10) : ""
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isECheck = localMethod === "eCheck";
+  const isZelle = localMethod === "Zelle";
+  const zelleDateMissing = isZelle && !localDate;
+
+  function saveDate(value: string) {
+    setLocalDate(value);
+    setError(null);
+    start(async () => {
+      try {
+        await actions.setOwnerPaidDate(paymentId, value || null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save the date.");
+      }
+    });
+  }
 
   function togglePaid() {
     setError(null);
@@ -285,6 +303,22 @@ export function OwnerPayoutControl({
               />
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-xs text-ink/55">
+              Date paid{isZelle ? <span className="text-red-600"> *</span> : null}
+            </label>
+            <input
+              type="date"
+              value={localDate}
+              onChange={(e) => saveDate(e.target.value)}
+              disabled={!canManage || pending}
+              className={inputClass + (zelleDateMissing ? " border-red-300" : "")}
+            />
+            {zelleDateMissing && (
+              <p className="mt-1 text-[11px] text-red-600">Required for Zelle payments.</p>
+            )}
+          </div>
 
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs text-ink/55">Receipt</label>

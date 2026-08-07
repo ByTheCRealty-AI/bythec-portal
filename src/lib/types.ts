@@ -252,6 +252,11 @@ export interface Invoice {
   // Toggle manual na tela (não vai pro PDF). Espelha payments.commission_paid.
   cleaner_paid: boolean;
   cleaner_paid_at: string | null;
+  // Interno (não vai pro PDF do owner): quanto a By the C REALMENTE paga o cleaner
+  // (pode ser < cleaning_fee; a diferença é ganho da By the C) + qual cleaner
+  // (service_provider) recebeu — pra totais de 1099 no fim do ano.
+  cleaner_amount_paid: number | null;
+  cleaner_id: string | null;
   // Como a By the C pagou owner e cleaner (interno). "owner pago" = flag `paid`.
   owner_payment_method: string | null;
   cleaner_payment_method: string | null;

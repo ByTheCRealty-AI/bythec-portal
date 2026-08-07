@@ -365,6 +365,61 @@ export async function setCleanerCheckNumber(id: string, value: string | null) {
   revalidatePath(`/invoices/${id}`);
 }
 
+// Data do repasse. Owner usa paid_date (coluna date); cleaner usa cleaner_paid_at
+// (timestamptz → meio-dia UTC pra não driftar o dia). YYYY-MM-DD; vazio limpa.
+// Vira OBRIGATÓRIO na UI quando o método é Zelle (sem nº de cheque pra rastrear).
+function ymdOrNull(value: string | null): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+export async function setInvoicePaidDate(id: string, ymd: string | null) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ paid_date: ymdOrNull(ymd) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
+export async function setCleanerPaidDate(id: string, ymd: string | null) {
+  const supabase = createClient();
+  const d = ymdOrNull(ymd);
+  const { error } = await supabase
+    .from("invoices")
+    .update({ cleaner_paid_at: d ? `${d}T12:00:00.000Z` : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
+// Qual cleaner (service_provider) recebeu — pra agrupar totais de 1099. Interno.
+export async function setCleanerId(id: string, cleanerId: string | null) {
+  const supabase = createClient();
+  const v = cleanerId && cleanerId.trim() ? cleanerId.trim() : null;
+  const { error } = await supabase
+    .from("invoices")
+    .update({ cleaner_id: v })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
+// Quanto a By the C REALMENTE paga o cleaner (pode ser < cleaning_fee; a diferença
+// fica de ganho da By the C). Interno — nunca vai pro PDF do owner.
+export async function setCleanerAmountPaid(id: string, amount: number | null) {
+  const supabase = createClient();
+  const v = amount != null && Number.isFinite(amount) && amount >= 0 ? amount : null;
+  const { error } = await supabase
+    .from("invoices")
+    .update({ cleaner_amount_paid: v })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
 // ---- Archive (NUNCA deletar) -----------------------------------------------
 export async function archiveInvoice(id: string) {
   const supabase = createClient();

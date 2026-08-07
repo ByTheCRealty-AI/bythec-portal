@@ -21,9 +21,15 @@ import {
   setCleanerPaymentMethod,
   setOwnerCheckNumber,
   setCleanerCheckNumber,
+  setInvoicePaidDate,
+  setCleanerPaidDate,
+  setCleanerId,
+  setCleanerAmountPaid,
   addInvoiceAttachmentAction,
   deleteInvoiceAttachmentAction,
 } from "./actions";
+
+export type CleanerOption = { id: string; name: string };
 
 const METHODS = ["eCheck", "Check", "Cash", "Zelle", "Stripe", "Other"];
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -124,11 +130,14 @@ function PayoutRow({
   paidAtLabel,
   method,
   checkNumber,
+  paidDate,
   category,
   receipts,
   onTogglePaid,
   onSetMethod,
   onSetCheckNumber,
+  onSetPaidDate,
+  extra,
 }: {
   invoiceId: string;
   canManage: boolean;
@@ -139,20 +148,38 @@ function PayoutRow({
   paidAtLabel: string | null;
   method: string | null;
   checkNumber: string | null;
+  paidDate: string | null;
   category: "owner_payout" | "cleaner_payout";
   receipts: InvoiceAttachment[];
   onTogglePaid: () => Promise<void>;
   onSetMethod: (m: string | null) => Promise<void>;
   onSetCheckNumber: (v: string | null) => Promise<void>;
+  onSetPaidDate: (ymd: string | null) => Promise<void>;
+  extra?: React.ReactNode;
 }) {
   const [pending, start] = useTransition();
   const [localMethod, setLocalMethod] = useState<string>(method ?? "");
   const [localCheck, setLocalCheck] = useState<string>(checkNumber ?? "");
+  const [localDate, setLocalDate] = useState<string>(paidDate ? paidDate.slice(0, 10) : "");
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isCheckLike = localMethod === "Check" || localMethod === "eCheck";
+  const isZelle = localMethod === "Zelle";
+  const zelleDateMissing = isZelle && !localDate;
+
+  function saveDate(value: string) {
+    setLocalDate(value);
+    setError(null);
+    start(async () => {
+      try {
+        await onSetPaidDate(value || null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save the date.");
+      }
+    });
+  }
 
   function togglePaid() {
     setError(null);
@@ -298,6 +325,24 @@ function PayoutRow({
             </div>
           )}
 
+          <div>
+            <label className="mb-1 block text-xs text-ink/55">
+              Date paid{isZelle ? <span className="text-red-600"> *</span> : null}
+            </label>
+            <input
+              type="date"
+              value={localDate}
+              onChange={(e) => saveDate(e.target.value)}
+              disabled={!canManage || pending}
+              className={inputClass + (zelleDateMissing ? " border-red-300" : "")}
+            />
+            {zelleDateMissing && (
+              <p className="mt-1 text-[11px] text-red-600">Required for Zelle payments.</p>
+            )}
+          </div>
+
+          {extra ? <div className="sm:col-span-2">{extra}</div> : null}
+
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs text-ink/55">Receipt</label>
             {receipts.length > 0 && (
@@ -334,6 +379,118 @@ function PayoutRow({
   );
 }
 
+// Bloco interno do cleaner payout: qual cleaner recebeu (pra 1099) + quanto a
+// By the C paga (pode ser < cleaning fee) + quanto a By the C fica de ganho.
+function CleanerExtras({
+  invoiceId,
+  canManage,
+  providers,
+  cleanerId,
+  cleaningFee,
+  cleanerAmountPaid,
+}: {
+  invoiceId: string;
+  canManage: boolean;
+  providers: CleanerOption[];
+  cleanerId: string | null;
+  cleaningFee: number | null;
+  cleanerAmountPaid: number | null;
+}) {
+  const [pending, start] = useTransition();
+  const [localCleaner, setLocalCleaner] = useState<string>(cleanerId ?? "");
+  const [localAmount, setLocalAmount] = useState<string>(
+    cleanerAmountPaid != null ? String(cleanerAmountPaid) : ""
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const fee = cleaningFee ?? 0;
+  const paidNum = localAmount.trim() === "" ? null : Number(localAmount);
+  const keeps =
+    paidNum != null && Number.isFinite(paidNum) ? Math.round((fee - paidNum) * 100) / 100 : null;
+
+  function changeCleaner(v: string) {
+    setLocalCleaner(v);
+    setError(null);
+    start(async () => {
+      try {
+        await setCleanerId(invoiceId, v || null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save the cleaner.");
+      }
+    });
+  }
+
+  function saveAmount() {
+    const v = localAmount.trim();
+    const n = v === "" ? null : Number(v);
+    if (v !== "" && (!Number.isFinite(n as number) || (n as number) < 0)) {
+      setError("Enter a valid amount.");
+      return;
+    }
+    setError(null);
+    start(async () => {
+      try {
+        await setCleanerAmountPaid(invoiceId, n);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save the amount.");
+      }
+    });
+  }
+
+  const inputClass =
+    "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15 disabled:opacity-60";
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+      <p className="mb-2 text-xs font-semibold text-ink/70">Cleaner (internal · for 1099s)</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-ink/55">Cleaner</label>
+          <select
+            value={localCleaner}
+            onChange={(e) => changeCleaner(e.target.value)}
+            disabled={!canManage || pending}
+            className={inputClass}
+          >
+            <option value="">Select cleaner…</option>
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-ink/55">Amount paid to cleaner</label>
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            value={localAmount}
+            onChange={(e) => setLocalAmount(e.target.value)}
+            onBlur={saveAmount}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            disabled={!canManage || pending}
+            placeholder="e.g. 250"
+            className={inputClass}
+          />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-ink/70">
+        Cleaning fee <span className="font-semibold">{money(cleaningFee)}</span>
+        {keeps != null && (
+          <>
+            {" "}· By the C keeps <span className="font-semibold text-primary">{money(keeps)}</span>
+          </>
+        )}
+      </p>
+      {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 export function InvoicePayoutsPanel({
   invoiceId,
   canManage,
@@ -346,9 +503,14 @@ export function InvoicePayoutsPanel({
   cleaningToBythec,
   cleanerPaid,
   cleanerAmount,
+  cleanerPaidDate,
   cleanerMethod,
   cleanerCheckNumber,
   cleanerReceipts,
+  cleanerAmountPaid,
+  cleanerId,
+  cleaningFee,
+  providers,
 }: {
   invoiceId: string;
   canManage: boolean;
@@ -361,9 +523,14 @@ export function InvoicePayoutsPanel({
   cleaningToBythec: boolean;
   cleanerPaid: boolean;
   cleanerAmount: number | null;
+  cleanerPaidDate: string | null;
   cleanerMethod: string | null;
   cleanerCheckNumber: string | null;
   cleanerReceipts: InvoiceAttachment[];
+  cleanerAmountPaid: number | null;
+  cleanerId: string | null;
+  cleaningFee: number | null;
+  providers: CleanerOption[];
 }) {
   return (
     <div className="print-hide rounded-2xl border border-black/[0.08] bg-white p-5 shadow-card">
@@ -385,11 +552,13 @@ export function InvoicePayoutsPanel({
           paidAtLabel={ownerPaidDate}
           method={ownerMethod}
           checkNumber={ownerCheckNumber}
+          paidDate={ownerPaidDate}
           category="owner_payout"
           receipts={ownerReceipts}
           onTogglePaid={() => setPaid(invoiceId, !ownerPaid)}
           onSetMethod={(m) => setOwnerPaymentMethod(invoiceId, m)}
           onSetCheckNumber={(v) => setOwnerCheckNumber(invoiceId, v)}
+          onSetPaidDate={(d) => setInvoicePaidDate(invoiceId, d)}
         />
 
         {cleaningToBythec && (
@@ -397,17 +566,29 @@ export function InvoicePayoutsPanel({
             invoiceId={invoiceId}
             canManage={canManage}
             title="Cleaner payout"
-            amountLabel="Cleaning fee (By the C)"
+            amountLabel="Cleaning fee received"
             amount={cleanerAmount}
             paid={cleanerPaid}
-            paidAtLabel={null}
+            paidAtLabel={cleanerPaidDate ? cleanerPaidDate.slice(0, 10) : null}
             method={cleanerMethod}
             checkNumber={cleanerCheckNumber}
+            paidDate={cleanerPaidDate}
             category="cleaner_payout"
             receipts={cleanerReceipts}
             onTogglePaid={() => setCleanerPaid(invoiceId, !cleanerPaid)}
             onSetMethod={(m) => setCleanerPaymentMethod(invoiceId, m)}
             onSetCheckNumber={(v) => setCleanerCheckNumber(invoiceId, v)}
+            onSetPaidDate={(d) => setCleanerPaidDate(invoiceId, d)}
+            extra={
+              <CleanerExtras
+                invoiceId={invoiceId}
+                canManage={canManage}
+                providers={providers}
+                cleanerId={cleanerId}
+                cleaningFee={cleaningFee}
+                cleanerAmountPaid={cleanerAmountPaid}
+              />
+            }
           />
         )}
       </div>

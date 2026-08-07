@@ -22,6 +22,7 @@ import {
   setOwnerPaidAction,
   setOwnerPaymentMethodAction,
   setOwnerCheckNumberAction,
+  setOwnerPaidDateAction,
   addOwnerPayoutReceiptAction,
   deleteOwnerPayoutReceiptAction,
   markDepositReceivedAction,
@@ -142,6 +143,7 @@ export default async function PaymentsPage() {
             setOwnerPaid: setOwnerPaidAction,
             setOwnerMethod: setOwnerPaymentMethodAction,
             setOwnerCheckNumber: setOwnerCheckNumberAction,
+            setOwnerPaidDate: setOwnerPaidDateAction,
             addReceipt: addOwnerPayoutReceiptAction,
             deleteReceipt: deleteOwnerPayoutReceiptAction,
           }}

@@ -85,6 +85,17 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   );
   const ownerReceipts = allAttachments.filter((a) => a.category === "owner_payout");
   const cleanerReceipts = allAttachments.filter((a) => a.category === "cleaner_payout");
+
+  // Cleaners pro picker do payout (interno · pra 1099s). Todos os providers ativos,
+  // alfabético — a Andrea escolhe qual recebeu. Só busca quando é seasonal.
+  const { data: providersData } = isSeasonal
+    ? await supabase
+        .from("service_providers")
+        .select("id, name")
+        .is("archived_at", null)
+        .order("name", { ascending: true })
+    : { data: [] };
+  const cleanerProviders = (providersData ?? []) as { id: string; name: string }[];
   const numberLabel = isSeasonal
     ? `Invoice #${invoice.invoice_number}`
     : `Service Invoice #${invoice.invoice_number}`;
@@ -150,9 +161,14 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
             cleaningToBythec={showCleaner}
             cleanerPaid={invoice.cleaner_paid}
             cleanerAmount={invoice.cleaning_fee}
+            cleanerPaidDate={invoice.cleaner_paid_at}
             cleanerMethod={invoice.cleaner_payment_method}
             cleanerCheckNumber={invoice.cleaner_check_number}
             cleanerReceipts={cleanerReceipts}
+            cleanerAmountPaid={invoice.cleaner_amount_paid}
+            cleanerId={invoice.cleaner_id}
+            cleaningFee={invoice.cleaning_fee}
+            providers={cleanerProviders}
           />
         </div>
       )}
