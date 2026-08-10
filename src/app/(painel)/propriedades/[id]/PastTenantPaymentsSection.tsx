@@ -8,6 +8,7 @@
 import { useState, useTransition } from "react";
 import { ChevronRight, ChevronDown, ArrowRightLeft, Loader2 } from "lucide-react";
 import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
+import { PastTenantDepositForm } from "./PastTenantDepositForm";
 import { moveUnpaidRentAction } from "../../payments/actions";
 import type { OwnerPayoutActions } from "../../payments/OwnerPayoutControl";
 import type { CommissionActions } from "../../payments/CommissionCollectedControl";
@@ -109,6 +110,7 @@ export function PastTenantPaymentsSection({
   tenants,
   propertyId,
   currentTenant,
+  addDepositAction,
 }: {
   groups: Group[];
   canManage: boolean;
@@ -125,6 +127,8 @@ export function PastTenantPaymentsSection({
   propertyId: string;
   // Inquilino atual (destino do "move unpaid"). null quando a propriedade está vaga.
   currentTenant?: TenantOption | null;
+  // Add security deposit a um ex-inquilino (opcional; só quando canManage).
+  addDepositAction?: (fd: FormData) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
@@ -195,6 +199,16 @@ export function PastTenantPaymentsSection({
                 </div>
                 {isOpen && (
                   <div className="px-3 pb-3">
+                    {canManage && addDepositAction && g.key !== "__none__" && (
+                      <div className="mb-3">
+                        <PastTenantDepositForm
+                          propertyId={propertyId}
+                          tenantId={g.key}
+                          tenantName={g.name}
+                          action={addDepositAction}
+                        />
+                      </div>
+                    )}
                     <PropertyPaymentsTable
                       payments={g.payments}
                       canManage={canManage}

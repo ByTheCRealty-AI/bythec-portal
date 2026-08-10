@@ -289,7 +289,26 @@ export async function addSecurityDepositAction(fd: FormData) {
     .maybeSingle();
   if (propErr) throw new Error(propErr.message);
   if (!prop) throw new Error("That property could not be found.");
-  const tenantId = (prop as { tenant_id: string | null }).tenant_id;
+
+  // Tenant: por padrão o inquilino ATUAL da propriedade (server-side). Mas pode vir
+  // um tenant_id explícito — ex.: adicionar depósito a um EX-inquilino. Só aceito se
+  // esse cliente já tiver pagamentos NESTA propriedade (ex-inquilino real) ou for o
+  // inquilino atual. NUNCA confio num tenant_id arbitrário do cliente.
+  let tenantId = (prop as { tenant_id: string | null }).tenant_id;
+  const requestedTenant = str(fd, "tenant_id");
+  if (requestedTenant && requestedTenant !== tenantId) {
+    const { data: known, error: knownErr } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("property_id", propertyId)
+      .eq("tenant_id", requestedTenant)
+      .limit(1);
+    if (knownErr) throw new Error(knownErr.message);
+    if (!known || known.length === 0) {
+      throw new Error("That tenant has no history on this property.");
+    }
+    tenantId = requestedTenant;
+  }
 
   // Split em dólares inteiros: o resto vai nas parcelas mais cedo.
   // base = floor(total/n); rem = total - base*n; amount(i) = base + (i<=rem ? 1 : 0)

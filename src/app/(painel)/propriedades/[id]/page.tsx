@@ -517,6 +517,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               tenants={tenantOptions}
               propertyId={p.id}
               currentTenant={currentTenant}
+              addDepositAction={canPayments ? addSecurityDepositAction : undefined}
             />
           )}
         </>
