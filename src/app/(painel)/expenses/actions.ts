@@ -45,19 +45,52 @@ export async function createExpenseAction(fd: FormData) {
   if (price === null) throw new Error("An amount is required.");
 
   const supabase = createClient();
-  const { error } = await supabase.from("expenses").insert({
-    description,
-    price,
-    date: str(fd, "date") ?? today(),
-    due_date: str(fd, "due_date"),
-    paid: str(fd, "paid") === "1",
-    paid_by: paidByOf(fd),
-    category: str(fd, "category"),
-    vendor: str(fd, "vendor"),
-    property_id: str(fd, "property_id"),
-    client_id: str(fd, "client_id"),
-  });
+  const { data: created, error } = await supabase
+    .from("expenses")
+    .insert({
+      description,
+      price,
+      date: str(fd, "date") ?? today(),
+      due_date: str(fd, "due_date"),
+      paid: str(fd, "paid") === "1",
+      paid_by: paidByOf(fd),
+      category: str(fd, "category"),
+      vendor: str(fd, "vendor"),
+      property_id: str(fd, "property_id"),
+      client_id: str(fd, "client_id"),
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+
+  // Recibos anexados JÁ na criação: subiram client-side pro bucket `documents`;
+  // aqui gravamos as referências agora que a despesa tem id. Malformado = ignora.
+  const stagedRaw = str(fd, "staged_receipts");
+  if (stagedRaw && created?.id) {
+    try {
+      const staged = JSON.parse(stagedRaw) as { path?: string; name?: string; type?: string }[];
+      const rows = (Array.isArray(staged) ? staged : [])
+        .filter((s) => s && typeof s.path === "string" && s.path)
+        .map((s) => ({
+          expense_id: created.id as string,
+          file_url: s.path as string,
+          file_name: s.name ?? null,
+          content_type: s.type ?? null,
+        }));
+      if (rows.length > 0) {
+        const { error: attErr } = await supabase.from("expense_attachments").insert(rows);
+        if (attErr) throw new Error(attErr.message);
+      }
+    } catch (err) {
+      // Não derruba a despesa (já criada) — sinaliza o recibo.
+      throw new Error(
+        err instanceof Error
+          ? `Expense saved, but a receipt could not be attached: ${err.message}`
+          : "Expense saved, but a receipt could not be attached."
+      );
+    }
+  }
+
   revalidatePath("/expenses");
 }
 

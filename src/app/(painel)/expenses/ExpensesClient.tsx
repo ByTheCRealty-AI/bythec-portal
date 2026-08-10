@@ -458,17 +458,11 @@ function ExpenseModal({
             Already paid
           </label>
 
-          {expense ? (
-            <ExpenseReceipts
-              expenseId={expense.id}
-              initial={expense.attachments ?? []}
-              actions={attachmentActions}
-            />
-          ) : (
-            <p className="rounded-lg border border-black/[0.08] bg-black/[0.02] px-3 py-2 text-xs text-ink/50">
-              Save the expense first, then reopen it to attach receipts.
-            </p>
-          )}
+          <ExpenseReceipts
+            expenseId={expense?.id ?? null}
+            initial={expense?.attachments ?? []}
+            actions={attachmentActions}
+          />
 
           {err && <p className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-600">{err}</p>}
 
@@ -488,19 +482,25 @@ function ExpenseModal({
   );
 }
 
-// Receipts (any file type) for a saved expense. Uploads client-side to the private
-// `documents` bucket, then records the reference. Local list state so the modal
-// updates immediately without a full refresh.
+type StagedReceipt = { path: string; name: string; type: string };
+
+// Receipts (any file type) for an expense. Works in TWO modes:
+//  - edit (expenseId set): each upload persists an expense_attachments row now.
+//  - create (expenseId null): each upload is STAGED (file goes to storage, but the
+//    row is written by createExpenseAction after the expense exists). Staged items
+//    ride along in a hidden `staged_receipts` input on the parent form.
+// Uploads go to the private `documents` bucket via the user's session.
 function ExpenseReceipts({
   expenseId,
   initial,
   actions,
 }: {
-  expenseId: string;
+  expenseId: string | null;
   initial: ExpenseAttachment[];
   actions: AttachmentActions;
 }) {
-  const [list, setList] = useState<ExpenseAttachment[]>(initial);
+  const [list, setList] = useState<ExpenseAttachment[]>(initial); // persisted (edit)
+  const [staged, setStaged] = useState<StagedReceipt[]>([]); // pending (create)
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -526,13 +526,19 @@ function ExpenseReceipts({
         setError(`Upload failed: ${upErr.message}`);
         return;
       }
-      const fd = new FormData();
-      fd.set("expense_id", expenseId);
-      fd.set("file_url", path);
-      fd.set("file_name", file.name);
-      fd.set("content_type", file.type || "");
-      const row = await actions.add(fd);
-      setList((l) => [row, ...l]);
+      if (expenseId) {
+        // Edit mode: persist the attachment row immediately.
+        const fd = new FormData();
+        fd.set("expense_id", expenseId);
+        fd.set("file_url", path);
+        fd.set("file_name", file.name);
+        fd.set("content_type", file.type || "");
+        const row = await actions.add(fd);
+        setList((l) => [row, ...l]);
+      } else {
+        // Create mode: stage until the expense is saved.
+        setStaged((s) => [{ path, name: file.name, type: file.type || "" }, ...s]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
     } finally {
@@ -541,10 +547,18 @@ function ExpenseReceipts({
     }
   }
 
+  const count = list.length + staged.length;
+
   return (
     <div>
       <p className="mb-1.5 text-sm font-medium text-ink/80">Receipts</p>
-      {list.length > 0 && (
+
+      {/* Staged uploads ride along on the create form as JSON. */}
+      {!expenseId && staged.length > 0 && (
+        <input type="hidden" name="staged_receipts" value={JSON.stringify(staged)} />
+      )}
+
+      {count > 0 && (
         <div className="mb-2 space-y-1.5">
           {list.map((att) => (
             <ExpenseReceiptRow
@@ -554,11 +568,30 @@ function ExpenseReceipts({
               remove={actions.remove}
             />
           ))}
+          {staged.map((s) => (
+            <div
+              key={s.path}
+              className="flex items-center gap-2 rounded-lg border border-black/[0.08] bg-white px-2.5 py-1.5"
+            >
+              <FileText className="h-3.5 w-3.5 text-ink/45" />
+              <span className="flex-1 truncate text-xs text-ink/80">{s.name}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink/35">Pending save</span>
+              <button
+                type="button"
+                onClick={() => setStaged((prev) => prev.filter((x) => x.path !== s.path))}
+                className="grid h-6 w-6 place-items-center rounded-md border border-black/[0.08] text-ink/40 transition hover:border-red-300 hover:text-red-500"
+                aria-label="Remove receipt"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
+
       <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-black/15 bg-black/[0.02] px-3 py-2 text-xs font-semibold text-ink/70 transition hover:border-black/30 hover:text-ink">
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-        {busy ? "Uploading…" : list.length > 0 ? "Add another" : "Attach receipt"}
+        {busy ? "Uploading…" : count > 0 ? "Add another" : "Attach receipt"}
         <input ref={fileRef} type="file" onChange={onPick} className="hidden" disabled={busy} />
       </label>
       <span className="ml-2 text-xs text-ink/40">Any file — photo, PDF, video. Up to 50 MB.</span>
