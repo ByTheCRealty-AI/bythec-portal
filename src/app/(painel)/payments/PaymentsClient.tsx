@@ -423,24 +423,31 @@ export function PaymentsClient({
   // ---- Due tab: aluguel + depósito com due_date, dividido em past due / este mês.
   // Inclui security_deposit (cada parcela aparece na sua data de vencimento). Past
   // due (vermelho) = mais de 5 dias atrasado; dentro dos 5 dias fica no bloco neutro.
-  const { pastDue, dueThisMonth } = useMemo(() => {
+  const { pastDue, dueThisMonth, dueNoDate } = useMemo(() => {
     const past: Payment[] = [];
     const month: Payment[] = [];
+    const noDate: Payment[] = [];
     const candidates = payments.filter((p) => isRentKind(p) || p.kind === "security_deposit");
     for (const p of candidates) {
       if (p.status !== "due") continue;
       const ymd = ymdOf(p.due_date);
-      if (!ymd) continue; // sem data de vencimento nunca aparece na aba Due
+      // Due SEM data de vencimento: em vez de esconder, mostra numa seção própria
+      // ("No due date") pra nenhum pagamento em aberto ficar invisível.
+      if (!ymd) {
+        noDate.push(p);
+        continue;
+      }
       if (ymd <= pastDueCutoff) past.push(p); // venceu há 4+ dias (ex.: dia 1 → dia 5) → vermelho
       else if (ymd.slice(0, 7) <= currentMonthKey) month.push(p); // este mês, ainda no prazo → neutro
       // due_date de mês futuro ainda não aparece.
     }
     past.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? "")); // mais antigo primeiro
     month.sort((a, b) => (ymdOf(a.due_date) ?? "").localeCompare(ymdOf(b.due_date) ?? ""));
-    return { pastDue: past, dueThisMonth: month };
+    noDate.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+    return { pastDue: past, dueThisMonth: month, dueNoDate: noDate };
   }, [payments, pastDueCutoff, currentMonthKey]);
 
-  const dueCount = pastDue.length + dueThisMonth.length;
+  const dueCount = pastDue.length + dueThisMonth.length + dueNoDate.length;
 
   // ---- Monthly tab: chips de mês distintos (mais recente primeiro).
   const monthKeys = useMemo(() => {
@@ -739,6 +746,24 @@ export function PaymentsClient({
                   title="Due this month"
                   subtitle={monthLabel(currentMonthKey)}
                   rows={dueThisMonth}
+                  danger={false}
+                  canManage={canManage}
+                  setStatus={setStatus}
+                  addPartAction={addPartAction}
+                  updatePartAction={updatePartAction}
+                  deletePartAction={deletePartAction}
+                  commissionActions={commissionActions}
+                  ownerActions={ownerActions}
+                  properties={properties}
+                  updateAction={updateAction}
+                  deleteAction={deleteAction}
+                />
+              )}
+              {dueNoDate.length > 0 && (
+                <DueSection
+                  title="No due date"
+                  subtitle="Unpaid, but no due date set yet. Open one to set a date."
+                  rows={dueNoDate}
                   danger={false}
                   canManage={canManage}
                   setStatus={setStatus}
