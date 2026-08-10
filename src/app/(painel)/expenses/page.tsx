@@ -9,6 +9,8 @@ import {
   updateExpenseAction,
   deleteExpenseAction,
   setExpensePaidAction,
+  addExpenseAttachmentAction,
+  deleteExpenseAttachmentAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +32,7 @@ export default async function ExpensesPage() {
     supabase
       .from("expenses")
       .select(
-        "id, description, price, date, due_date, paid, paid_by, category, vendor, property_id, client_id, archived_at, created_at"
+        "id, description, price, date, due_date, paid, paid_by, category, vendor, property_id, client_id, archived_at, created_at, attachments:expense_attachments(id, expense_id, file_url, file_name, content_type, created_at)"
       )
       .is("archived_at", null)
       .order("date", { ascending: false })
@@ -71,6 +73,8 @@ export default async function ExpensesPage() {
         updateAction={updateExpenseAction}
         deleteAction={deleteExpenseAction}
         setPaidAction={setExpensePaidAction}
+        addAttachmentAction={addExpenseAttachmentAction}
+        deleteAttachmentAction={deleteExpenseAttachmentAction}
       />
     </>
   );

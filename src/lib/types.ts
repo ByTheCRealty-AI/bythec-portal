@@ -526,6 +526,19 @@ export interface Expense {
   // joins opcionais
   property?: Pick<Property, "id" | "address" | "address2"> | null;
   client?: Pick<Client, "id" | "name"> | null;
+  attachments?: ExpenseAttachment[];
+}
+
+// Recibos anexados a uma despesa (qualquer mídia). file_url = path no bucket
+// privado `documents` (upload client-side) OU URL externa (legado http). Viewer
+// abre via signed URL. Tabela `expense_attachments` (RLS = has_cap expenses.manage).
+export interface ExpenseAttachment {
+  id: string;
+  expense_id: string;
+  file_url: string;
+  file_name: string | null;
+  content_type: string | null;
+  created_at: string;
 }
 
 // =============================================================================

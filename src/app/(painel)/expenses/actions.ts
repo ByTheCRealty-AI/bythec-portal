@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import type { PaidBy } from "@/lib/types";
+import type { PaidBy, ExpenseAttachment } from "@/lib/types";
 
 // Expenses = owner + manager + secretária (cap expenses.manage). O RLS reforça no
 // banco (policy expenses_rw = has_cap('expenses.manage')); aqui guardamos a UI +
@@ -106,6 +106,40 @@ export async function deleteExpenseAction(fd: FormData) {
   if (!id) throw new Error("Missing expense reference.");
   const supabase = createClient();
   const { error } = await supabase.from("expenses").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/expenses");
+}
+
+// Recibo (qualquer mídia): o arquivo já subiu client-side pro bucket privado
+// `documents`; aqui só gravamos a referência. Path vem do form.
+export async function addExpenseAttachmentAction(fd: FormData): Promise<ExpenseAttachment> {
+  await gate();
+  const expenseId = str(fd, "expense_id");
+  if (!expenseId) throw new Error("Missing expense reference.");
+  const fileUrl = str(fd, "file_url");
+  if (!fileUrl) throw new Error("Missing file.");
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("expense_attachments")
+    .insert({
+      expense_id: expenseId,
+      file_url: fileUrl,
+      file_name: str(fd, "file_name"),
+      content_type: str(fd, "content_type"),
+    })
+    .select("id, expense_id, file_url, file_name, content_type, created_at")
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/expenses");
+  return data as ExpenseAttachment;
+}
+
+export async function deleteExpenseAttachmentAction(fd: FormData) {
+  await gate();
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing attachment reference.");
+  const supabase = createClient();
+  const { error } = await supabase.from("expense_attachments").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/expenses");
 }

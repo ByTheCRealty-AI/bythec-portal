@@ -1,16 +1,37 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { createClient } from "@/lib/supabase/client";
 import { Field, inputClass, buttonClass, Badge, EmptyState } from "@/components/ui";
 import { money, date } from "@/lib/format";
-import { Plus, Pencil, Trash2, Loader2, X, Receipt, Check, Search } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Loader2, X, Receipt, Check, Search,
+  Upload, FileText, ExternalLink, Paperclip,
+} from "lucide-react";
 import {
   PAID_BY_LABEL,
   EXPENSE_CATEGORY_OPTIONS,
   type Expense,
+  type ExpenseAttachment,
   type PaidBy,
 } from "@/lib/types";
+
+const MAX_RECEIPT_BYTES = 50 * 1024 * 1024; // 50 MB (Supabase free-plan cap)
+
+function safeName(name: string): string {
+  const cleaned = name
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[._-]+/, "");
+  return cleaned || "file";
+}
+
+type AttachmentActions = {
+  add: (fd: FormData) => Promise<ExpenseAttachment>;
+  remove: (fd: FormData) => void | Promise<void>;
+};
 
 type PickProp = { id: string; address: string; address2: string | null };
 type PickClient = { id: string; name: string };
@@ -25,6 +46,8 @@ export function ExpensesClient({
   updateAction,
   deleteAction,
   setPaidAction,
+  addAttachmentAction,
+  deleteAttachmentAction,
 }: {
   expenses: Expense[];
   canManage: boolean;
@@ -34,6 +57,8 @@ export function ExpensesClient({
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
   setPaidAction: (id: string, paid: boolean) => Promise<void>;
+  addAttachmentAction: (fd: FormData) => Promise<ExpenseAttachment>;
+  deleteAttachmentAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
@@ -149,6 +174,11 @@ export function ExpensesClient({
                   <td className="px-4 py-3">
                     <span className="font-medium text-ink">{e.description}</span>
                     {e.vendor && <span className="block text-xs text-ink/45">{e.vendor}</span>}
+                    {(e.attachments?.length ?? 0) > 0 && (
+                      <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-ink/45">
+                        <Paperclip className="h-3 w-3" /> {e.attachments!.length}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-ink/60">{e.category ?? "—"}</td>
                   <td className="px-4 py-3 text-ink/60">
@@ -192,6 +222,7 @@ export function ExpensesClient({
           properties={properties}
           clients={clients}
           action={editing ? updateAction : createAction}
+          attachmentActions={{ add: addAttachmentAction, remove: deleteAttachmentAction }}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -284,12 +315,14 @@ function ExpenseModal({
   properties,
   clients,
   action,
+  attachmentActions,
   onClose,
 }: {
   expense: Expense | null;
   properties: PickProp[];
   clients: PickClient[];
   action: (fd: FormData) => void | Promise<void>;
+  attachmentActions: AttachmentActions;
   onClose: () => void;
 }) {
   const [paid, setPaid] = useState(expense?.paid ?? false);
@@ -425,6 +458,18 @@ function ExpenseModal({
             Already paid
           </label>
 
+          {expense ? (
+            <ExpenseReceipts
+              expenseId={expense.id}
+              initial={expense.attachments ?? []}
+              actions={attachmentActions}
+            />
+          ) : (
+            <p className="rounded-lg border border-black/[0.08] bg-black/[0.02] px-3 py-2 text-xs text-ink/50">
+              Save the expense first, then reopen it to attach receipts.
+            </p>
+          )}
+
           {err && <p className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-600">{err}</p>}
 
           <div className="flex gap-3 pt-1">
@@ -440,5 +485,159 @@ function ExpenseModal({
       </div>
     </div>,
     document.body
+  );
+}
+
+// Receipts (any file type) for a saved expense. Uploads client-side to the private
+// `documents` bucket, then records the reference. Local list state so the modal
+// updates immediately without a full refresh.
+function ExpenseReceipts({
+  expenseId,
+  initial,
+  actions,
+}: {
+  expenseId: string;
+  initial: ExpenseAttachment[];
+  actions: AttachmentActions;
+}) {
+  const [list, setList] = useState<ExpenseAttachment[]>(initial);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+    setError(null);
+    if (file.size > MAX_RECEIPT_BYTES) {
+      setError("File is too large. Maximum size is 50 MB.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    setBusy(true);
+    try {
+      const supabase = createClient();
+      const path = `expense-receipts/${crypto.randomUUID()}-${safeName(file.name)}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, file, {
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+      if (upErr) {
+        setError(`Upload failed: ${upErr.message}`);
+        return;
+      }
+      const fd = new FormData();
+      fd.set("expense_id", expenseId);
+      fd.set("file_url", path);
+      fd.set("file_name", file.name);
+      fd.set("content_type", file.type || "");
+      const row = await actions.add(fd);
+      setList((l) => [row, ...l]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-medium text-ink/80">Receipts</p>
+      {list.length > 0 && (
+        <div className="mb-2 space-y-1.5">
+          {list.map((att) => (
+            <ExpenseReceiptRow
+              key={att.id}
+              att={att}
+              onRemoved={(id) => setList((l) => l.filter((a) => a.id !== id))}
+              remove={actions.remove}
+            />
+          ))}
+        </div>
+      )}
+      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-black/15 bg-black/[0.02] px-3 py-2 text-xs font-semibold text-ink/70 transition hover:border-black/30 hover:text-ink">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+        {busy ? "Uploading…" : list.length > 0 ? "Add another" : "Attach receipt"}
+        <input ref={fileRef} type="file" onChange={onPick} className="hidden" disabled={busy} />
+      </label>
+      <span className="ml-2 text-xs text-ink/40">Any file — photo, PDF, video. Up to 50 MB.</span>
+      {error && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function ExpenseReceiptRow({
+  att,
+  onRemoved,
+  remove,
+}: {
+  att: ExpenseAttachment;
+  onRemoved: (id: string) => void;
+  remove: (fd: FormData) => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  async function open() {
+    setError(null);
+    setBusy(true);
+    try {
+      if (/^https?:\/\//i.test(att.file_url)) {
+        window.open(att.file_url, "_blank", "noopener,noreferrer");
+      } else {
+        const supabase = createClient();
+        const { data, error: sErr } = await supabase.storage
+          .from("documents")
+          .createSignedUrl(att.file_url, 60);
+        if (sErr || !data?.signedUrl) {
+          setError(sErr?.message ?? "Could not open the file.");
+          return;
+        }
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function del() {
+    const fd = new FormData();
+    fd.set("id", att.id);
+    start(async () => {
+      try {
+        await remove(fd);
+        onRemoved(att.id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not remove. Try again.");
+      }
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-black/[0.08] bg-white px-2.5 py-1.5">
+      <FileText className="h-3.5 w-3.5 text-ink/45" />
+      <button
+        type="button"
+        onClick={open}
+        disabled={busy}
+        className="flex-1 truncate text-left text-xs text-ink hover:text-primary"
+      >
+        {busy ? <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> : null}
+        {att.file_name ?? "Receipt"}
+        <ExternalLink className="ml-1 inline h-3 w-3 text-ink/30" />
+      </button>
+      <button
+        type="button"
+        onClick={del}
+        disabled={pending}
+        className="grid h-6 w-6 place-items-center rounded-md border border-black/[0.08] text-ink/40 transition hover:border-red-300 hover:text-red-500 disabled:opacity-60"
+        aria-label="Remove receipt"
+      >
+        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+      </button>
+      {error && <span className="text-[11px] text-red-600">{error}</span>}
+    </div>
   );
 }
