@@ -53,10 +53,11 @@ const NAV: Item[] = [
     label: "Invoices",
     icon: FileText,
     ready: true,
-    cap: "invoices.service",
+    // Sem cap no PAI: é só um cabeçalho (não clicável). A visibilidade do grupo
+    // vem dos filhos — mostra se a pessoa pode ver ao menos uma sub-categoria.
     // Sub-categorias em ordem alfabética. General ainda é "coming soon".
     children: [
-      { href: "/invoices/general", label: "General Invoices", cap: "invoices.service", ready: false },
+      { href: "/invoices/general", label: "General Invoices", cap: "invoices.general", ready: false },
       { href: "/invoices/seasonal", label: "Seasonal Invoices", cap: "invoices.seasonal" },
       { href: "/invoices/service", label: "Service Invoices", cap: "invoices.service" },
     ],
@@ -120,29 +121,17 @@ export function Sidebar({
         {visible.map((item) => {
           const Icon = item.icon;
 
-          // Item com sub-categorias (Invoices) — cabeçalho + filhos indentados.
+          // Item com sub-categorias (Invoices): cabeçalho NÃO clicável + filhos.
           if (item.children) {
             const kids = item.children.filter((c) => !c.cap || capSet.has(c.cap));
-            const childActive = kids.some((c) => pathname.startsWith(c.href));
-            const parentActive = pathname.startsWith(item.href) && !childActive;
+            if (kids.length === 0) return null; // não pode ver nenhuma sub-categoria
             return (
               <div key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={onNavigate}
-                  className={cx(
-                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-                    parentActive
-                      ? "bg-primary/10 font-semibold text-primary"
-                      : "text-ink/60 hover:bg-black/[0.035] hover:text-ink"
-                  )}
-                >
-                  <Icon
-                    className={cx("h-[18px] w-[18px] shrink-0", parentActive ? "text-primary" : "text-ink/50")}
-                    strokeWidth={2}
-                  />
-                  <span className="flex-1">{item.label}</span>
-                </Link>
+                {/* Cabeçalho do grupo — só rótulo, não navega (não é pressionável). */}
+                <div className="flex cursor-default select-none items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink/45">
+                  <Icon className="h-[18px] w-[18px] shrink-0 text-ink/40" strokeWidth={2} />
+                  <span className="flex-1 font-semibold">{item.label}</span>
+                </div>
                 <div className="mb-1 ml-[1.15rem] mt-0.5 flex flex-col gap-0.5 border-l border-black/[0.08] pl-3">
                   {kids.map((c) => {
                     const on = pathname.startsWith(c.href);

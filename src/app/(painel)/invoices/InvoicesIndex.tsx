@@ -54,9 +54,10 @@ export async function InvoicesIndex({
   const full = can(profile, "financials.full");
   const seasonalAccess = full || can(profile, "invoices.seasonal");
   const serviceAccess = full || can(profile, "invoices.service");
+  const generalAccess = full || can(profile, "invoices.general");
   const copy = COPY[scope];
 
-  if (!seasonalAccess && !serviceAccess) {
+  if (!seasonalAccess && !serviceAccess && !generalAccess) {
     return (
       <>
         <PageHeader title={copy.title} />
@@ -69,7 +70,10 @@ export async function InvoicesIndex({
   if (scope === "seasonal" && !seasonalAccess) {
     return (<><PageHeader title={copy.title} /><NoAccess /></>);
   }
-  if ((scope === "service" || scope === "general") && !serviceAccess) {
+  if (scope === "service" && !serviceAccess) {
+    return (<><PageHeader title={copy.title} /><NoAccess /></>);
+  }
+  if (scope === "general" && !generalAccess) {
     return (<><PageHeader title={copy.title} /><NoAccess /></>);
   }
 

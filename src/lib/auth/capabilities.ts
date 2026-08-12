@@ -31,8 +31,10 @@ export type Capability =
   | "financials.full" // todos os invoices/payments/expenses/commissions/payouts (ver + editar)
   | "invoices.service" // criar/ver SOMENTE invoices de serviço
   | "invoices.seasonal" // criar/ver SOMENTE invoices de temporada (Airbnb/VRBO)
+  | "invoices.general" // criar/ver SOMENTE invoices gerais (cobrança simples avulsa)
   | "payments.annual" // gerir pagamentos de aluguel year-round
   | "expenses.manage" // ver/gerir a aba Expenses (owner+manager+secretária) — NÃO abre Finances
+  | "applications.manage" // ver/triar aplicações de aluguel públicas (owner+manager; SSN sensível)
   | "reminders.view" // ver o quadro compartilhado de lembretes/follow-ups
   | "reminders.manage" // criar/atribuir/completar/editar/arquivar lembretes
   | "clients.own" // ver/gerir SOMENTE os clientes que o próprio usuário criou (realtor)
@@ -50,8 +52,10 @@ export const ALL_CAPABILITIES: Capability[] = [
   "financials.full",
   "invoices.service",
   "invoices.seasonal",
+  "invoices.general",
   "payments.annual",
   "expenses.manage",
+  "applications.manage",
   "reminders.view",
   "reminders.manage",
   "clients.own",
@@ -71,8 +75,10 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "financials.full": "Financials — full access (all invoices, payments, expenses, commissions, payouts)",
   "invoices.service": "Service invoices — create & view (service type only)",
   "invoices.seasonal": "Seasonal invoices — create & view (Airbnb / VRBO)",
+  "invoices.general": "General invoices — create & view (simple one-off charges)",
   "payments.annual": "Year-round payments — manage rent payments",
   "expenses.manage": "Expenses — view & manage the expenses list",
+  "applications.manage": "Rental applications — view & triage public applications",
   "reminders.view": "Reminders — see the shared follow-up board",
   "reminders.manage": "Reminders — create, assign, complete & archive",
   "clients.own": "Clients — view & manage only their own (scoped)",
@@ -86,6 +92,7 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
 
 export const CAPABILITY_HINT: Partial<Record<Capability, string>> = {
   "financials.full": "Grants everything in invoices, payments, expenses, commissions and owner payouts.",
+  "applications.manage": "Public rental applications include an applicant's SSN/ITIN — grant only to people who should see that.",
   "users.delete": "Owner only. Removes a person's login from the system.",
   "users.manage_access": "Lets this person edit other people's role and permissions.",
 };
@@ -100,8 +107,10 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "financials.full",
     "invoices.service",
     "invoices.seasonal",
+    "invoices.general",
     "payments.annual",
     "expenses.manage",
+    "applications.manage",
     "reminders.view",
     "reminders.manage",
     "clients.own",
@@ -118,6 +127,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "operations.edit",
     "invoices.service",
     "invoices.seasonal", // vê/cria TODAS as invoices; NÃO vê commissions/payouts
+    "invoices.general",
     "payments.annual",
     "expenses.manage", // vê/gerencia Expenses; mas NÃO Finances (sem financials.full)
     "reminders.view",
@@ -142,6 +152,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "properties.own",
     "providers.view",
     "listings.view",
+    "invoices.general", // realtor vê SOMENTE invoices gerais (não service/seasonal)
   ],
 };
 
