@@ -468,7 +468,10 @@ export async function updatePaymentAction(fd: FormData) {
     .from("payments")
     .update({
       property_id: propertyId,
-      tenant_id: (prop as { tenant_id: string | null }).tenant_id,
+      // NÃO re-derivar o tenant aqui: editar um pagamento NÃO deve reatribuí-lo ao
+      // inquilino atual. O tenant só muda pelo controle "Belongs to tenant"
+      // (reassignPaymentTenantAction). Assim um pagamento de ex-inquilino fica com
+      // ele mesmo ao editar kind/data/etc.
       kind: kindOf(fd),
       month: str(fd, "month"),
       due_date: str(fd, "due_date"),
