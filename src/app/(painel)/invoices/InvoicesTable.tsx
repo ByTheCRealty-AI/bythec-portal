@@ -49,7 +49,7 @@ export function InvoicesTable({
   canSeasonal: boolean;
   // Escopo da sub-categoria: quando não é "all", as linhas já vêm de um único tipo,
   // então escondemos os chips de tipo e mostramos só os de status relevantes.
-  scope?: "all" | "seasonal" | "service";
+  scope?: "all" | "seasonal" | "service" | "general";
   initialFilter?: string;
   initialQuery?: string;
 }) {
@@ -75,7 +75,12 @@ export function InvoicesTable({
   }, [filter, query]);
 
   const chips: Array<{ value: Filter; label: string }> =
-    scope === "seasonal"
+    scope === "general"
+      ? [
+          { value: "", label: "All" },
+          { value: "unpaid", label: "Unpaid" },
+        ]
+      : scope === "seasonal"
       ? [
           { value: "", label: "All" },
           { value: "unpaid", label: "Unpaid" },

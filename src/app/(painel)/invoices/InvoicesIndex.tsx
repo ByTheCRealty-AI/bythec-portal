@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, NoAccess, Card } from "@/components/ui";
+import { PageHeader, EmptyState, NoAccess, Card, buttonClass } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { FileText, Sparkles } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import type { Invoice } from "@/lib/types";
 import { InvoicesTable, type InvoiceRow } from "./InvoicesTable";
 import { NewInvoiceButton } from "./NewInvoiceButton";
@@ -14,7 +15,7 @@ const COPY: Record<InvoiceScope, { title: string; subtitle: string }> = {
   all: { title: "Invoices", subtitle: "Seasonal (Airbnb / VRBO) and service invoices." },
   general: {
     title: "General Invoices",
-    subtitle: "One-off / miscellaneous charges — not tied to a season or a repair.",
+    subtitle: "One-off charges (description + amount). No worker cost or commission.",
   },
   seasonal: {
     title: "Seasonal Invoices",
@@ -32,7 +33,7 @@ async function load() {
     const { data, error } = await supabase
       .from("invoices")
       .select(
-        "id, invoice_number, kind, platform, date, paid, cleaner_paid, cleaning_goes_to, total_paid_by_guest, labor_total, material_total, sent_to_owner, labor_paid, material_paid, commission_collected, client:client_id(id,name), property:property_id(id,address,address2)"
+        "id, invoice_number, kind, platform, date, paid, cleaner_paid, cleaning_goes_to, total_paid_by_guest, labor_total, material_total, general_total, sent_to_owner, labor_paid, material_paid, commission_collected, client:client_id(id,name), property:property_id(id,address,address2)"
       )
       .is("archived_at", null)
       .order("invoice_number", { ascending: false });
@@ -77,31 +78,19 @@ export async function InvoicesIndex({
     return (<><PageHeader title={copy.title} /><NoAccess /></>);
   }
 
-  // General ainda não foi construído — landing "coming soon" (sem tocar no banco;
-  // 'general' não existe no enum kind, então NÃO consultamos por ele).
-  if (scope === "general") {
-    return (
-      <>
-        <PageHeader title={copy.title} subtitle={copy.subtitle} />
-        <EmptyState
-          icon={<Sparkles className="h-6 w-6" />}
-          title="General invoices — coming soon"
-          message="A simple invoice for one-off charges (description + amount, no worker cost or commission). We'll turn this on next."
-        />
-      </>
-    );
-  }
-
   const { ok, invoices } = await load();
 
   const serviceOnly = serviceAccess && !seasonalAccess;
   // Filtra por acesso E pelo escopo da sub-categoria.
   const visible = invoices.filter((i) => {
     const allowed =
-      (i.kind === "seasonal" && seasonalAccess) || (i.kind === "service" && serviceAccess);
+      (i.kind === "seasonal" && seasonalAccess) ||
+      (i.kind === "service" && serviceAccess) ||
+      (i.kind === "general" && generalAccess);
     if (!allowed) return false;
     if (scope === "seasonal") return i.kind === "seasonal";
     if (scope === "service") return i.kind === "service";
+    if (scope === "general") return i.kind === "general";
     return true; // all
   });
 
@@ -115,6 +104,8 @@ export async function InvoicesIndex({
     total:
       i.kind === "seasonal"
         ? i.total_paid_by_guest ?? 0
+        : i.kind === "general"
+        ? i.general_total ?? 0
         : (i.labor_total ?? 0) + (i.material_total ?? 0),
     client_name: i.client?.name ?? null,
     property_address: i.property
@@ -127,21 +118,27 @@ export async function InvoicesIndex({
     commission_collected: i.kind === "service" ? i.commission_collected : null,
   }));
 
-  // "service" scope mostra direto o botão de service; "all"/"seasonal" respeitam o menu.
+  // Botão "New" por escopo: general/service vão direto; all/seasonal usam o menu.
   const newButton =
-    scope === "service" ? (
+    scope === "general" ? (
+      <Link href="/invoices/novo/geral" className={buttonClass("primary")}>
+        <Plus className="h-4 w-4" /> New general invoice
+      </Link>
+    ) : scope === "service" ? (
       <NewInvoiceButton canSeasonal={false} />
     ) : (
       <NewInvoiceButton canSeasonal={seasonalAccess} />
     );
 
-  const tableScope = scope === "all" ? "all" : scope; // general já retornou acima
+  const tableScope = scope === "all" ? "all" : scope;
 
   const emptyMsg =
     scope === "service"
       ? "Create the first service invoice for a maintenance job."
       : scope === "seasonal"
       ? "Create the first seasonal invoice — it follows the locked Airbnb / VRBO formula."
+      : scope === "general"
+      ? "Create the first general invoice — a simple one-off charge."
       : serviceOnly
       ? "Create the first service invoice for a maintenance job."
       : "Create the first invoice. Seasonal follows the locked Airbnb / VRBO formula.";
@@ -169,7 +166,7 @@ export async function InvoicesIndex({
         <InvoicesTable
           rows={rows}
           canSeasonal={seasonalAccess}
-          scope={tableScope as "all" | "seasonal" | "service"}
+          scope={tableScope as "all" | "seasonal" | "service" | "general"}
           initialFilter={searchParams.filter ?? ""}
           initialQuery={searchParams.q ?? ""}
         />

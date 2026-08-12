@@ -213,7 +213,7 @@ export const DEAL_SIDE_LABEL: Record<DealSide, string> = {
 // Fórmula seasonal TRAVADA — ver docs/invoice-formats.md.
 // =============================================================================
 
-export type InvoiceKind = "seasonal" | "service";
+export type InvoiceKind = "seasonal" | "service" | "general";
 export type InvoiceItemType = "charge" | "discount" | "fee";
 export type CleaningDestination = "owner" | "bythec";
 export type InvoiceItemCategory = "labor" | "material";
@@ -278,6 +278,9 @@ export interface Invoice {
   // labor_total/material_total são o que o OWNER paga (comissão já dentro).
   labor_total: number | null;
   material_total: number | null;
+  // ---- GENERAL (cobrança simples avulsa). Soma dos itens (description + amount).
+  // Sem custo de worker, sem comissão. general_total = o que o cliente paga.
+  general_total: number | null;
   service_address: string | null; // endereço digitado quando não há property_id
   work_date: string | null; // data do serviço (distinta de `date` = data de criação)
   provider_id: string | null; // quem fez o serviço (service_providers). Opcional.
@@ -337,6 +340,7 @@ export interface InvoiceItem {
 export const INVOICE_KIND_LABEL: Record<InvoiceKind, string> = {
   seasonal: "Seasonal",
   service: "Service",
+  general: "General",
 };
 
 export const INVOICE_ITEM_CATEGORY_LABEL: Record<InvoiceItemCategory, string> = {
@@ -746,14 +750,19 @@ export interface RentalApplication {
 
   full_name: string;
   date_of_birth: string | null;
+  has_ssn: boolean | null;
   ssn_last4: string | null;
+  ssn_none_explanation: string | null;
   phone: string | null;
+  has_license: boolean | null;
   drivers_license: string | null;
   drivers_license_state: string | null;
+  gov_id_type: string | null;
+  gov_id_number: string | null;
   email: string | null;
 
   occupants_count: number | null;
-  occupants: Array<{ name?: string; dob?: string }>;
+  occupants: Array<{ name?: string; dob?: string; is_adult?: boolean; phone?: string }>;
   rental_history: Array<{
     kind?: string;
     street?: string;
@@ -762,7 +771,7 @@ export interface RentalApplication {
     landlord_name?: string;
     landlord_phone?: string;
   }>;
-  vehicles: Array<{ make_model?: string; year?: string; color?: string; plate?: string }>;
+  vehicles: Array<{ make_model?: string; year?: string; color?: string; plate?: string; plate_state?: string }>;
 
   employer: string | null;
   employer_address: string | null;
@@ -803,6 +812,20 @@ export interface RentalApplication {
   submitted_at: string;
   created_at: string;
 
-  // join opcional
+  // joins opcionais
   property?: Pick<Property, "id" | "address" | "address2"> | null;
+  attachments?: RentalApplicationAttachment[];
+}
+
+// Anexo de government ID (candidato ou ocupante 18+). Bucket privado `documents`.
+export interface RentalApplicationAttachment {
+  id: string;
+  application_id: string;
+  category: "applicant_id" | "occupant_id";
+  occupant_index: number | null;
+  label: string | null;
+  file_path: string;
+  file_name: string | null;
+  content_type: string | null;
+  created_at: string;
 }

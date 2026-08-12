@@ -3,9 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { PageHeader, NoAccess } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { updateSeasonalInvoice, updateServiceInvoice } from "../../actions";
+import { updateSeasonalInvoice, updateServiceInvoice, updateGeneralInvoice } from "../../actions";
 import { SeasonalInvoiceForm } from "../../SeasonalInvoiceForm";
 import { ServiceInvoiceForm } from "../../ServiceInvoiceForm";
+import { GeneralInvoiceForm } from "../../GeneralInvoiceForm";
 import type { Client, Invoice, InvoiceItem, Property, InvoiceItemCategory } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,8 @@ export default async function EditInvoicePage({ params }: { params: { id: string
   const full = can(profile, "financials.full");
   const seasonalAccess = full || can(profile, "invoices.seasonal");
   const serviceAccess = full || can(profile, "invoices.service");
-  if (!seasonalAccess && !serviceAccess) {
+  const generalAccess = full || can(profile, "invoices.general");
+  if (!seasonalAccess && !serviceAccess && !generalAccess) {
     return (
       <>
         <PageHeader title="Edit invoice" />
@@ -57,8 +59,11 @@ export default async function EditInvoicePage({ params }: { params: { id: string
 
   const invoice = data as unknown as Invoice & { items: InvoiceItem[] };
   const isSeasonal = invoice.kind === "seasonal";
+  const isGeneral = invoice.kind === "general";
+  const isService = invoice.kind === "service";
   if (isSeasonal && !seasonalAccess) redirect("/invoices");
-  if (!isSeasonal && !serviceAccess) redirect("/invoices");
+  if (isService && !serviceAccess) redirect("/invoices");
+  if (isGeneral && !generalAccess) redirect("/invoices");
 
   const clients = (clientsData ?? []) as Client[];
   const properties = (propsData ?? []) as Pick<
@@ -69,6 +74,8 @@ export default async function EditInvoicePage({ params }: { params: { id: string
 
   const numberLabel = isSeasonal
     ? `Invoice #${invoice.invoice_number}`
+    : isGeneral
+    ? `General Invoice #${invoice.invoice_number}`
     : `Service Invoice #${invoice.invoice_number}`;
 
   if (isSeasonal) {
@@ -93,6 +100,27 @@ export default async function EditInvoicePage({ params }: { params: { id: string
           invoice={invoice}
           initialExtras={initialExtras}
           initialGuestExtras={initialGuestExtras}
+          submitLabel="Save changes"
+          cancelHref={`/invoices/${invoice.id}`}
+        />
+      </>
+    );
+  }
+
+  if (isGeneral) {
+    const initialGeneralItems = items.map((it) => ({
+      description: it.description,
+      amount: String(it.total),
+    }));
+    return (
+      <>
+        <PageHeader title={`Edit — ${numberLabel}`} subtitle="General · simple one-off charge (description + amount)." />
+        <GeneralInvoiceForm
+          action={updateGeneralInvoice.bind(null, invoice.id)}
+          clients={clients}
+          properties={properties}
+          invoice={invoice}
+          initialItems={initialGeneralItems}
           submitLabel="Save changes"
           cancelHref={`/invoices/${invoice.id}`}
         />

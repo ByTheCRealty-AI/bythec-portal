@@ -59,7 +59,7 @@ const NAV: Item[] = [
     // vem dos filhos — mostra se a pessoa pode ver ao menos uma sub-categoria.
     // Sub-categorias em ordem alfabética. General ainda é "coming soon".
     children: [
-      { href: "/invoices/general", label: "General Invoices", cap: "invoices.general", ready: false },
+      { href: "/invoices/general", label: "General Invoices", cap: "invoices.general" },
       { href: "/invoices/seasonal", label: "Seasonal Invoices", cap: "invoices.seasonal" },
       { href: "/invoices/service", label: "Service Invoices", cap: "invoices.service" },
     ],

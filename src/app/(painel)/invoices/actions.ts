@@ -801,3 +801,105 @@ export async function updateServiceInvoice(id: string, fd: FormData) {
   revalidatePath(`/invoices/${id}`);
   redirect(`/invoices/${id}`);
 }
+
+// ---- GENERAL invoice -------------------------------------------------------
+// Cobrança simples avulsa: só description + amount por linha → total. Sem custo
+// de worker, sem comissão, sem labor/material. general_total = soma dos itens.
+type GeneralItem = { description: string; total: number };
+
+function readGeneralItems(fd: FormData): GeneralItem[] {
+  const items: GeneralItem[] = [];
+  for (let i = 0; i < MAX_ITEMS; i++) {
+    const description = str(fd, `item_${i}_description`);
+    const amountRaw = str(fd, `item_${i}_amount`);
+    if (!description && !amountRaw) continue;
+    items.push({ description: description ?? "(no description)", total: round2(Number(amountRaw ?? 0) || 0) });
+  }
+  return items;
+}
+
+export async function createGeneralInvoice(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "financials.full") && !can(profile, "invoices.general")) {
+    throw new Error("You do not have access to create general invoices.");
+  }
+  const supabase = createClient();
+  const items = readGeneralItems(fd);
+  const general_total = round2(items.reduce((a, it) => a + it.total, 0));
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .insert({
+      kind: "general",
+      client_id: str(fd, "client_id"),
+      property_id: str(fd, "property_id"),
+      service_address: str(fd, "service_address"),
+      date: str(fd, "date"),
+      due_date: str(fd, "due_date"),
+      notes: str(fd, "notes"),
+      general_total,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  if (items.length > 0) {
+    const { error: itemsErr } = await supabase.from("invoice_items").insert(
+      items.map((it) => ({
+        invoice_id: data.id,
+        description: it.description,
+        total: it.total,
+        type: "charge",
+        guest: false,
+        owner: false,
+      }))
+    );
+    if (itemsErr) throw new Error(itemsErr.message);
+  }
+
+  revalidatePath("/invoices");
+  redirect(`/invoices/${data.id}`);
+}
+
+export async function updateGeneralInvoice(id: string, fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "financials.full") && !can(profile, "invoices.general")) {
+    throw new Error("You do not have access to edit this invoice.");
+  }
+  const supabase = createClient();
+  const items = readGeneralItems(fd);
+  const general_total = round2(items.reduce((a, it) => a + it.total, 0));
+
+  const { error } = await supabase
+    .from("invoices")
+    .update({
+      client_id: str(fd, "client_id"),
+      property_id: str(fd, "property_id"),
+      service_address: str(fd, "service_address"),
+      date: str(fd, "date"),
+      due_date: str(fd, "due_date"),
+      notes: str(fd, "notes"),
+      general_total,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await supabase.from("invoice_items").delete().eq("invoice_id", id);
+  if (items.length > 0) {
+    const { error: itemsErr } = await supabase.from("invoice_items").insert(
+      items.map((it) => ({
+        invoice_id: id,
+        description: it.description,
+        total: it.total,
+        type: "charge" as const,
+        guest: false,
+        owner: false,
+      }))
+    );
+    if (itemsErr) throw new Error(itemsErr.message);
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${id}`);
+  redirect(`/invoices/${id}`);
+}

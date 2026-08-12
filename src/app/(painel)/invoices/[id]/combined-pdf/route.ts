@@ -69,9 +69,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   };
 
   const isSeasonal = inv.kind === "seasonal";
+  const isGeneral = inv.kind === "general";
   const access =
     can(profile, "financials.full") ||
-    (isSeasonal ? can(profile, "invoices.seasonal") : can(profile, "invoices.service"));
+    (isSeasonal
+      ? can(profile, "invoices.seasonal")
+      : isGeneral
+      ? can(profile, "invoices.general")
+      : can(profile, "invoices.service"));
   if (!access) return new NextResponse("Forbidden", { status: 403 });
 
   const pdf = await PDFDocument.create();
@@ -109,7 +114,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // ---- Invoice to / Reservation ----
   const colR = MARGIN + 280;
   T("INVOICE TO", MARGIN, y, 8.5, bold, MUTED);
-  T(isSeasonal ? "RESERVATION DETAILS" : "SERVICE ADDRESS", colR, y, 8.5, bold, MUTED);
+  T(isSeasonal ? "RESERVATION DETAILS" : isGeneral ? "ADDRESS" : "SERVICE ADDRESS", colR, y, 8.5, bold, MUTED);
   y -= 16;
 
   const billLines: string[] = [];
@@ -177,6 +182,24 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const leftEnd = drawColumn(leftX, "Paid by Guest", guestItems, "Total Paid by Guest", inv.total_paid_by_guest ?? 0);
     const rightEnd = drawColumn(rightX, "Owner Overview", ownerItems, "Total Received by Owner", inv.total_received_by_owner ?? 0);
     y = Math.min(leftEnd, rightEnd) - 10;
+  } else if (isGeneral) {
+    // General: tabela simples (description + amount) + Total.
+    T("Description", MARGIN, y, 8.5, bold, MUTED);
+    TR("Amount", PAGE_W - MARGIN, y, 8.5, bold, MUTED);
+    y -= 6;
+    hline(y);
+    y -= 16;
+    for (const it of inv.items) {
+      T(it.description, MARGIN, y, 10);
+      TR(money(it.total), PAGE_W - MARGIN, y, 10);
+      y -= 16;
+    }
+    y -= 8;
+    hline(y + 6);
+    const generalTotal = inv.general_total ?? inv.items.reduce((a, it) => a + it.total, 0);
+    T("Total", PAGE_W - MARGIN - 180, y - 8, 11, bold);
+    TR(money(generalTotal), PAGE_W - MARGIN, y - 8, 12, bold, GREEN);
+    y -= 26;
   } else {
     // Service: tabela única + totais.
     T("Description", MARGIN, y, 8.5, bold, MUTED);

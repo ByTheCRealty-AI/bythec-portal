@@ -48,7 +48,8 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const full = can(profile, "financials.full");
   const seasonalAccess = full || can(profile, "invoices.seasonal");
   const serviceAccess = full || can(profile, "invoices.service");
-  if (!seasonalAccess && !serviceAccess) redirect("/?denied=invoices");
+  const generalAccess = full || can(profile, "invoices.general");
+  if (!seasonalAccess && !serviceAccess && !generalAccess) redirect("/?denied=invoices");
 
   const supabase = createClient();
   const { data, error } = await supabase
@@ -71,9 +72,12 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   // mas reforçamos pra não vazar layout).
   if (invoice.kind === "seasonal" && !seasonalAccess) redirect("/invoices");
   if (invoice.kind === "service" && !serviceAccess) redirect("/invoices");
+  if (invoice.kind === "general" && !generalAccess) redirect("/invoices");
 
   const archived = invoice.archived_at !== null;
   const isSeasonal = invoice.kind === "seasonal";
+  const isService = invoice.kind === "service";
+  const isGeneral = invoice.kind === "general";
   // Cleaner pago só faz sentido quando a By the C recebe o cleaning fee (e por
   // isso paga o cleaner). Interno — nunca vai pro PDF/impressão.
   const showCleaner = isSeasonal && invoice.cleaning_goes_to === "bythec";
@@ -97,6 +101,8 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const cleanerProviders = (providersData ?? []) as { id: string; name: string }[];
   const numberLabel = isSeasonal
     ? `Invoice #${invoice.invoice_number}`
+    : isGeneral
+    ? `General Invoice #${invoice.invoice_number}`
     : `Service Invoice #${invoice.invoice_number}`;
 
   const client = invoice.client;
@@ -146,7 +152,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
       </div>
 
       {/* Tracking interno (só service) — no TOPO. 5 estados + breakdown da comissão. */}
-      {!isSeasonal && (
+      {isService && (
         <div className="mx-auto mb-6 max-w-3xl">
           <ServiceTrackingPanel
             invoiceId={invoice.id}
@@ -214,22 +220,27 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           </div>
           <div className="text-right">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink/45">
-              {isSeasonal ? "Invoice" : "Service Invoice"}
+              {isService ? "Service Invoice" : "Invoice"}
             </p>
             <p className="h-display text-xl text-ink">#{invoice.invoice_number}</p>
             <p className="mt-1 text-xs text-ink/55">Date: {date(invoice.date)}</p>
-            {!isSeasonal && invoice.work_date && (
+            {isService && invoice.work_date && (
               <p className="text-xs text-ink/55">Work: {date(invoice.work_date)}</p>
             )}
             {isSeasonal && invoice.platform && (
               <p className="text-xs text-ink/55">Platform: {invoice.platform}</p>
             )}
-            {!isSeasonal && <p className="text-xs text-ink/55">Due: When received</p>}
+            {isService && <p className="text-xs text-ink/55">Due: When received</p>}
+            {isGeneral && invoice.due_date && (
+              <p className="text-xs text-ink/55">Due: {date(invoice.due_date)}</p>
+            )}
           </div>
         </header>
 
         {isSeasonal ? (
           <SeasonalBody invoice={invoice} billLines={billLines} />
+        ) : isGeneral ? (
+          <GeneralBody invoice={invoice} billLines={billLines} serviceAddress={serviceAddress} />
         ) : (
           <ServiceBody invoice={invoice} billLines={billLines} serviceAddress={serviceAddress} />
         )}
@@ -251,7 +262,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         <InvoiceDocuments
           invoiceId={invoice.id}
           attachments={guestReceipts}
-          canManage={isSeasonal ? seasonalAccess : serviceAccess}
+          canManage={isSeasonal ? seasonalAccess : isGeneral ? generalAccess : serviceAccess}
           addAction={addInvoiceAttachmentAction}
           deleteAction={deleteInvoiceAttachmentAction}
         />
@@ -373,6 +384,58 @@ function ServiceBody({
           <span>Total Material</span>
           <span className="font-semibold text-ink">{money(materialTotal)}</span>
         </div>
+        <div className="flex justify-between border-t border-black/[0.1] pt-2 text-base">
+          <span className="font-semibold text-ink">Total</span>
+          <span className="h-display text-primary">{money(total)}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ---- GENERAL body ----------------------------------------------------------
+// Cobrança simples: description + amount por linha → Total. Sem tipo, sem comissão.
+function GeneralBody({
+  invoice,
+  billLines,
+  serviceAddress,
+}: {
+  invoice: Invoice & { items: InvoiceItem[] };
+  billLines: string[];
+  serviceAddress: string | null;
+}) {
+  const total = invoice.general_total ?? invoice.items.reduce((a, i) => a + i.total, 0);
+
+  return (
+    <>
+      <div className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <AddressBlock title="Bill to" lines={billLines} />
+        <AddressBlock title="Address" lines={serviceAddress ? [serviceAddress] : []} />
+      </div>
+
+      <table className="w-full text-left text-sm">
+        <thead className="border-b border-black/[0.1] text-xs uppercase tracking-wider text-ink/50">
+          <tr>
+            <th className="py-2 font-bold">Description</th>
+            <th className="py-2 text-right font-bold">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoice.items.map((it, i) => (
+            <tr key={it.id} className={i % 2 === 1 ? "bg-black/[0.015]" : ""}>
+              <td className="py-2.5 pr-3 text-ink/85">{it.description}</td>
+              <td className="py-2.5 text-right text-ink/85">{money(it.total)}</td>
+            </tr>
+          ))}
+          {invoice.items.length === 0 && (
+            <tr>
+              <td colSpan={2} className="py-4 text-center text-sm text-ink/40">No line items.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <div className="mt-6 ml-auto max-w-xs text-sm">
         <div className="flex justify-between border-t border-black/[0.1] pt-2 text-base">
           <span className="font-semibold text-ink">Total</span>
           <span className="h-display text-primary">{money(total)}</span>

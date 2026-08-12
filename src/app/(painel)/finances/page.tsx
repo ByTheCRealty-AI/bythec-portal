@@ -4,7 +4,7 @@ import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { money } from "@/lib/format";
-import { Home, CalendarDays, Hammer, KeyRound, Receipt, TrendingUp } from "lucide-react";
+import { Home, CalendarDays, Hammer, KeyRound, Receipt, TrendingUp, FileText } from "lucide-react";
 import { SalesCommissionsSection, type ClosedDeal } from "./SalesCommissionsSection";
 import { setSaleCommissionAction } from "./actions";
 
@@ -47,7 +47,7 @@ export default async function FinancesPage({
     supabase
       .from("invoices")
       .select(
-        "kind, bythec_commission, labor_total, material_total, service_commission, commission_collected, commission_collected_at, paid, paid_date, date"
+        "kind, bythec_commission, labor_total, material_total, service_commission, commission_collected, commission_collected_at, general_total, paid, paid_date, date"
       ),
     supabase
       .from("clients")
@@ -103,6 +103,7 @@ export default async function FinancesPage({
 
   const seasonal: Stream = { received: 0, pending: 0 };
   const service: Stream = { received: 0, pending: 0 };
+  const general: Stream = { received: 0, pending: 0 };
   for (const iv of invoices) {
     const paidWhen = (iv.paid_date as string) ?? (iv.date as string);
     if (iv.kind === "seasonal") {
@@ -120,6 +121,13 @@ export default async function FinancesPage({
         const when = (iv.commission_collected_at as string) ?? paidWhen;
         if (match(when)) service.received += amt;
       } else if (match(iv.date as string)) service.pending += amt;
+    } else if (iv.kind === "general") {
+      // General = cobrança avulsa; o valor inteiro é receita da By the C.
+      const amt = n(iv.general_total);
+      if (!amt) continue;
+      if (iv.paid) {
+        if (match(paidWhen)) general.received += amt;
+      } else if (match(iv.date as string)) general.pending += amt;
     }
   }
 
@@ -133,8 +141,10 @@ export default async function FinancesPage({
 
   const expensesTotal = expenses.reduce((s, e) => (match(e.date as string) ? s + n(e.price) : s), 0);
 
-  const totalReceived = yearRound.received + seasonal.received + service.received + sales.received;
-  const totalPending = yearRound.pending + seasonal.pending + service.pending + sales.pending;
+  const totalReceived =
+    yearRound.received + seasonal.received + service.received + general.received + sales.received;
+  const totalPending =
+    yearRound.pending + seasonal.pending + service.pending + general.pending + sales.pending;
   const net = totalReceived - expensesTotal;
 
   const dealsForYear = isAll ? closedDeals : closedDeals.filter((d) => yearOf(d.deal_closed_at) === selYear);
@@ -143,7 +153,7 @@ export default async function FinancesPage({
   // For a specific year: 12 months. For "All time": one row per year. Buckets by
   // when the money came in (received/paid/closed date).
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  type Row = { yr: number; seasonal: number; service: number; sales: number };
+  type Row = { yr: number; seasonal: number; service: number; general: number; sales: number };
   const buckets = new Map<string, Row>();
   const bucketKey = (s: string | null): string | null => {
     const y = yearOf(s);
@@ -155,7 +165,7 @@ export default async function FinancesPage({
   };
   const addTo = (key: string | null, field: keyof Row, amt: number) => {
     if (key == null || !amt) return;
-    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, sales: 0 };
+    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, general: 0, sales: 0 };
     b[field] += amt;
     buckets.set(key, b);
   };
@@ -172,6 +182,10 @@ export default async function FinancesPage({
       if (!iv.commission_collected) continue;
       const when = (iv.commission_collected_at as string) ?? (iv.paid_date as string) ?? (iv.date as string);
       addTo(bucketKey(when), "service", n(iv.service_commission));
+    } else if (iv.kind === "general") {
+      if (!iv.paid) continue;
+      const when = (iv.paid_date as string) ?? (iv.date as string);
+      addTo(bucketKey(when), "general", n(iv.general_total));
     }
   }
   for (const d of closedDeals) {
@@ -182,8 +196,8 @@ export default async function FinancesPage({
       ? years.map((y) => ({ label: String(y), key: String(y) }))
       : MONTHS.map((m, i) => ({ label: m, key: String(i + 1) }))
   ).map(({ label, key }) => {
-    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, sales: 0 };
-    return { label, ...b, total: b.yr + b.seasonal + b.service + b.sales };
+    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, general: 0, sales: 0 };
+    return { label, ...b, total: b.yr + b.seasonal + b.service + b.general + b.sales };
   });
   const maxPeriod = Math.max(1, ...periodRows.map((r) => r.total));
   const periodsTotal = periodRows.reduce((s, r) => s + r.total, 0);
@@ -192,6 +206,7 @@ export default async function FinancesPage({
     { key: "yr", label: "Year-round rent commission", icon: Home, s: yearRound },
     { key: "seasonal", label: "Seasonal commission (Airbnb/VRBO)", icon: CalendarDays, s: seasonal },
     { key: "service", label: "Service commission (10%)", icon: Hammer, s: service },
+    { key: "general", label: "General invoices", icon: FileText, s: general },
     { key: "sales", label: "Sales commission", icon: KeyRound, s: sales },
   ];
 
@@ -273,6 +288,7 @@ export default async function FinancesPage({
                 <th className="px-4 py-3 text-right font-bold">Year-round</th>
                 <th className="px-4 py-3 text-right font-bold">Seasonal</th>
                 <th className="px-4 py-3 text-right font-bold">Service</th>
+                <th className="px-4 py-3 text-right font-bold">General</th>
                 <th className="px-4 py-3 text-right font-bold">Sales</th>
                 <th className="px-4 py-3 text-right font-bold">Received</th>
               </tr>
@@ -284,6 +300,7 @@ export default async function FinancesPage({
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.yr ? money(r.yr) : "—"}</td>
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.seasonal ? money(r.seasonal) : "—"}</td>
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.service ? money(r.service) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right text-ink/60">{r.general ? money(r.general) : "—"}</td>
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.sales ? money(r.sales) : "—"}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -302,7 +319,7 @@ export default async function FinancesPage({
             <tfoot>
               <tr className="border-t border-black/[0.08] bg-black/[0.02]">
                 <td className="px-4 py-3 font-bold text-ink">Total</td>
-                <td colSpan={4} />
+                <td colSpan={5} />
                 <td className="px-4 py-3 text-right font-bold text-primary">{money(periodsTotal)}</td>
               </tr>
             </tfoot>
