@@ -43,7 +43,7 @@ export default async function EditInvoicePage({ params }: { params: { id: string
   }
 
   const supabase = createClient();
-  const [{ data, error }, { data: clientsData }, { data: propsData }] = await Promise.all([
+  const [{ data, error }, { data: clientsData }, { data: propsData }, { data: providersData }] = await Promise.all([
     supabase.from("invoices").select("*, items:invoice_items(*)").eq("id", params.id).single(),
     supabase.from("clients").select("*").is("archived_at", null).order("name"),
     supabase
@@ -51,6 +51,7 @@ export default async function EditInvoicePage({ params }: { params: { id: string
       .select("id, owner_id, address, address2, seasonal_commission_rate, seasonal_commission_base")
       .is("archived_at", null)
       .order("address"),
+    supabase.from("service_providers").select("id, name").is("archived_at", null).order("name"),
   ]);
   if (error || !data) notFound();
 
@@ -99,19 +100,22 @@ export default async function EditInvoicePage({ params }: { params: { id: string
     );
   }
 
+  // O form edita o CUSTO do worker (item.cost). Fallback pro total só cobre itens
+  // legados sem cost (não existem hoje — 0 service invoices na base).
   const initialItems = items.map((it) => ({
     description: it.description,
-    amount: String(it.total),
+    amount: it.cost != null ? String(it.cost) : String(it.total),
     category: (it.category ?? "labor") as InvoiceItemCategory,
   }));
 
   return (
     <>
-      <PageHeader title={`Edit — ${numberLabel}`} subtitle="Service · labor and material line items." />
+      <PageHeader title={`Edit — ${numberLabel}`} subtitle="Service · enter the worker's cost; your 10% is added automatically." />
       <ServiceInvoiceForm
         action={updateServiceInvoice.bind(null, invoice.id)}
         clients={clients}
         properties={properties}
+        providers={(providersData ?? []) as { id: string; name: string }[]}
         invoice={invoice}
         initialItems={initialItems}
         submitLabel="Save changes"

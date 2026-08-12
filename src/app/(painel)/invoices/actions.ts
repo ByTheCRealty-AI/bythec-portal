@@ -19,7 +19,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { computeSeasonal, round2 } from "@/lib/invoice-formula";
+import { computeSeasonal, round2, serviceBilled } from "@/lib/invoice-formula";
 import type { CleaningDestination, InvoiceItemCategory, SeasonalCommissionBase } from "@/lib/types";
 
 // ---- Helpers de FormData ---------------------------------------------------
@@ -54,24 +54,8 @@ export async function createServiceInvoice(fd: FormData) {
 
   const supabase = createClient();
 
-  // Itens: descrição + amount + category (labor|material).
-  type SvcItem = { description: string; total: number; category: InvoiceItemCategory };
-  const items: SvcItem[] = [];
-  for (let i = 0; i < MAX_ITEMS; i++) {
-    const description = str(fd, `item_${i}_description`);
-    const amountRaw = str(fd, `item_${i}_amount`);
-    const category = (str(fd, `item_${i}_category`) as InvoiceItemCategory | null) ?? "labor";
-    if (!description && !amountRaw) continue;
-    const total = round2(Number(amountRaw ?? 0) || 0);
-    items.push({ description: description ?? "(no description)", total, category });
-  }
-
-  const labor_total = round2(
-    items.filter((it) => it.category === "labor").reduce((a, it) => a + it.total, 0)
-  );
-  const material_total = round2(
-    items.filter((it) => it.category === "material").reduce((a, it) => a + it.total, 0)
-  );
+  const items = readServiceItems(fd);
+  const t = serviceTotals(items);
 
   const { data, error } = await supabase
     .from("invoices")
@@ -79,12 +63,17 @@ export async function createServiceInvoice(fd: FormData) {
       kind: "service",
       client_id: str(fd, "client_id"),
       property_id: str(fd, "property_id"),
+      provider_id: str(fd, "provider_id"),
       service_address: str(fd, "service_address"),
       date: str(fd, "date"),
+      work_date: str(fd, "work_date"),
       due_date: str(fd, "due_date"),
       notes: str(fd, "notes"),
-      labor_total,
-      material_total,
+      labor_total: t.labor_total,
+      material_total: t.material_total,
+      labor_cost: t.labor_cost,
+      material_cost: t.material_cost,
+      service_commission: t.commission,
     })
     .select("id")
     .single();
@@ -97,6 +86,7 @@ export async function createServiceInvoice(fd: FormData) {
         invoice_id: data.id,
         description: it.description,
         total: it.total,
+        cost: it.cost,
         type: "charge",
         category: it.category,
         guest: false,
@@ -108,6 +98,41 @@ export async function createServiceInvoice(fd: FormData) {
 
   revalidatePath("/invoices");
   redirect(`/invoices/${data.id}`);
+}
+
+// ---- SERVICE helpers -------------------------------------------------------
+// A Andrea digita o CUSTO do worker (item_<i>_amount). O preço ao owner tem os
+// 10% da By the C EMBUTIDOS: total = round(cost*1.10,2). labor_total/material_total
+// são o que o OWNER paga; labor_cost/material_cost são o custo do worker (interno).
+type ServiceItem = {
+  description: string;
+  cost: number; // custo do worker
+  total: number; // preço ao owner (comissão embutida)
+  category: InvoiceItemCategory;
+};
+
+function readServiceItems(fd: FormData): ServiceItem[] {
+  const items: ServiceItem[] = [];
+  for (let i = 0; i < MAX_ITEMS; i++) {
+    const description = str(fd, `item_${i}_description`);
+    const amountRaw = str(fd, `item_${i}_amount`);
+    const category = (str(fd, `item_${i}_category`) as InvoiceItemCategory | null) ?? "labor";
+    if (!description && !amountRaw) continue;
+    const cost = round2(Number(amountRaw ?? 0) || 0);
+    items.push({ description: description ?? "(no description)", cost, total: serviceBilled(cost), category });
+  }
+  return items;
+}
+
+function serviceTotals(items: ServiceItem[]) {
+  const labor = items.filter((it) => it.category === "labor");
+  const material = items.filter((it) => it.category === "material");
+  const labor_total = round2(labor.reduce((a, it) => a + it.total, 0));
+  const material_total = round2(material.reduce((a, it) => a + it.total, 0));
+  const labor_cost = round2(labor.reduce((a, it) => a + it.cost, 0));
+  const material_cost = round2(material.reduce((a, it) => a + it.cost, 0));
+  const commission = round2(labor_total + material_total - labor_cost - material_cost);
+  return { labor_total, material_total, labor_cost, material_cost, commission };
 }
 
 // ---- SEASONAL invoice ------------------------------------------------------
@@ -301,15 +326,94 @@ export async function updateInvoice(id: string, fd: FormData) {
 }
 
 // ---- Paid toggle (regime de caixa) -----------------------------------------
+// "Owner paid". Em SERVICE, marcar pago AUTO-marca a comissão como recebida
+// (ela entra junto com o pagamento do owner) — a Andrea pode desmarcar depois.
 export async function setPaid(id: string, paid: boolean) {
   const supabase = createClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("kind, commission_collected")
+    .eq("id", id)
+    .maybeSingle();
+  const row = inv as { kind: string; commission_collected: boolean } | null;
+
+  const update: Record<string, unknown> = { paid, paid_date: paid ? today : null };
+  // Auto-tick da comissão só no service e só quando marca PAGO (não desfaz ao despagar).
+  if (paid && row?.kind === "service" && !row.commission_collected) {
+    update.commission_collected = true;
+    update.commission_collected_at = today;
+  }
+
+  const { error } = await supabase.from("invoices").update(update).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath("/invoices");
+}
+
+// ---- SERVICE tracking toggles (5 estados) ----------------------------------
+// Cada toggle carimba a data (hoje) ao marcar; limpa ao desmarcar. Datas
+// editáveis pelos *Date setters abaixo (a UI mostra o campo quando marcado).
+async function setServiceFlag(
+  id: string,
+  flagCol: string,
+  dateCol: string,
+  value: boolean
+) {
+  const supabase = createClient();
+  const today = new Date().toISOString().slice(0, 10);
   const { error } = await supabase
     .from("invoices")
-    .update({ paid, paid_date: paid ? new Date().toISOString().slice(0, 10) : null })
+    .update({ [flagCol]: value, [dateCol]: value ? today : null })
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/invoices/${id}`);
   revalidatePath("/invoices");
+}
+
+export async function setSentToOwner(id: string, v: boolean) {
+  await setServiceFlag(id, "sent_to_owner", "sent_at", v);
+}
+export async function setLaborPaid(id: string, v: boolean) {
+  await setServiceFlag(id, "labor_paid", "labor_paid_at", v);
+}
+export async function setMaterialPaid(id: string, v: boolean) {
+  await setServiceFlag(id, "material_paid", "material_paid_at", v);
+}
+export async function setCommissionCollected(id: string, v: boolean) {
+  await setServiceFlag(id, "commission_collected", "commission_collected_at", v);
+}
+
+// Datas editáveis dos estados (YYYY-MM-DD; vazio limpa). São colunas `date`.
+async function setServiceDate(id: string, dateCol: string, ymd: string | null) {
+  const supabase = createClient();
+  const v = ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd.trim()) ? ymd.trim() : null;
+  const { error } = await supabase.from("invoices").update({ [dateCol]: v }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
+}
+
+export async function setSentDate(id: string, ymd: string | null) {
+  await setServiceDate(id, "sent_at", ymd);
+}
+export async function setLaborPaidDate(id: string, ymd: string | null) {
+  await setServiceDate(id, "labor_paid_at", ymd);
+}
+export async function setMaterialPaidDate(id: string, ymd: string | null) {
+  await setServiceDate(id, "material_paid_at", ymd);
+}
+export async function setCommissionCollectedDate(id: string, ymd: string | null) {
+  await setServiceDate(id, "commission_collected_at", ymd);
+}
+
+// Provider (worker) que fez o serviço. Opcional (crew interno deixa vazio).
+export async function setServiceProvider(id: string, providerId: string | null) {
+  const supabase = createClient();
+  const v = providerId && providerId.trim() ? providerId.trim() : null;
+  const { error } = await supabase.from("invoices").update({ provider_id: v }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/invoices/${id}`);
 }
 
 // Cleaner pago pela By the C (só faz sentido em seasonal com cleaning_goes_to =
@@ -653,29 +757,25 @@ export async function updateServiceInvoice(id: string, fd: FormData) {
   }
   const supabase = createClient();
 
-  type SvcItem = { description: string; total: number; category: InvoiceItemCategory };
-  const items: SvcItem[] = [];
-  for (let i = 0; i < MAX_ITEMS; i++) {
-    const description = str(fd, `item_${i}_description`);
-    const amountRaw = str(fd, `item_${i}_amount`);
-    const category = (str(fd, `item_${i}_category`) as InvoiceItemCategory | null) ?? "labor";
-    if (!description && !amountRaw) continue;
-    items.push({ description: description ?? "(no description)", total: round2(Number(amountRaw ?? 0) || 0), category });
-  }
-  const labor_total = round2(items.filter((it) => it.category === "labor").reduce((a, it) => a + it.total, 0));
-  const material_total = round2(items.filter((it) => it.category === "material").reduce((a, it) => a + it.total, 0));
+  const items = readServiceItems(fd);
+  const t = serviceTotals(items);
 
   const { error } = await supabase
     .from("invoices")
     .update({
       client_id: str(fd, "client_id"),
       property_id: str(fd, "property_id"),
+      provider_id: str(fd, "provider_id"),
       service_address: str(fd, "service_address"),
       date: str(fd, "date"),
+      work_date: str(fd, "work_date"),
       due_date: str(fd, "due_date"),
       notes: str(fd, "notes"),
-      labor_total,
-      material_total,
+      labor_total: t.labor_total,
+      material_total: t.material_total,
+      labor_cost: t.labor_cost,
+      material_cost: t.material_cost,
+      service_commission: t.commission,
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
@@ -687,6 +787,7 @@ export async function updateServiceInvoice(id: string, fd: FormData) {
         invoice_id: id,
         description: it.description,
         total: it.total,
+        cost: it.cost,
         type: "charge" as const,
         category: it.category,
         guest: false,

@@ -100,6 +100,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   TR(`#${inv.invoice_number}`, PAGE_W - MARGIN, y - 22, 20, bold);
   TR(`Date: ${fmtDate(inv.date)}`, PAGE_W - MARGIN, y - 38, 9, font, MUTED);
   if (isSeasonal && inv.platform) TR(`Platform: ${inv.platform}`, PAGE_W - MARGIN, y - 50, 9, font, MUTED);
+  if (!isSeasonal && inv.work_date) TR(`Work: ${fmtDate(inv.work_date)}`, PAGE_W - MARGIN, y - 50, 9, font, MUTED);
 
   y -= 66;
   hline(y);

@@ -17,6 +17,19 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+// =============================================================================
+// SERVICE invoice — comissão By the C de 10% EMBUTIDA no preço (TRAVADA).
+// A Andrea digita o CUSTO do worker; a comissão é embutida no preço que o owner vê
+// (nunca aparece como linha no PDF). Server E client importam isto pra não driftar.
+// billed = round(cost * 1.10, 2);  commission = billed − cost.
+// =============================================================================
+export const SERVICE_COMMISSION_RATE = 0.1;
+
+// Preço ao owner (comissão embutida) a partir do custo do worker.
+export function serviceBilled(cost: number): number {
+  return round2((Number.isFinite(cost) ? cost : 0) * (1 + SERVICE_COMMISSION_RATE));
+}
+
 // Base de cálculo da comissão By the C, POR PROPERTY (default 'host_payout').
 // MAIORIA das casas: % sobre o Host Payout. EXCEÇÃO (ex.: Rainbow #335): % sobre o
 // Total Paid by Guest. A base vem da property, mas é confirmável/editável por invoice.

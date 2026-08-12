@@ -9,6 +9,7 @@ import { SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
 import { InvoiceBackButton, InvoiceActions } from "./InvoiceActions";
 import { InvoiceDocuments } from "../InvoiceDocuments";
 import { InvoicePayoutsPanel } from "../InvoicePayoutsPanel";
+import { ServiceTrackingPanel } from "../ServiceTrackingPanel";
 import { addInvoiceAttachmentAction, deleteInvoiceAttachmentAction } from "../actions";
 
 // Texto curto da base da comissão (ex.: "10% of host payout"). Usa o que ficou
@@ -86,15 +87,13 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   const ownerReceipts = allAttachments.filter((a) => a.category === "owner_payout");
   const cleanerReceipts = allAttachments.filter((a) => a.category === "cleaner_payout");
 
-  // Cleaners pro picker do payout (interno · pra 1099s). Todos os providers ativos,
-  // alfabético — a Andrea escolhe qual recebeu. Só busca quando é seasonal.
-  const { data: providersData } = isSeasonal
-    ? await supabase
-        .from("service_providers")
-        .select("id, name")
-        .is("archived_at", null)
-        .order("name", { ascending: true })
-    : { data: [] };
+  // Providers ativos (alfabético) — seasonal usa pro cleaner (1099s); service usa
+  // pro worker que fez o serviço. Sempre busca (barato) pra servir os dois.
+  const { data: providersData } = await supabase
+    .from("service_providers")
+    .select("id, name")
+    .is("archived_at", null)
+    .order("name", { ascending: true });
   const cleanerProviders = (providersData ?? []) as { id: string; name: string }[];
   const numberLabel = isSeasonal
     ? `Invoice #${invoice.invoice_number}`
@@ -146,6 +145,32 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         />
       </div>
 
+      {/* Tracking interno (só service) — no TOPO. 5 estados + breakdown da comissão. */}
+      {!isSeasonal && (
+        <div className="mx-auto mb-6 max-w-3xl">
+          <ServiceTrackingPanel
+            invoiceId={invoice.id}
+            canManage={serviceAccess}
+            providerId={invoice.provider_id}
+            providers={cleanerProviders}
+            laborCost={invoice.labor_cost}
+            materialCost={invoice.material_cost}
+            commission={invoice.service_commission}
+            ownerTotal={(invoice.labor_total ?? 0) + (invoice.material_total ?? 0)}
+            sent={invoice.sent_to_owner}
+            sentAt={invoice.sent_at}
+            ownerPaid={invoice.paid}
+            ownerPaidDate={invoice.paid_date}
+            laborPaid={invoice.labor_paid}
+            laborPaidAt={invoice.labor_paid_at}
+            materialPaid={invoice.material_paid}
+            materialPaidAt={invoice.material_paid_at}
+            commissionCollected={invoice.commission_collected}
+            commissionCollectedAt={invoice.commission_collected_at}
+          />
+        </div>
+      )}
+
       {/* Payouts internos (só temporada) — no TOPO pra ser a 1ª coisa depois do header. */}
       {isSeasonal && (
         <div className="mx-auto mb-6 max-w-3xl">
@@ -193,6 +218,9 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
             </p>
             <p className="h-display text-xl text-ink">#{invoice.invoice_number}</p>
             <p className="mt-1 text-xs text-ink/55">Date: {date(invoice.date)}</p>
+            {!isSeasonal && invoice.work_date && (
+              <p className="text-xs text-ink/55">Work: {date(invoice.work_date)}</p>
+            )}
             {isSeasonal && invoice.platform && (
               <p className="text-xs text-ink/55">Platform: {invoice.platform}</p>
             )}

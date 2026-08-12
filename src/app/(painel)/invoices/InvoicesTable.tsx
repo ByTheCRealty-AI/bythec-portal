@@ -21,23 +21,46 @@ export interface InvoiceRow {
   client_name: string | null;
   property_address: string | null;
   cleaner_unpaid: boolean;
+  // Estados do service (null em seasonal).
+  sent: boolean | null;
+  labor_paid: boolean | null;
+  material_paid: boolean | null;
+  commission_collected: boolean | null;
 }
 
-type Filter = "" | "seasonal" | "service" | "unpaid" | "cleaner_unpaid";
+type Filter =
+  | ""
+  | "seasonal"
+  | "service"
+  | "unpaid"
+  | "cleaner_unpaid"
+  | "owner_owes"
+  | "worker_to_pay"
+  | "commission_due";
 
 export function InvoicesTable({
   rows,
   canSeasonal,
+  scope = "all",
   initialFilter = "",
   initialQuery = "",
 }: {
   rows: InvoiceRow[];
   canSeasonal: boolean;
+  // Escopo da sub-categoria: quando não é "all", as linhas já vêm de um único tipo,
+  // então escondemos os chips de tipo e mostramos só os de status relevantes.
+  scope?: "all" | "seasonal" | "service";
   initialFilter?: string;
   initialQuery?: string;
 }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>((initialFilter as Filter) || "");
+  // Num escopo (service/seasonal) os filtros de TIPO não fazem sentido — ignora
+  // um ?filter=seasonal/service herdado da URL pra não zerar a lista.
+  const sanitizedInitial =
+    scope !== "all" && (initialFilter === "seasonal" || initialFilter === "service")
+      ? ""
+      : initialFilter;
+  const [filter, setFilter] = useState<Filter>((sanitizedInitial as Filter) || "");
   const [query, setQuery] = useState(initialQuery);
 
   // Mantém filtro + busca na URL pra o "Back to invoices" restaurar o estado.
@@ -51,13 +74,32 @@ export function InvoicesTable({
     window.history.replaceState(null, "", url.toString());
   }, [filter, query]);
 
-  const chips: Array<{ value: Filter; label: string }> = [
-    { value: "", label: "All" },
-    ...(canSeasonal ? [{ value: "seasonal" as Filter, label: "Seasonal" }] : []),
-    { value: "service", label: "Service" },
-    { value: "unpaid", label: "Unpaid" },
-    ...(canSeasonal ? [{ value: "cleaner_unpaid" as Filter, label: "Cleaner unpaid" }] : []),
-  ];
+  const chips: Array<{ value: Filter; label: string }> =
+    scope === "seasonal"
+      ? [
+          { value: "", label: "All" },
+          { value: "unpaid", label: "Unpaid" },
+          { value: "cleaner_unpaid", label: "Cleaner unpaid" },
+        ]
+      : scope === "service"
+      ? [
+          { value: "", label: "All" },
+          { value: "unpaid", label: "Unpaid" },
+          { value: "owner_owes", label: "Owner owes" },
+          { value: "worker_to_pay", label: "Worker to pay" },
+          { value: "commission_due", label: "Commission due" },
+        ]
+      : [
+          // "all" — tudo junto, com filtros de tipo E de status.
+          { value: "", label: "All" },
+          ...(canSeasonal ? [{ value: "seasonal" as Filter, label: "Seasonal" }] : []),
+          { value: "service", label: "Service" },
+          { value: "unpaid", label: "Unpaid" },
+          ...(canSeasonal ? [{ value: "cleaner_unpaid" as Filter, label: "Cleaner unpaid" }] : []),
+          { value: "owner_owes", label: "Owner owes" },
+          { value: "worker_to_pay", label: "Worker to pay" },
+          { value: "commission_due", label: "Commission due" },
+        ];
 
   const term = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
@@ -65,6 +107,10 @@ export function InvoicesTable({
     if (filter === "service" && r.kind !== "service") return false;
     if (filter === "unpaid" && r.paid) return false;
     if (filter === "cleaner_unpaid" && !r.cleaner_unpaid) return false;
+    // Filtros de service: só batem em service que ainda tem pendência no eixo.
+    if (filter === "owner_owes" && !(r.kind === "service" && !r.paid)) return false;
+    if (filter === "worker_to_pay" && !(r.kind === "service" && (!r.labor_paid || !r.material_paid))) return false;
+    if (filter === "commission_due" && !(r.kind === "service" && !r.commission_collected)) return false;
     if (term) {
       const hay = `${r.client_name ?? ""} ${r.property_address ?? ""} ${r.invoice_number}`.toLowerCase();
       return term.split(/\s+/).every((w) => hay.includes(w));
@@ -74,7 +120,7 @@ export function InvoicesTable({
 
   function go(id: string) {
     try {
-      sessionStorage.setItem("bythec:invoices-return", "/invoices" + window.location.search);
+      sessionStorage.setItem("bythec:invoices-return", window.location.pathname + window.location.search);
     } catch {
       /* noop */
     }
@@ -154,19 +200,17 @@ export function InvoicesTable({
                   <td className="px-5 py-3.5 text-ink/65">{date(r.date)}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {r.paid ? (
-                        <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                          Paid
-                        </span>
+                      {r.kind === "service" ? (
+                        <ServiceStatusPills r={r} />
                       ) : (
-                        <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
-                          Due
-                        </span>
-                      )}
-                      {r.cleaner_unpaid && (
-                        <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
-                          Cleaner unpaid
-                        </span>
+                        <>
+                          {r.paid ? (
+                            <Pill tone="primary">Paid</Pill>
+                          ) : (
+                            <Pill tone="secondary">Due</Pill>
+                          )}
+                          {r.cleaner_unpaid && <Pill tone="secondary">Cleaner unpaid</Pill>}
+                        </>
                       )}
                     </div>
                   </td>
@@ -179,6 +223,37 @@ export function InvoicesTable({
           </table>
         </div>
       )}
+    </>
+  );
+}
+
+// Pill genérico. primary = feito/verde, secondary = pendente/âmbar, muted = neutro.
+function Pill({ tone, children }: { tone: "primary" | "secondary" | "muted"; children: React.ReactNode }) {
+  const cls =
+    tone === "primary"
+      ? "border-primary/25 bg-primary/10 text-primary"
+      : tone === "secondary"
+      ? "border-secondary/25 bg-secondary/10 text-secondary"
+      : "border-black/10 bg-black/[0.03] text-ink/55";
+  return (
+    <span className={cx("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", cls)}>
+      {children}
+    </span>
+  );
+}
+
+// Status de um invoice de service, num relance: se tudo pronto → "Settled";
+// senão só as PENDÊNCIAS (o que ainda falta), pra chamar a atenção.
+function ServiceStatusPills({ r }: { r: InvoiceRow }) {
+  const settled = r.sent && r.paid && r.labor_paid && r.material_paid && r.commission_collected;
+  if (settled) return <Pill tone="primary">Settled</Pill>;
+  return (
+    <>
+      {!r.sent && <Pill tone="secondary">Not sent</Pill>}
+      {!r.paid && <Pill tone="secondary">Owner due</Pill>}
+      {!r.labor_paid && <Pill tone="muted">Labor due</Pill>}
+      {!r.material_paid && <Pill tone="muted">Mat. due</Pill>}
+      {!r.commission_collected && <Pill tone="muted">Comm. due</Pill>}
     </>
   );
 }

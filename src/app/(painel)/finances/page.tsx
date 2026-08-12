@@ -46,7 +46,9 @@ export default async function FinancesPage({
       .is("archived_at", null),
     supabase
       .from("invoices")
-      .select("kind, bythec_commission, labor_total, material_total, paid, paid_date, date"),
+      .select(
+        "kind, bythec_commission, labor_total, material_total, service_commission, commission_collected, commission_collected_at, paid, paid_date, date"
+      ),
     supabase
       .from("clients")
       .select("id, name, sale_commission, sale_commission_received, deal_closed_at")
@@ -110,10 +112,13 @@ export default async function FinancesPage({
         if (match(paidWhen)) seasonal.received += amt;
       } else if (match(iv.date as string)) seasonal.pending += amt;
     } else if (iv.kind === "service") {
-      const amt = n(iv.labor_total) + n(iv.material_total);
+      // Ganho da By the C no service = a comissão de 10% (o resto é repasse ao
+      // worker). Regime de caixa: entra quando a comissão é COLETADA.
+      const amt = n(iv.service_commission);
       if (!amt) continue;
-      if (iv.paid) {
-        if (match(paidWhen)) service.received += amt;
+      if (iv.commission_collected) {
+        const when = (iv.commission_collected_at as string) ?? paidWhen;
+        if (match(when)) service.received += amt;
       } else if (match(iv.date as string)) service.pending += amt;
     }
   }
@@ -159,10 +164,15 @@ export default async function FinancesPage({
     addTo(bucketKey((p.received_at as string) ?? (p.month as string) ?? (p.due_date as string)), "yr", n(p.commission));
   }
   for (const iv of invoices) {
-    if (!iv.paid) continue;
-    const when = (iv.paid_date as string) ?? (iv.date as string);
-    if (iv.kind === "seasonal") addTo(bucketKey(when), "seasonal", n(iv.bythec_commission));
-    else if (iv.kind === "service") addTo(bucketKey(when), "service", n(iv.labor_total) + n(iv.material_total));
+    if (iv.kind === "seasonal") {
+      if (!iv.paid) continue;
+      const when = (iv.paid_date as string) ?? (iv.date as string);
+      addTo(bucketKey(when), "seasonal", n(iv.bythec_commission));
+    } else if (iv.kind === "service") {
+      if (!iv.commission_collected) continue;
+      const when = (iv.commission_collected_at as string) ?? (iv.paid_date as string) ?? (iv.date as string);
+      addTo(bucketKey(when), "service", n(iv.service_commission));
+    }
   }
   for (const d of closedDeals) {
     if (d.sale_commission_received) addTo(bucketKey(d.deal_closed_at), "sales", n(d.sale_commission));
@@ -181,7 +191,7 @@ export default async function FinancesPage({
   const streams = [
     { key: "yr", label: "Year-round rent commission", icon: Home, s: yearRound },
     { key: "seasonal", label: "Seasonal commission (Airbnb/VRBO)", icon: CalendarDays, s: seasonal },
-    { key: "service", label: "Service income", icon: Hammer, s: service },
+    { key: "service", label: "Service commission (10%)", icon: Hammer, s: service },
     { key: "sales", label: "Sales commission", icon: KeyRound, s: sales },
   ];
 

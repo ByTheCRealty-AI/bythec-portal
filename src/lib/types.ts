@@ -179,6 +179,8 @@ export interface Property {
   sale_price: number | null;
   sale_commission_rate: number | null;
   sale_commission: number | null;
+  // Aparece no formulário público /apply quando true (migration 0029).
+  accepting_applications?: boolean;
   // join opcional
   owner?: Pick<Client, "id" | "name" | "email"> | null;
 }
@@ -271,10 +273,27 @@ export interface Invoice {
   vrbo_payment_fee: number | null;
   vrbo_property_damage: number | null;
 
-  // ---- SERVICE (long-term/manutenção). Labor + Material = Total.
+  // ---- SERVICE (long-term/manutenção). Labor + Material = Total (owner-facing).
+  // A By the C cobra 10% de comissão EMBUTIDA no preço: total = round(cost*1.10,2).
+  // labor_total/material_total são o que o OWNER paga (comissão já dentro).
   labor_total: number | null;
   material_total: number | null;
   service_address: string | null; // endereço digitado quando não há property_id
+  work_date: string | null; // data do serviço (distinta de `date` = data de criação)
+  provider_id: string | null; // quem fez o serviço (service_providers). Opcional.
+  // INTERNO — custo do worker + comissão da By the C (10%, embutida no preço acima).
+  labor_cost: number | null; // custo de labor do worker
+  material_cost: number | null; // custo de material do worker
+  service_commission: number | null; // (labor_total+material_total) − (labor_cost+material_cost)
+  // Rastreio de 5 estados (owner-paid reusa paid/paid_date).
+  sent_to_owner: boolean;
+  sent_at: string | null;
+  labor_paid: boolean; // labor pago ao worker
+  labor_paid_at: string | null;
+  material_paid: boolean; // material pago ao worker
+  material_paid_at: string | null;
+  commission_collected: boolean; // comissão recebida (auto-marca quando owner paga)
+  commission_collected_at: string | null;
 
   archived_at: string | null;
   created_at: string;
@@ -306,11 +325,12 @@ export interface InvoiceItem {
   id: string;
   invoice_id: string;
   description: string;
-  total: number; // sinal livre; semântica vem de type
+  total: number; // sinal livre; semântica vem de type. SERVICE: preço ao owner (comissão embutida).
   type: InvoiceItemType;
   guest: boolean; // aparece no overview do guest (seasonal)
   owner: boolean; // aparece no overview do owner (seasonal)
   category: InvoiceItemCategory | null; // 'labor' | 'material' (service)
+  cost: number | null; // SERVICE: custo do worker. total = round(cost*1.10,2). NULL em seasonal.
   created_at: string;
 }
 
@@ -702,3 +722,87 @@ export const REMINDER_STATUS_LABEL: Record<ReminderStatus, string> = {
   open: "Open",
   done: "Done",
 };
+
+// --- Rental applications (aplicação de aluguel PÚBLICA, migration 0029) -------
+export type ApplicationStatus = "new" | "reviewing" | "approved" | "denied" | "withdrawn";
+
+export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
+  new: "New",
+  reviewing: "Reviewing",
+  approved: "Approved",
+  denied: "Denied",
+  withdrawn: "Withdrawn",
+};
+
+// Linha exibida no painel interno. NUNCA inclui o ciphertext (ssn_encrypted);
+// o SSN só é decifrado sob demanda via revealSSNAction (gated + auditado).
+export interface RentalApplication {
+  id: string;
+  language: "en" | "pt";
+  status: ApplicationStatus;
+
+  property_id: string | null;
+  property_other: string | null;
+
+  full_name: string;
+  date_of_birth: string | null;
+  ssn_last4: string | null;
+  phone: string | null;
+  drivers_license: string | null;
+  drivers_license_state: string | null;
+  email: string | null;
+
+  occupants_count: number | null;
+  occupants: Array<{ name?: string; dob?: string }>;
+  rental_history: Array<{
+    kind?: string;
+    street?: string;
+    city_state_zip?: string;
+    duration?: string;
+    landlord_name?: string;
+    landlord_phone?: string;
+  }>;
+  vehicles: Array<{ make_model?: string; year?: string; color?: string; plate?: string }>;
+
+  employer: string | null;
+  employer_address: string | null;
+  manager_name: string | null;
+  manager_phone: string | null;
+  job_title: string | null;
+  monthly_income: number | null;
+  length_of_employment: string | null;
+
+  personal_references: Array<{ name?: string; phone?: string }>;
+
+  evicted: boolean | null;
+  evicted_detail: string | null;
+  felony: boolean | null;
+  felony_detail: string | null;
+  bankruptcy: boolean | null;
+  bankruptcy_detail: string | null;
+  smokes: boolean | null;
+  has_pets: boolean | null;
+  pets_detail: string | null;
+  reason_for_moving: string | null;
+
+  consent_agreed: boolean;
+  signature_name: string | null;
+  signature_date: string | null;
+  signature_name_2: string | null;
+  signature_date_2: string | null;
+  consent_ip: string | null;
+
+  fee_amount: number | null;
+  payment_status: "unpaid" | "paid";
+  paid_at: string | null;
+
+  internal_notes: string | null;
+  ssn_last_revealed_at: string | null;
+
+  archived_at: string | null;
+  submitted_at: string;
+  created_at: string;
+
+  // join opcional
+  property?: Pick<Property, "id" | "address" | "address2"> | null;
+}

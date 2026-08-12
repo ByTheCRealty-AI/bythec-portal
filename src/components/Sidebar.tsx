@@ -18,11 +18,19 @@ import {
   Building2,
   KeyRound,
   BellRing,
+  ClipboardList,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Capability } from "@/lib/auth/capabilities";
+
+type SubItem = {
+  href: string;
+  label: string;
+  cap?: Capability; // capacidade necessária pra VER a sub-categoria
+  ready?: boolean; // false = "coming soon"
+};
 
 type Item = {
   href: string;
@@ -30,6 +38,7 @@ type Item = {
   icon: LucideIcon;
   ready: boolean; // funcional nesta rodada?
   cap?: Capability; // capacidade necessária pra VER o item (sem cap = visível a todos os internos)
+  children?: SubItem[]; // sub-categorias (ex.: Invoices → General / Seasonal / Service)
 };
 
 // Ordem dos módulos do painel. Só Clientes e Propriedades são funcionais agora.
@@ -40,10 +49,23 @@ const NAV: Item[] = [
   // o realtor pros próprios registros). Sales segue clients.own.
   { href: "/clientes", label: "Clients", icon: Users, ready: true, cap: "clients.own" },
   { href: "/propriedades", label: "Properties", icon: Home, ready: true, cap: "properties.own" },
-  { href: "/invoices", label: "Invoices", icon: FileText, ready: true, cap: "invoices.service" },
+  {
+    href: "/invoices",
+    label: "Invoices",
+    icon: FileText,
+    ready: true,
+    cap: "invoices.service",
+    // Sub-categorias em ordem alfabética. General ainda é "coming soon".
+    children: [
+      { href: "/invoices/general", label: "General Invoices", cap: "invoices.service", ready: false },
+      { href: "/invoices/seasonal", label: "Seasonal Invoices", cap: "invoices.seasonal" },
+      { href: "/invoices/service", label: "Service Invoices", cap: "invoices.service" },
+    ],
+  },
   { href: "/payments", label: "Payments", icon: Wallet, ready: true, cap: "payments.annual" },
   { href: "/expenses", label: "Expenses", icon: Receipt, ready: true, cap: "expenses.manage" },
   { href: "/finances", label: "Finances", icon: PiggyBank, ready: true, cap: "financials.full" },
+  { href: "/applications", label: "Applications", icon: ClipboardList, ready: true, cap: "applications.manage" },
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/services", label: "Services", icon: Hammer, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "providers.view" },
@@ -63,6 +85,7 @@ export function Sidebar({
   canManageUsers,
   user,
   remindersBadge = 0,
+  applicationsBadge = 0,
   onNavigate,
   className,
 }: {
@@ -71,6 +94,8 @@ export function Sidebar({
   user: SidebarUser;
   // Nº de lembretes escalados PRO usuário logado (manager/owner). 0 = sem badge.
   remindersBadge?: number;
+  // Nº de aplicações de aluguel com status 'new' (não vistas). 0 = sem badge.
+  applicationsBadge?: number;
   // Chamado ao clicar num link de navegação — usado pelo drawer mobile pra fechar.
   onNavigate?: () => void;
   // Override do shell externo (ex.: static md+ vs. drawer mobile).
@@ -98,9 +123,65 @@ export function Sidebar({
 
       <nav className="flex flex-1 flex-col gap-1">
         {visible.map((item) => {
+          const Icon = item.icon;
+
+          // Item com sub-categorias (Invoices) — cabeçalho + filhos indentados.
+          if (item.children) {
+            const kids = item.children.filter((c) => !c.cap || capSet.has(c.cap));
+            // Filho ativo = a rota atual bate com o href do filho.
+            const childActive = kids.some((c) => pathname.startsWith(c.href));
+            // Pai ativo (destaque) quando numa rota de invoices que NÃO é um filho
+            // (ex.: /invoices "todos", /invoices/<id>, /invoices/novo/...).
+            const parentActive = pathname.startsWith(item.href) && !childActive;
+            return (
+              <div key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={cx(
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                    parentActive
+                      ? "bg-primary/10 font-semibold text-primary"
+                      : "text-ink/60 hover:bg-black/[0.035] hover:text-ink"
+                  )}
+                >
+                  <Icon
+                    className={cx("h-[18px] w-[18px] shrink-0", parentActive ? "text-primary" : "text-ink/50")}
+                    strokeWidth={2}
+                  />
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+                <div className="mb-1 ml-[1.15rem] mt-0.5 flex flex-col gap-0.5 border-l border-black/[0.08] pl-3">
+                  {kids.map((c) => {
+                    const on = pathname.startsWith(c.href);
+                    return (
+                      <Link
+                        key={c.href}
+                        href={c.href}
+                        onClick={onNavigate}
+                        className={cx(
+                          "flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
+                          on
+                            ? "bg-primary/10 font-semibold text-primary"
+                            : "text-ink/55 hover:bg-black/[0.035] hover:text-ink"
+                        )}
+                      >
+                        <span className="flex-1">{c.label}</span>
+                        {c.ready === false && (
+                          <span className="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink/45">
+                            Soon
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
           const active =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-          const Icon = item.icon;
           return (
             <Link
               key={item.href}
@@ -121,6 +202,11 @@ export function Sidebar({
               {item.href === "/reminders" && remindersBadge > 0 && (
                 <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {remindersBadge}
+                </span>
+              )}
+              {item.href === "/applications" && applicationsBadge > 0 && (
+                <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {applicationsBadge}
                 </span>
               )}
               {!item.ready && (
