@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { cx } from "@/lib/format";
 import { signOutAction } from "@/app/(painel)/logout/actions";
@@ -19,6 +20,7 @@ import {
   KeyRound,
   BellRing,
   ShieldCheck,
+  ChevronDown,
   LogOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -99,6 +101,9 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const capSet = new Set(caps);
+  // Grupos expansíveis (ex.: Invoices). Default: fechado; abre ao clicar. Abre
+  // automaticamente quando você já está numa rota do grupo (mostra onde está).
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const visible = NAV.filter((item) => !item.cap || capSet.has(item.cap));
 
@@ -121,42 +126,67 @@ export function Sidebar({
         {visible.map((item) => {
           const Icon = item.icon;
 
-          // Item com sub-categorias (Invoices): cabeçalho NÃO clicável + filhos.
+          // Item com sub-categorias (Invoices): menu SUSPENSO. Fechado por padrão
+          // (sub-tipos escondidos); clicar no cabeçalho abre/fecha. O cabeçalho não
+          // navega pra lugar nenhum — só alterna o dropdown.
           if (item.children) {
             const kids = item.children.filter((c) => !c.cap || capSet.has(c.cap));
             if (kids.length === 0) return null; // não pode ver nenhuma sub-categoria
+            const onGroup = pathname.startsWith(item.href);
+            const isOpen = openGroups[item.href] ?? onGroup;
             return (
               <div key={item.href}>
-                {/* Cabeçalho do grupo — só rótulo, não navega (não é pressionável). */}
-                <div className="flex cursor-default select-none items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink/45">
-                  <Icon className="h-[18px] w-[18px] shrink-0 text-ink/40" strokeWidth={2} />
-                  <span className="flex-1 font-semibold">{item.label}</span>
-                </div>
-                <div className="mb-1 ml-[1.15rem] mt-0.5 flex flex-col gap-0.5 border-l border-black/[0.08] pl-3">
-                  {kids.map((c) => {
-                    const on = pathname.startsWith(c.href);
-                    return (
-                      <Link
-                        key={c.href}
-                        href={c.href}
-                        onClick={onNavigate}
-                        className={cx(
-                          "flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
-                          on
-                            ? "bg-primary/10 font-semibold text-primary"
-                            : "text-ink/55 hover:bg-black/[0.035] hover:text-ink"
-                        )}
-                      >
-                        <span className="flex-1">{c.label}</span>
-                        {c.ready === false && (
-                          <span className="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink/45">
-                            Soon
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() => setOpenGroups((g) => ({ ...g, [item.href]: !isOpen }))}
+                  className={cx(
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                    onGroup
+                      ? "font-semibold text-primary"
+                      : "text-ink/60 hover:bg-black/[0.035] hover:text-ink"
+                  )}
+                >
+                  <Icon
+                    className={cx("h-[18px] w-[18px] shrink-0", onGroup ? "text-primary" : "text-ink/50")}
+                    strokeWidth={2}
+                  />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <ChevronDown
+                    className={cx(
+                      "h-4 w-4 shrink-0 text-ink/40 transition-transform duration-200",
+                      isOpen && "rotate-180"
+                    )}
+                    strokeWidth={2}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="mb-1 ml-[1.15rem] mt-0.5 flex flex-col gap-0.5 border-l border-black/[0.08] pl-3">
+                    {kids.map((c) => {
+                      const on = pathname.startsWith(c.href);
+                      return (
+                        <Link
+                          key={c.href}
+                          href={c.href}
+                          onClick={onNavigate}
+                          className={cx(
+                            "flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
+                            on
+                              ? "bg-primary/10 font-semibold text-primary"
+                              : "text-ink/55 hover:bg-black/[0.035] hover:text-ink"
+                          )}
+                        >
+                          <span className="flex-1">{c.label}</span>
+                          {c.ready === false && (
+                            <span className="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-ink/45">
+                              Soon
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           }
