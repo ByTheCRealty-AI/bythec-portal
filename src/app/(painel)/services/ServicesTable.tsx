@@ -14,6 +14,13 @@ import type { RequestStatus } from "@/lib/types";
 
 export type ProviderOption = { id: string; name: string };
 export type PropertyOption = { id: string; address: string; address2: string | null };
+// Tenant requests linkáveis (pra ligar um service a um request da MESMA casa).
+export type LinkableRequest = {
+  id: string;
+  property_id: string;
+  description: string | null;
+  status: RequestStatus;
+};
 
 export interface ServiceListRow {
   id: string;
@@ -279,18 +286,24 @@ function EditServiceModal({
 function AddServiceModal({
   properties,
   providers,
+  requests,
   addAction,
   onClose,
 }: {
   properties: PropertyOption[];
   providers: ProviderOption[];
+  requests: LinkableRequest[];
   addAction: (fd: FormData) => void | Promise<void>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [propertyId, setPropertyId] = useState("");
   const today = new Date().toISOString().slice(0, 10);
+
+  // Só requests OPEN da propriedade escolhida podem ser linkados.
+  const linkable = requests.filter((r) => r.property_id === propertyId && r.status !== "done");
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -323,7 +336,13 @@ function AddServiceModal({
 
       <form onSubmit={save} className="space-y-4 px-6 py-5">
         <Field label="Property *">
-          <select name="property_id" required defaultValue="" className={inputClass}>
+          <select
+            name="property_id"
+            required
+            value={propertyId}
+            onChange={(e) => setPropertyId(e.target.value)}
+            className={inputClass}
+          >
             <option value="" disabled>
               Select a property…
             </option>
@@ -345,6 +364,26 @@ function AddServiceModal({
             placeholder="What is the service about?"
           />
         </Field>
+
+        {propertyId && (
+          <Field
+            label="Link to tenant request (optional)"
+            hint={
+              linkable.length > 0
+                ? "Marking either one done marks the other done."
+                : "No open requests for this property to link."
+            }
+          >
+            <select name="tenant_request_id" defaultValue="" className={inputClass} disabled={linkable.length === 0}>
+              <option value="">— No linked request —</option>
+              {linkable.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {(r.description ?? "Request").slice(0, 70)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Provider">
@@ -395,6 +434,7 @@ export function ServicesTable({
   rows,
   providers,
   properties,
+  requests = [],
   canEdit,
   addAction,
   updateAction,
@@ -404,6 +444,7 @@ export function ServicesTable({
   rows: ServiceListRow[];
   providers: ProviderOption[];
   properties: PropertyOption[];
+  requests?: LinkableRequest[];
   canEdit: boolean;
   addAction: (fd: FormData) => void | Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
@@ -560,6 +601,7 @@ export function ServicesTable({
         <AddServiceModal
           properties={properties}
           providers={providers}
+          requests={requests}
           addAction={addAction}
           onClose={() => setAdding(false)}
         />

@@ -304,11 +304,14 @@ export async function addServiceAction(fd: FormData) {
     status,
     price: num(fd, "price"),
     provider_id: str(fd, "provider_id"),
+    // Link OPCIONAL a um tenant request desta casa (a done-sync é por trigger).
+    tenant_request_id: str(fd, "tenant_request_id"),
     created_by: profile?.id ?? null,
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
   revalidatePath("/services"); // aba global de Services (add pode vir de lá)
+  revalidatePath("/requests");
 }
 
 // Toggle rápido de status do serviço (open <-> done) — usado na aba global de
@@ -471,15 +474,34 @@ export async function addRequestAction(fd: FormData) {
       .maybeSingle();
     tenantId = (prop as { tenant_id: string | null } | null)?.tenant_id ?? null;
   }
-  const { error } = await supabase.from("tenant_requests").insert({
-    property_id: propertyId,
-    tenant_id: tenantId,
-    date: str(fd, "date") ?? today(),
-    description,
-    status,
-    created_by: profile?.id ?? null,
-  });
+  const { data: created, error } = await supabase
+    .from("tenant_requests")
+    .insert({
+      property_id: propertyId,
+      tenant_id: tenantId,
+      date: str(fd, "date") ?? today(),
+      description,
+      status,
+      created_by: profile?.id ?? null,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+
+  // Link OPCIONAL a um service existente desta casa: setamos o tenant_request_id
+  // DAQUELE service pro novo request (o link mora em services.tenant_request_id).
+  // A done-sync roda por trigger. Só linka services da MESMA propriedade.
+  const linkServiceId = str(fd, "link_service_id");
+  if (linkServiceId && created?.id) {
+    const { error: linkErr } = await supabase
+      .from("services")
+      .update({ tenant_request_id: created.id })
+      .eq("id", linkServiceId)
+      .eq("property_id", propertyId);
+    if (linkErr) throw new Error(linkErr.message);
+    revalidatePath("/services");
+  }
+
   revalidatePath(`/propriedades/${propertyId}`);
   revalidatePath("/requests");
 }

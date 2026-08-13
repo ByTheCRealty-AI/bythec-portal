@@ -4,7 +4,12 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import type { TenantRequest } from "@/lib/types";
 import { operatorNameMap } from "@/lib/operators";
-import { RequestsTable, type RequestRow, type RequestPropertyOption } from "./RequestsTable";
+import {
+  RequestsTable,
+  type RequestRow,
+  type RequestPropertyOption,
+  type LinkableService,
+} from "./RequestsTable";
 import { addRequestAction } from "../propriedades/actions";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +17,7 @@ export const dynamic = "force-dynamic";
 async function load() {
   try {
     const supabase = createClient();
-    const [{ data, error }, { data: propData }] = await Promise.all([
+    const [{ data, error }, { data: propData }, { data: svcData }] = await Promise.all([
       supabase
         .from("tenant_requests")
         .select(
@@ -24,6 +29,10 @@ async function load() {
         .select("id, address, address2")
         .is("archived_at", null)
         .order("address", { ascending: true }),
+      supabase
+        .from("services")
+        .select("id, property_id, description, status")
+        .order("created_at", { ascending: false }),
     ]);
     if (error) throw error;
     const names = await operatorNameMap(supabase);
@@ -31,6 +40,7 @@ async function load() {
       ok: true as const,
       requests: (data ?? []) as unknown as TenantRequest[],
       properties: (propData ?? []) as RequestPropertyOption[],
+      services: (svcData ?? []) as LinkableService[],
       names,
     };
   } catch {
@@ -38,6 +48,7 @@ async function load() {
       ok: false as const,
       requests: [] as TenantRequest[],
       properties: [] as RequestPropertyOption[],
+      services: [] as LinkableService[],
       names: new Map<string, string>(),
     };
   }
@@ -54,7 +65,7 @@ export default async function RequestsPage() {
     );
   }
 
-  const { ok, requests, properties, names } = await load();
+  const { ok, requests, properties, services, names } = await load();
   const canEdit = can(profile, "operations.edit");
 
   const rows: RequestRow[] = requests.map((r) => ({
@@ -86,6 +97,7 @@ export default async function RequestsPage() {
         rows={rows}
         canEdit={canEdit}
         properties={properties}
+        services={services}
         addAction={addRequestAction}
       />
     </>

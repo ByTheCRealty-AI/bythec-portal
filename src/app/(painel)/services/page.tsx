@@ -3,7 +3,13 @@ import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import type { RequestStatus } from "@/lib/types";
-import { ServicesTable, type ServiceListRow, type ProviderOption, type PropertyOption } from "./ServicesTable";
+import {
+  ServicesTable,
+  type ServiceListRow,
+  type ProviderOption,
+  type PropertyOption,
+  type LinkableRequest,
+} from "./ServicesTable";
 import {
   updateServiceAction,
   deleteServiceAction,
@@ -81,6 +87,21 @@ async function loadProperties(): Promise<PropertyOption[]> {
   }
 }
 
+// Tenant requests (id + property + status) pro picker "Link to tenant request".
+async function loadRequests(): Promise<LinkableRequest[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("tenant_requests")
+      .select("id, property_id, description, status")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as LinkableRequest[];
+  } catch {
+    return [];
+  }
+}
+
 export default async function ServicesPage() {
   const profile = await getProfile();
   if (!can(profile, "operations.edit")) {
@@ -92,10 +113,11 @@ export default async function ServicesPage() {
     );
   }
 
-  const [{ ok, services, names }, providers, properties] = await Promise.all([
+  const [{ ok, services, names }, providers, properties, requests] = await Promise.all([
     load(),
     loadProviders(),
     loadProperties(),
+    loadRequests(),
   ]);
   const canEdit = can(profile, "operations.edit");
 
@@ -133,6 +155,7 @@ export default async function ServicesPage() {
         rows={rows}
         providers={providers}
         properties={properties}
+        requests={requests}
         canEdit={canEdit}
         addAction={addServiceAction}
         updateAction={updateServiceAction}
