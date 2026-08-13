@@ -1,28 +1,45 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, NoAccess, Card } from "@/components/ui";
+import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { Wrench } from "lucide-react";
 import type { TenantRequest } from "@/lib/types";
 import { operatorNameMap } from "@/lib/operators";
-import { RequestsTable, type RequestRow } from "./RequestsTable";
+import { RequestsTable, type RequestRow, type RequestPropertyOption } from "./RequestsTable";
+import { addRequestAction } from "../propriedades/actions";
 
 export const dynamic = "force-dynamic";
 
 async function load() {
   try {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("tenant_requests")
-      .select(
-        "id, date, description, status, done_at, created_at, created_by, property:property_id(id,address), tenant:tenant_id(id,name)"
-      )
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: propData }] = await Promise.all([
+      supabase
+        .from("tenant_requests")
+        .select(
+          "id, date, description, status, done_at, created_at, created_by, property:property_id(id,address), tenant:tenant_id(id,name)"
+        )
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("properties")
+        .select("id, address, address2")
+        .is("archived_at", null)
+        .order("address", { ascending: true }),
+    ]);
     if (error) throw error;
     const names = await operatorNameMap(supabase);
-    return { ok: true as const, requests: (data ?? []) as unknown as TenantRequest[], names };
+    return {
+      ok: true as const,
+      requests: (data ?? []) as unknown as TenantRequest[],
+      properties: (propData ?? []) as RequestPropertyOption[],
+      names,
+    };
   } catch {
-    return { ok: false as const, requests: [] as TenantRequest[], names: new Map<string, string>() };
+    return {
+      ok: false as const,
+      requests: [] as TenantRequest[],
+      properties: [] as RequestPropertyOption[],
+      names: new Map<string, string>(),
+    };
   }
 }
 
@@ -37,7 +54,8 @@ export default async function RequestsPage() {
     );
   }
 
-  const { ok, requests, names } = await load();
+  const { ok, requests, properties, names } = await load();
+  const canEdit = can(profile, "operations.edit");
 
   const rows: RequestRow[] = requests.map((r) => ({
     id: r.id,
@@ -64,15 +82,12 @@ export default async function RequestsPage() {
         </Card>
       )}
 
-      {rows.length === 0 ? (
-        <EmptyState
-          icon={<Wrench className="h-6 w-6" />}
-          title="No requests yet"
-          message="Tenant requests appear here as they come in from properties."
-        />
-      ) : (
-        <RequestsTable rows={rows} />
-      )}
+      <RequestsTable
+        rows={rows}
+        canEdit={canEdit}
+        properties={properties}
+        addAction={addRequestAction}
+      />
     </>
   );
 }

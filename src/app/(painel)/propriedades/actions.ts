@@ -97,6 +97,8 @@ export async function updatePropriedadeAction(id: string, fd: FormData) {
       sale_price: num(fd, "sale_price"),
       sale_commission_rate: num(fd, "sale_commission_rate"),
       sale_commission: num(fd, "sale_commission"),
+      // Aparece no formulário público /apply quando marcado. Default false.
+      accepting_applications: str(fd, "accepting_applications") === "1",
       notes: str(fd, "notes"),
     })
     .eq("id", id);
@@ -457,9 +459,21 @@ export async function addRequestAction(fd: FormData) {
   const status = (str(fd, "status") === "done" ? "done" : "open") as RequestStatus;
 
   const supabase = createClient();
+  // Tenant: a aba da propriedade manda o inquilino atual num hidden field. A aba
+  // GLOBAL /requests não tem esse hidden — então, sem tenant_id, resolvemos o
+  // inquilino ATUAL da propriedade no servidor (null se a casa está vaga).
+  let tenantId = str(fd, "tenant_id");
+  if (!tenantId) {
+    const { data: prop } = await supabase
+      .from("properties")
+      .select("tenant_id")
+      .eq("id", propertyId)
+      .maybeSingle();
+    tenantId = (prop as { tenant_id: string | null } | null)?.tenant_id ?? null;
+  }
   const { error } = await supabase.from("tenant_requests").insert({
     property_id: propertyId,
-    tenant_id: str(fd, "tenant_id"), // inquilino atual (auto, via hidden field); null se vago
+    tenant_id: tenantId,
     date: str(fd, "date") ?? today(),
     description,
     status,
@@ -467,6 +481,7 @@ export async function addRequestAction(fd: FormData) {
   });
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/requests");
 }
 
 // ---- Inline edit + delete from the property detail tabs --------------------

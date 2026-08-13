@@ -1,10 +1,13 @@
 "use client";
 
 // Tabela de tenant requests: filtro por status (All / Open / Done) +
-// busca instantânea por propriedade, inquilino ou descrição.
+// busca instantânea por propriedade, inquilino ou descrição. Botão "Add request"
+// (aba global) abre um modal com picker de propriedade — igual ao "Add service".
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Plus, X, Loader2 } from "lucide-react";
 import { date, cx } from "@/lib/format";
+import { Field, inputClass, buttonClass } from "@/components/ui";
 import type { RequestStatus } from "@/lib/types";
 
 export interface RequestRow {
@@ -17,7 +20,130 @@ export interface RequestRow {
   created_by_name: string | null;
 }
 
+export type RequestPropertyOption = { id: string; address: string; address2: string | null };
+
 type Filter = "" | "open" | "done";
+
+// Modal centrado (portal-to-body pattern das outras janelas).
+function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Modal "Add request" — na aba global escolhe a PROPRIEDADE (o inquilino atual é
+// resolvido no servidor). Mesmos campos do form da aba da propriedade + property.
+function AddRequestModal({
+  properties,
+  addAction,
+  onClose,
+}: {
+  properties: RequestPropertyOption[];
+  addAction: (fd: FormData) => void | Promise<void>;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await addAction(new FormData(e.currentTarget));
+      onClose();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save. Try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
+        <h3 className="h-display text-lg text-ink">Add request</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <form onSubmit={save} className="space-y-4 px-6 py-5">
+        <Field label="Property *">
+          <select name="property_id" required defaultValue="" className={inputClass}>
+            <option value="" disabled>
+              Select a property…
+            </option>
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.address}
+                {p.address2 ? ` · ${p.address2}` : ""}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Description *">
+          <textarea
+            name="description"
+            required
+            rows={3}
+            className={inputClass}
+            placeholder="What does the tenant need? (e.g. heater not working)"
+          />
+        </Field>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Date">
+            <input name="date" type="date" defaultValue={today} className={inputClass} />
+          </Field>
+          <Field label="Status">
+            <select name="status" defaultValue="open" className={inputClass}>
+              <option value="open">Open</option>
+              <option value="done">Done</option>
+            </select>
+          </Field>
+        </div>
+
+        {error && (
+          <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{error}</p>
+        )}
+
+        <div className="flex gap-3">
+          <button type="submit" disabled={busy} className={buttonClass("primary")}>
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Adding…
+              </>
+            ) : (
+              "Add request"
+            )}
+          </button>
+          <button type="button" onClick={onClose} disabled={busy} className={buttonClass("ghost")}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 function StatusBadge({ status }: { status: RequestStatus }) {
   if (status === "done") {
@@ -34,9 +160,20 @@ function StatusBadge({ status }: { status: RequestStatus }) {
   );
 }
 
-export function RequestsTable({ rows }: { rows: RequestRow[] }) {
+export function RequestsTable({
+  rows,
+  canEdit = false,
+  properties = [],
+  addAction,
+}: {
+  rows: RequestRow[];
+  canEdit?: boolean;
+  properties?: RequestPropertyOption[];
+  addAction?: (fd: FormData) => void | Promise<void>;
+}) {
   const [filter, setFilter] = useState<Filter>("");
   const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const chips: Array<{ value: Filter; label: string }> = [
     { value: "", label: "All" },
@@ -56,6 +193,14 @@ export function RequestsTable({ rows }: { rows: RequestRow[] }) {
 
   return (
     <>
+      {canEdit && addAction && (
+        <div className="mb-4 flex justify-end">
+          <button type="button" onClick={() => setAdding(true)} className={buttonClass("primary")}>
+            <Plus className="h-4 w-4" /> Add request
+          </button>
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {chips.map((c) => {
           const active = filter === c.value;
@@ -134,6 +279,14 @@ export function RequestsTable({ rows }: { rows: RequestRow[] }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {adding && addAction && (
+        <AddRequestModal
+          properties={properties}
+          addAction={addAction}
+          onClose={() => setAdding(false)}
+        />
       )}
     </>
   );
