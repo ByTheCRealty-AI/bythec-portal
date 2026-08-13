@@ -110,12 +110,12 @@ function KindTag({ kind }: { kind: PaymentKind }) {
   if (kind !== "first_month" && kind !== "last_month" && kind !== "security_deposit") return null;
   const label =
     kind === "first_month" ? "First month" : kind === "last_month" ? "Last month" : "Security deposit";
-  // First month azul, last month laranja (secondary), depósito verde (primary) — cores distintas.
+  // First month azul, last month laranja DE VERDADE (orange), depósito verde (primary) — cores distintas.
   const cls =
     kind === "first_month"
       ? "border-blue-200 bg-blue-50 text-blue-700"
       : kind === "last_month"
-      ? "border-secondary/25 bg-secondary/10 text-secondary"
+      ? "border-orange-200 bg-orange-50 text-orange-700"
       : "border-primary/25 bg-primary/10 text-primary";
   return (
     <span className={cx("ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", cls)}>

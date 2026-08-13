@@ -10,10 +10,14 @@ export function Card({ className, children }: { className?: string; children: Re
 
 // ---- Badge -----------------------------------------------------------------
 // Tons mantidos por nome (usados nas páginas); recoloridos para o tema claro/verde.
-type BadgeTone = "gold" | "orange" | "neutral" | "muted" | "blue";
+// NOTE: "orange" is historically wired to `secondary` (a green accent) and is used
+// widely across the app — don't repaint it. "tangerine" is a TRUE orange for cases
+// that need real orange (e.g. the Last month payment tag).
+type BadgeTone = "gold" | "orange" | "tangerine" | "neutral" | "muted" | "blue";
 const TONE: Record<BadgeTone, string> = {
   gold: "bg-primary/10 text-primary border-primary/25",
   orange: "bg-secondary/10 text-secondary border-secondary/25",
+  tangerine: "bg-orange-50 text-orange-700 border-orange-200",
   neutral: "bg-black/[0.04] text-ink/70 border-black/10",
   muted: "bg-black/[0.03] text-ink/45 border-black/[0.07]",
   blue: "bg-blue-50 text-blue-700 border-blue-200",

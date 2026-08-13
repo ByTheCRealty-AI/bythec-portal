@@ -88,9 +88,9 @@ export function CommissionStatusBadge({ payment }: { payment: Payment }) {
   );
 }
 
-function kindTone(k: PaymentKind): "gold" | "orange" | "neutral" | "blue" {
+function kindTone(k: PaymentKind): "gold" | "tangerine" | "neutral" | "blue" {
   if (k === "security_deposit") return "gold";
-  if (k === "last_month") return "orange";
+  if (k === "last_month") return "tangerine"; // true orange (was "orange" = secondary green)
   if (k === "first_month") return "blue";
   return "neutral";
 }
