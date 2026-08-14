@@ -222,7 +222,9 @@ export async function submitApplication(
 }
 
 // Remove entradas totalmente vazias e garante um array de objetos "chatos".
-function sanitizeArray<T extends Record<string, unknown>>(arr: T[] | undefined): T[] {
+// Constraint `object` (não Record<string,unknown>): interfaces satisfazem
+// `object` mas NÃO Record<string,unknown> (sem index signature implícita).
+function sanitizeArray<T extends object>(arr: T[] | undefined): T[] {
   if (!Array.isArray(arr)) return [];
   return arr.filter((row) =>
     row && typeof row === "object"

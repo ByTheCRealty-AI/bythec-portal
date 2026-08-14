@@ -12,6 +12,7 @@
 // =============================================================================
 
 import "server-only";
+import Stripe from "stripe";
 
 export const APPLICATION_FEE_CENTS = 10000; // $100.00 — taxa não reembolsável
 
@@ -20,7 +21,9 @@ export function stripeConfigured(): boolean {
 }
 
 // Retorna uma instância do Stripe (lazy). Lança se a secret key não existir.
-export async function getStripe() {
+// Import estático do pacote (server-only): forma canônica, evita ambiguidade de
+// `.default` no import dinâmico de um pacote CJS (`export =`).
+export async function getStripe(): Promise<Stripe> {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) {
     throw new Error(
@@ -28,9 +31,6 @@ export async function getStripe() {
         "Environment Variables) com a secret key da conta Stripe da By the C."
     );
   }
-  const mod = await import("stripe");
-  const Stripe = mod.default;
-  // Sem apiVersion explícita: usa a versão fixada pelo próprio SDK (evita
-  // divergência de tipo literal entre versões do pacote).
+  // Sem apiVersion explícita: usa a versão fixada pelo próprio SDK.
   return new Stripe(key);
 }
