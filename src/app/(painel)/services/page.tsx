@@ -31,6 +31,7 @@ type RawService = {
   price: number | null;
   created_at: string;
   created_by: string | null;
+  tenant_request_id: string | null;
   property?: { id: string; address: string; address2: string | null } | null;
   provider?: { id: string; name: string } | null;
 };
@@ -43,7 +44,7 @@ async function load() {
     const { data, error } = await supabase
       .from("services")
       .select(
-        "id, property_id, service_request_date, description, status, done_at, price, created_at, created_by, property:property_id(id, address, address2), provider:provider_id(id, name)"
+        "id, property_id, service_request_date, description, status, done_at, price, created_at, created_by, tenant_request_id, property:property_id(id, address, address2), provider:provider_id(id, name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -134,6 +135,7 @@ export default async function ServicesPage() {
     done_at: s.done_at,
     price: s.price,
     created_by_name: s.created_by ? names.get(s.created_by) ?? null : null,
+    tenant_request_id: s.tenant_request_id,
   }));
 
   return (

@@ -35,6 +35,7 @@ export interface ServiceListRow {
   done_at: string | null;
   price: number | null;
   created_by_name: string | null;
+  tenant_request_id: string | null;
 }
 
 type Filter = "" | "open" | "done";
@@ -71,6 +72,7 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
 function EditServiceModal({
   service,
   providers,
+  requests,
   updateAction,
   deleteAction,
   setStatusAction,
@@ -78,11 +80,18 @@ function EditServiceModal({
 }: {
   service: ServiceListRow;
   providers: ProviderOption[];
+  requests: LinkableRequest[];
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
   setStatusAction: (id: string, done: boolean) => Promise<void>;
   onClose: () => void;
 }) {
+  // Requests linkáveis: os OPEN da mesma casa + o que já está linkado (mesmo done).
+  const linkableRequests = requests.filter(
+    (r) =>
+      r.property_id === service.property_id &&
+      (r.status !== "done" || r.id === service.tenant_request_id)
+  );
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +205,24 @@ function EditServiceModal({
             className={inputClass}
             placeholder="What is the service about?"
           />
+        </Field>
+
+        <Field
+          label="Linked tenant request"
+          hint="Link this service to a request (marking either one done marks the other)."
+        >
+          <select
+            name="tenant_request_id"
+            defaultValue={service.tenant_request_id ?? ""}
+            className={inputClass}
+          >
+            <option value="">— No linked request —</option>
+            {linkableRequests.map((r) => (
+              <option key={r.id} value={r.id}>
+                {(r.description ?? "Request").slice(0, 70)}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -590,6 +617,7 @@ export function ServicesTable({
         <EditServiceModal
           service={editing}
           providers={providers}
+          requests={requests}
           updateAction={updateAction}
           deleteAction={deleteAction}
           setStatusAction={setStatusAction}

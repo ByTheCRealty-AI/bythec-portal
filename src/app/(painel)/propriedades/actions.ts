@@ -570,18 +570,23 @@ export async function updateServiceAction(fd: FormData) {
   const status = (str(fd, "status") === "done" ? "done" : "open") as RequestStatus;
 
   const supabase = createClient();
-  const { error } = await supabase
-    .from("services")
-    .update({
-      service_request_date: str(fd, "service_request_date") ?? today(),
-      description,
-      status,
-      price: num(fd, "price"),
-      provider_id: str(fd, "provider_id"),
-    })
-    .eq("id", id);
+  const update: Record<string, unknown> = {
+    service_request_date: str(fd, "service_request_date") ?? today(),
+    description,
+    status,
+    price: num(fd, "price"),
+    provider_id: str(fd, "provider_id"),
+  };
+  // Link a um tenant request só é mexido quando o form REALMENTE manda o campo
+  // (senão editar por um form sem o picker apagaria o link sem querer). "" = desliga.
+  if (fd.has("tenant_request_id")) {
+    update.tenant_request_id = str(fd, "tenant_request_id");
+  }
+  const { error } = await supabase.from("services").update(update).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
+  revalidatePath("/services");
+  revalidatePath("/requests");
   revalidatePath("/services"); // aba global de Services
 }
 
