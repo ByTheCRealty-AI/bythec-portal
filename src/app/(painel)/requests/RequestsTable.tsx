@@ -4,6 +4,7 @@
 // busca instantânea por propriedade, inquilino ou descrição. Botão "Add request"
 // (aba global) abre um modal com picker de propriedade — igual ao "Add service".
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, Plus, X, Loader2 } from "lucide-react";
 import { date, cx } from "@/lib/format";
@@ -31,9 +32,13 @@ export type LinkableService = {
 
 type Filter = "" | "open" | "done";
 
-// Modal centrado (portal-to-body pattern das outras janelas).
+// Modal centrado. PRECISA de createPortal pro body: renderizar inline deixa o
+// `fixed` preso a um ancestral com transform (o AppShell), o que joga o card pro
+// fim da página (fora da viewport). O portal-to-body escapa disso — mesmo padrão
+// do modal de Services.
 function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
       onClick={onClose}
@@ -44,7 +49,8 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
