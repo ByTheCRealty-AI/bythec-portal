@@ -37,6 +37,13 @@ function todayISO(): string {
 function digits(s: string): string {
   return (s || "").replace(/\D/g, "");
 }
+// Formata telefone US enquanto digita: (508) 555-1234.
+function formatPhone(v: string): string {
+  const d = digits(v).slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
 
 interface UploadedFile { path: string; file_name: string; content_type: string }
 interface OccRow { name: string; dob: string; is_adult: boolean; phone: string; idFile: UploadedFile | null }
@@ -94,7 +101,7 @@ const EMPTY_FLAT: FlatState = {
 };
 
 const emptyHist = (kind: "current" | "previous"): HistoryInput => ({
-  kind, street: "", city_state_zip: "", duration: "", landlord_name: "", landlord_phone: "",
+  kind, street: "", city: "", state: "", zip: "", duration: "", landlord_name: "", landlord_phone: "",
 });
 const emptyVeh = (): VehicleInput => ({ make_model: "", year: "", color: "", plate: "", plate_state: "" });
 
@@ -109,7 +116,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     { name: "", dob: "", is_adult: false, phone: "", idFile: null },
   ]);
   const [history, setHistory] = useState<HistoryInput[]>([
-    emptyHist("current"), emptyHist("previous"), emptyHist("previous"),
+    emptyHist("current"), emptyHist("previous"),
   ]);
   const [vehicles, setVehicles] = useState<VehicleInput[]>([emptyVeh()]);
   const [refs, setRefs] = useState<ReferenceInput[]>([
@@ -183,7 +190,9 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 
     history.forEach((h, i) => {
       need(`hist_${i}_street`, h.street);
-      need(`hist_${i}_city`, h.city_state_zip);
+      need(`hist_${i}_city`, h.city);
+      need(`hist_${i}_state`, h.state);
+      need(`hist_${i}_zip`, h.zip);
       need(`hist_${i}_dur`, h.duration);
       need(`hist_${i}_lname`, h.landlord_name);
       need(`hist_${i}_lphone`, h.landlord_phone);
@@ -360,7 +369,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           <YesNo label={d.ssnQuestion} value={f.has_ssn} onChange={(v) => set("has_ssn", v)} yes={d.yesShort} no={d.noShort} err={errs.has("has_ssn")} />
           {f.has_ssn === "yes" && (
             <div className="mt-3"><Field label={d.ssn} hint={d.ssnHint} required>
-              <input className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={f.ssn} onChange={(e) => set("ssn", e.target.value)} />
+              <input type="password" className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={f.ssn} onChange={(e) => set("ssn", e.target.value)} />
             </Field></div>
           )}
           {f.has_ssn === "no" && (
@@ -372,7 +381,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label={d.phone} required>
-            <input className={inputCls + E("phone")} inputMode="tel" value={f.phone} onChange={(e) => set("phone", e.target.value)} />
+            <input className={inputCls + E("phone")} inputMode="tel" value={f.phone} onChange={(e) => set("phone", formatPhone(e.target.value))} />
           </Field>
           <Field label={d.email} required>
             <input className={inputCls + E("email")} inputMode="email" value={f.email} onChange={(e) => set("email", e.target.value)} />
@@ -439,7 +448,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                 <div className="mt-3 space-y-3">
                   <Field label={d.occPhone} required>
                     <input className={inputCls + E(`occ_${i}_phone`) + (errs.has(`occ_${i}_phone_dup`) ? " !border-red-400 ring-2 ring-red-200" : "")}
-                      inputMode="tel" value={o.phone} onChange={(e) => setOccupants(upd(occupants, i, { phone: e.target.value }))} />
+                      inputMode="tel" value={o.phone} onChange={(e) => setOccupants(upd(occupants, i, { phone: formatPhone(e.target.value) }))} />
                     {errs.has(`occ_${i}_phone_dup`) && <span className="mt-1 block text-xs text-red-500">{d.occPhone}</span>}
                   </Field>
                   <IdUpload label={d.idUploadOccupant} hint={d.idUploadHint} dict={d} file={o.idFile} onChange={(uf) => setOccupants(upd(occupants, i, { idFile: uf }))} error={errs.has(`occ_${i}_id`)} />
@@ -466,14 +475,20 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           {history.map((h, i) => (
             <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
               <p className="mb-3 text-sm font-semibold text-primary">
-                {h.kind === "current" ? d.current : `${d.previous} ${i}`}
+                {h.kind === "current" ? d.current : d.previous}
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={d.street} required><input className={inputCls + E(`hist_${i}_street`)} value={h.street} onChange={(e) => setHistory(upd(history, i, { street: e.target.value }))} /></Field>
-                <Field label={d.cityStateZip} required><input className={inputCls + E(`hist_${i}_city`)} value={h.city_state_zip} onChange={(e) => setHistory(upd(history, i, { city_state_zip: e.target.value }))} /></Field>
+                <Field label={d.city} required><input className={inputCls + E(`hist_${i}_city`)} value={h.city} onChange={(e) => setHistory(upd(history, i, { city: e.target.value }))} /></Field>
+                <Field label={`${d.stateLabel} / ${d.zip}`} required>
+                  <div className="flex gap-2">
+                    <input className={inputCls + " w-20" + E(`hist_${i}_state`)} placeholder="ST" maxLength={2} value={h.state} onChange={(e) => setHistory(upd(history, i, { state: e.target.value.toUpperCase() }))} />
+                    <input className={inputCls + E(`hist_${i}_zip`)} inputMode="numeric" value={h.zip} onChange={(e) => setHistory(upd(history, i, { zip: e.target.value }))} />
+                  </div>
+                </Field>
                 <Field label={d.howLong} required><input className={inputCls + E(`hist_${i}_dur`)} value={h.duration} onChange={(e) => setHistory(upd(history, i, { duration: e.target.value }))} /></Field>
                 <Field label={d.landlordName} required><input className={inputCls + E(`hist_${i}_lname`)} value={h.landlord_name} onChange={(e) => setHistory(upd(history, i, { landlord_name: e.target.value }))} /></Field>
-                <Field label={d.landlordPhone} required><input className={inputCls + E(`hist_${i}_lphone`)} value={h.landlord_phone} onChange={(e) => setHistory(upd(history, i, { landlord_phone: e.target.value }))} /></Field>
+                <Field label={d.landlordPhone} required><input className={inputCls + E(`hist_${i}_lphone`)} inputMode="tel" value={h.landlord_phone} onChange={(e) => setHistory(upd(history, i, { landlord_phone: formatPhone(e.target.value) }))} /></Field>
               </div>
             </div>
           ))}
@@ -505,7 +520,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           <Field label={d.employer} required><input className={inputCls + E("employer")} value={f.employer} onChange={(e) => set("employer", e.target.value)} /></Field>
           <Field label={d.employerAddress} required><input className={inputCls + E("employer_address")} value={f.employer_address} onChange={(e) => set("employer_address", e.target.value)} /></Field>
           <Field label={d.managerName} required><input className={inputCls + E("manager_name")} value={f.manager_name} onChange={(e) => set("manager_name", e.target.value)} /></Field>
-          <Field label={d.managerPhone} required><input className={inputCls + E("manager_phone")} value={f.manager_phone} onChange={(e) => set("manager_phone", e.target.value)} /></Field>
+          <Field label={d.managerPhone} required><input className={inputCls + E("manager_phone")} inputMode="tel" value={f.manager_phone} onChange={(e) => set("manager_phone", formatPhone(e.target.value))} /></Field>
           <Field label={d.jobTitle} required><input className={inputCls + E("job_title")} value={f.job_title} onChange={(e) => set("job_title", e.target.value)} /></Field>
           <Field label={d.monthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
           <Field label={d.lengthEmployment} required><input className={inputCls + E("length_of_employment")} value={f.length_of_employment} onChange={(e) => set("length_of_employment", e.target.value)} /></Field>
@@ -519,7 +534,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
             <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
               <p className="mb-3 text-sm font-semibold text-primary">{i === 0 ? d.ref1 : d.ref2}</p>
               <Field label={d.refName} required><input className={inputCls + E(`ref_${i}_name`)} value={r.name} onChange={(e) => setRefs(upd(refs, i, { name: e.target.value }))} /></Field>
-              <div className="mt-3"><Field label={d.refPhone} required><input className={inputCls + E(`ref_${i}_phone`)} value={r.phone} onChange={(e) => setRefs(upd(refs, i, { phone: e.target.value }))} /></Field></div>
+              <div className="mt-3"><Field label={d.refPhone} required><input className={inputCls + E(`ref_${i}_phone`)} inputMode="tel" value={r.phone} onChange={(e) => setRefs(upd(refs, i, { phone: formatPhone(e.target.value) }))} /></Field></div>
             </div>
           ))}
         </div>

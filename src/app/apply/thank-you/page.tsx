@@ -17,7 +17,7 @@ export default function ThankYouPage() {
           </div>
           <h1 className="h-display text-xl text-ink">Application received</h1>
           <p className="mt-2 text-sm text-ink/65">
-            Thank you. We&apos;ve received your rental application and the $100 processing fee.
+            Thank you. We&apos;ve received your rental application and your $103.30 payment ($100.00 application fee plus $3.30 card processing).
             A member of our team will review it and be in touch. Questions? Call (508) 364-8556
             or email info@bythecrealty.com.
           </p>
@@ -26,7 +26,7 @@ export default function ThankYouPage() {
 
           <h2 className="h-display text-lg text-ink">Aplicação recebida</h2>
           <p className="mt-2 text-sm text-ink/65">
-            Obrigado. Recebemos a sua aplicação de aluguel e a taxa de processamento de $100.
+            Obrigado. Recebemos a sua aplicação de aluguel e o seu pagamento de $103.30 (taxa de aplicação de $100.00 mais $3.30 de processamento do cartão).
             Um membro da nossa equipe irá analisá-la e entrar em contato. Dúvidas? Ligue para
             (508) 364-8556 ou envie um e-mail para info@bythecrealty.com.
           </p>

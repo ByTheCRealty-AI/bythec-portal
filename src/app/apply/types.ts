@@ -15,7 +15,9 @@ export interface OccupantInput {
 export interface HistoryInput {
   kind: "current" | "previous";
   street: string;
-  city_state_zip: string;
+  city: string;
+  state: string;
+  zip: string;
   duration: string;
   landlord_name: string;
   landlord_phone: string;

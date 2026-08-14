@@ -300,7 +300,7 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">
                     {h.kind === "current" ? "Current" : "Previous"}
                   </p>
-                  <p className="text-ink">{[h.street, h.city_state_zip].filter(Boolean).join(", ") || "—"}</p>
+                  <p className="text-ink">{[h.street, h.city, h.state, h.zip].filter(Boolean).join(", ") || "—"}</p>
                   <p className="text-xs text-ink/55">
                     {[h.duration, h.landlord_name, h.landlord_phone].filter(Boolean).join(" · ")}
                   </p>

@@ -766,7 +766,9 @@ export interface RentalApplication {
   rental_history: Array<{
     kind?: string;
     street?: string;
-    city_state_zip?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
     duration?: string;
     landlord_name?: string;
     landlord_phone?: string;

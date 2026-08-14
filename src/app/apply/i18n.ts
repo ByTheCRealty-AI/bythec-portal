@@ -65,7 +65,9 @@ export interface Dict {
   current: string;
   previous: string;
   street: string;
-  cityStateZip: string;
+  city: string;
+  stateLabel: string;
+  zip: string;
   howLong: string;
   landlordName: string;
   landlordPhone: string;
@@ -177,11 +179,13 @@ const en: Dict = {
   remove: "Remove",
 
   historySection: "Rental History",
-  historyHint: "Please list your three most recent addresses, or from the past five years.",
+  historyHint: "Please list your current address and your most recent previous address.",
   current: "Current Address",
   previous: "Previous Address",
   street: "Street Address / Unit #",
-  cityStateZip: "City, State, Zip",
+  city: "City",
+  stateLabel: "State",
+  zip: "Zip",
   howLong: "How long at this address",
   landlordName: "Landlord Name",
   landlordPhone: "Landlord Phone Number",
@@ -230,10 +234,10 @@ const en: Dict = {
   date: "Date",
 
   feeSection: "Application Fee",
-  feeText: "A non-refundable $100.00 fee is required to process your application. Enter your card below — you will be charged $100.00 when you submit.",
+  feeText: "A non-refundable $100.00 application fee is required. A $3.30 card processing fee is added so we receive the full amount — your card is charged $103.30 total when you submit.",
   cardLabel: "Card details",
 
-  submit: "Pay $100 & Submit Application",
+  submit: "Pay $103.30 & Submit Application",
   submitting: "Submitting…",
   required: "This field is required.",
   fixErrors: "Please complete all required fields highlighted below before submitting.",
@@ -294,11 +298,13 @@ const pt: Dict = {
   remove: "Remover",
 
   historySection: "Histórico de Aluguel",
-  historyHint: "Liste seus três endereços mais recentes ou dos últimos cinco anos.",
+  historyHint: "Liste seu endereço atual e o endereço anterior mais recente.",
   current: "Endereço Atual",
   previous: "Endereço Anterior",
   street: "Endereço / Unidade nº",
-  cityStateZip: "Cidade, Estado, CEP",
+  city: "Cidade",
+  stateLabel: "Estado",
+  zip: "CEP",
   howLong: "Quanto tempo neste endereço",
   landlordName: "Nome do Proprietário",
   landlordPhone: "Contato do Proprietário",
@@ -347,10 +353,10 @@ const pt: Dict = {
   date: "Data",
 
   feeSection: "Taxa de Aplicação",
-  feeText: "Uma taxa não reembolsável de $100.00 é necessária para processar a sua aplicação. Informe o seu cartão abaixo — a cobrança de $100.00 será feita quando você enviar.",
+  feeText: "É necessária uma taxa de aplicação não reembolsável de $100.00. Uma taxa de processamento de cartão de $3.30 é adicionada para recebermos o valor integral — seu cartão é cobrado no total de $103.30 ao enviar.",
   cardLabel: "Dados do cartão",
 
-  submit: "Pagar $100 e Enviar Aplicação",
+  submit: "Pagar $103.30 e Enviar Aplicação",
   submitting: "Enviando…",
   required: "Este campo é obrigatório.",
   fixErrors: "Preencha todos os campos obrigatórios destacados abaixo antes de enviar.",
