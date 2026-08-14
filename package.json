@@ -14,13 +14,16 @@
     "db:stop": "supabase stop"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^2.8.0",
+    "@stripe/stripe-js": "^4.7.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.453.0",
     "next": "14.2.15",
     "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "stripe": "^16.12.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.11",

@@ -167,6 +167,21 @@ export function PropriedadeEditForm({
         <Field label="Internal notes">
           <textarea name="notes" rows={3} defaultValue={p.notes ?? ""} className={inputClass} />
         </Field>
+
+        <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
+          <input
+            type="checkbox"
+            name="accepting_applications"
+            value="1"
+            defaultChecked={p.accepting_applications ?? false}
+            className="mt-0.5 h-4 w-4 accent-[#198577]"
+          />
+          <span className="text-sm text-ink/80">
+            <span className="font-semibold text-ink">Accept applications on the website</span>
+            <br />
+            When on, this property appears in the property list on the public rental application form (/apply).
+          </span>
+        </label>
       </section>
 
       <div className="flex items-center gap-3">

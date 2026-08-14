@@ -19,6 +19,7 @@ import {
   Building2,
   KeyRound,
   BellRing,
+  ClipboardList,
   ShieldCheck,
   ChevronDown,
   LogOut,
@@ -67,6 +68,7 @@ const NAV: Item[] = [
   { href: "/payments", label: "Payments", icon: Wallet, ready: true, cap: "payments.annual" },
   { href: "/expenses", label: "Expenses", icon: Receipt, ready: true, cap: "expenses.manage" },
   { href: "/finances", label: "Finances", icon: PiggyBank, ready: true, cap: "financials.full" },
+  { href: "/applications", label: "Applications", icon: ClipboardList, ready: true, cap: "applications.manage" },
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/services", label: "Services", icon: Hammer, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "providers.view" },
@@ -86,6 +88,7 @@ export function Sidebar({
   canManageUsers,
   user,
   remindersBadge = 0,
+  applicationsBadge = 0,
   onNavigate,
   className,
 }: {
@@ -94,6 +97,8 @@ export function Sidebar({
   user: SidebarUser;
   // Nº de lembretes escalados PRO usuário logado (manager/owner). 0 = sem badge.
   remindersBadge?: number;
+  // Nº de aplicações de aluguel com status 'new' (não vistas). 0 = sem badge.
+  applicationsBadge?: number;
   // Chamado ao clicar num link de navegação — usado pelo drawer mobile pra fechar.
   onNavigate?: () => void;
   // Override do shell externo (ex.: static md+ vs. drawer mobile).
@@ -213,6 +218,11 @@ export function Sidebar({
               {item.href === "/reminders" && remindersBadge > 0 && (
                 <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {remindersBadge}
+                </span>
+              )}
+              {item.href === "/applications" && applicationsBadge > 0 && (
+                <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {applicationsBadge}
                 </span>
               )}
               {!item.ready && (

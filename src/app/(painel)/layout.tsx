@@ -53,6 +53,23 @@ async function remindersBadgeCount(role: AppRole): Promise<number> {
   }
 }
 
+// Badge de Applications = nº de aplicações de aluguel com status 'new'. Só quem
+// tem applications.manage (owner+manager). Falha silenciosa (0) se a tabela
+// ainda não existe / DB desconectado.
+async function newApplicationsCount(): Promise<number> {
+  try {
+    const supabase = createClient();
+    const { count } = await supabase
+      .from("rental_applications")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "new")
+      .is("archived_at", null);
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function initialsFrom(name: string | null, email: string | null): string {
   const src = (name || email || "?").trim();
   const parts = src.split(/\s+/).filter(Boolean);
@@ -72,9 +89,10 @@ export default async function PainelLayout({ children }: { children: React.React
     initials: initialsFrom(profile.full_name, profile.email),
   };
 
-  const remindersBadge = can(profile, "reminders.view")
-    ? await remindersBadgeCount(profile.role)
-    : 0;
+  const [remindersBadge, applicationsBadge] = await Promise.all([
+    can(profile, "reminders.view") ? remindersBadgeCount(profile.role) : Promise.resolve(0),
+    can(profile, "applications.manage") ? newApplicationsCount() : Promise.resolve(0),
+  ]);
 
   return (
     <AppShell
@@ -82,6 +100,7 @@ export default async function PainelLayout({ children }: { children: React.React
       canManageUsers={canManageUsers(profile)}
       user={user}
       remindersBadge={remindersBadge}
+      applicationsBadge={applicationsBadge}
     >
       {/* Rede de segurança: se um link de convite/recuperação cair numa rota do
           painel com a sessão no hash, finaliza o fluxo (grava sessão do convidado

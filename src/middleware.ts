@@ -1,14 +1,15 @@
 // =============================================================================
 // Middleware — renova a sessão (cookies) e PROTEGE todas as rotas do painel.
 // =============================================================================
-// Públicas: /login e /auth/* (callback do convite). Tudo o mais exige sessão.
-// Sem sessão -> redireciona pra /login (guardando o destino em ?next=).
+// Públicas: /login, /auth/* (callback do convite) e /apply (aplicação de aluguel
+// pública, SEM login — candidato do site preenche e paga o fee). Tudo o mais
+// exige sessão. Sem sessão -> redireciona pra /login (guardando o destino em ?next=).
 // =============================================================================
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-const PUBLIC_PREFIXES = ["/login", "/auth"];
+const PUBLIC_PREFIXES = ["/login", "/auth", "/apply"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
