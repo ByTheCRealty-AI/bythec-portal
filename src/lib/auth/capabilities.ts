@@ -130,6 +130,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "invoices.general",
     "payments.annual",
     "expenses.manage", // vê/gerencia Expenses; mas NÃO Finances (sem financials.full)
+    "applications.manage", // owner-approved 2026-08-14: secretárias veem aplicações (SSN incluso). Mind P revogada por override.
     "reminders.view",
     "reminders.manage",
     "clients.own",
