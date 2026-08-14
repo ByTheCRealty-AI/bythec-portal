@@ -51,6 +51,7 @@ export interface Dict {
 
   occupantsSection: string;
   occupantsNote: string;
+  occupantsSolo: string;
   occupantsCount: string;
   occName: string;
   occDob: string;
@@ -166,6 +167,7 @@ const en: Dict = {
 
   occupantsSection: "Other Occupant Information",
   occupantsNote: "All occupants must be listed.",
+  occupantsSolo: "Just you — no other occupants to list.",
   occupantsCount: "Number of Occupants",
   occName: "Full Name",
   occDob: "Date of Birth (MM/DD/YY)",
@@ -282,6 +284,7 @@ const pt: Dict = {
 
   occupantsSection: "Informações do Ocupante",
   occupantsNote: "Todos os ocupantes devem ser listados.",
+  occupantsSolo: "Apenas você — nenhum outro ocupante a listar.",
   occupantsCount: "Número de ocupantes",
   occName: "Nome Completo",
   occDob: "Data de Nascimento (MM/DD/AA)",

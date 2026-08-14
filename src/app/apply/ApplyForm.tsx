@@ -140,6 +140,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   const validate = (): Set<string> => {
     const e = new Set<string>();
     const need = (key: string, v: string) => { if (!v.trim()) e.add(key); };
+    const occCount = numOrNull(f.occupants_count);
 
     if (!f.property_id) e.add("property_id");
     if (f.property_id === OTHER) need("property_other", f.property_other);
@@ -166,15 +167,19 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     if (!applicantId) e.add("applicant_id_upload");
 
     need("occupants_count", f.occupants_count);
-    occupants.forEach((o, i) => {
-      need(`occ_${i}_name`, o.name);
-      need(`occ_${i}_dob`, o.dob);
-      if (o.is_adult) {
-        need(`occ_${i}_phone`, o.phone);
-        if (o.phone.trim() && f.phone.trim() && digits(o.phone) === digits(f.phone)) e.add(`occ_${i}_phone_dup`);
-        if (!o.idFile) e.add(`occ_${i}_id`);
-      }
-    });
+    // Ocupante #1 é o próprio candidato. Só exige detalhes de OUTROS ocupantes
+    // quando o total for 2+. Se for 1, não precisa listar ninguém.
+    if (occCount != null && occCount >= 2) {
+      occupants.forEach((o, i) => {
+        need(`occ_${i}_name`, o.name);
+        need(`occ_${i}_dob`, o.dob);
+        if (o.is_adult) {
+          need(`occ_${i}_phone`, o.phone);
+          if (o.phone.trim() && f.phone.trim() && digits(o.phone) === digits(f.phone)) e.add(`occ_${i}_phone_dup`);
+          if (!o.idFile) e.add(`occ_${i}_id`);
+        }
+      });
+    }
 
     history.forEach((h, i) => {
       need(`hist_${i}_street`, h.street);
@@ -257,7 +262,11 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       email: f.email.trim() || null,
 
       occupants_count: numOrNull(f.occupants_count),
-      occupants: occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone })),
+      // Só envia outros ocupantes quando o total é 2+ (o #1 é o próprio candidato).
+      occupants:
+        (numOrNull(f.occupants_count) ?? 0) >= 2
+          ? occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone }))
+          : [],
       rental_history: history,
       vehicles,
 
@@ -294,6 +303,10 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     () => ({ theme: "stripe" as const, variables: { colorPrimary: "#198577", colorText: "#0f1b19", borderRadius: "12px" } }),
     []
   );
+
+  // Ocupante #1 = o próprio candidato. Só pede detalhes de outros ocupantes se 2+.
+  const occCountLive = numOrNull(f.occupants_count);
+  const showOtherOccupants = occCountLive != null && occCountLive >= 2;
 
   return (
     <div className="space-y-6">
@@ -404,6 +417,9 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         <Field label={d.occupantsCount} required>
           <input className={inputCls + " sm:w-32" + E("occupants_count")} inputMode="numeric" value={f.occupants_count} onChange={(e) => set("occupants_count", e.target.value)} />
         </Field>
+        {occCountLive === 1 && <p className="mt-3 text-sm text-ink/55">{d.occupantsSolo}</p>}
+        {showOtherOccupants && (
+        <>
         <div className="mt-3 space-y-4">
           {occupants.map((o, i) => (
             <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
@@ -440,6 +456,8 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         <button type="button" className={addCls} onClick={() => setOccupants([...occupants, { name: "", dob: "", is_adult: false, phone: "", idFile: null }])}>
           {d.addOccupant}
         </button>
+        </>
+        )}
       </Section>
 
       {/* Histórico de aluguel — todos obrigatórios */}
