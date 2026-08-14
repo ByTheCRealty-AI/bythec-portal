@@ -31,6 +31,7 @@ export function ServiceRow({
   service,
   propertyId,
   providers,
+  requestOptions = [],
   canEdit,
   zebra,
   updateAction,
@@ -39,12 +40,17 @@ export function ServiceRow({
   service: Service;
   propertyId: string;
   providers: ProviderOption[];
+  requestOptions?: { id: string; description: string | null; status: "open" | "done" }[];
   canEdit: boolean;
   zebra: boolean;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  // Requests linkáveis: os OPEN + o que já está linkado (mesmo se done).
+  const linkableRequests = requestOptions.filter(
+    (r) => r.status !== "done" || r.id === service.tenant_request_id
+  );
 
   if (editing) {
     return (
@@ -69,6 +75,24 @@ export function ServiceRow({
                 className={inputClass}
                 placeholder="What was done (e.g. HVAC tune-up, gutter cleaning)…"
               />
+            </Field>
+
+            <Field
+              label="Linked tenant request"
+              hint="Link to a request (marking either one done marks the other)."
+            >
+              <select
+                name="tenant_request_id"
+                defaultValue={service.tenant_request_id ?? ""}
+                className={inputClass}
+              >
+                <option value="">— No linked request —</option>
+                {linkableRequests.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {(r.description ?? "Request").slice(0, 70)}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

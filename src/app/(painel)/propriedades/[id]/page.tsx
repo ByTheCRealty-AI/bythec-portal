@@ -137,7 +137,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("services")
       .select(
-        "id, service_request_date, description, status, price, created_at, created_by, provider:provider_id(id,name)"
+        "id, service_request_date, description, status, price, created_at, created_by, tenant_request_id, provider:provider_id(id,name)"
       )
       .eq("property_id", p.id)
       .order("created_at", { ascending: false }),
@@ -582,6 +582,11 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
                 service={s}
                 propertyId={p.id}
                 providers={providers}
+                requestOptions={requests.map((r) => ({
+                  id: r.id,
+                  description: r.description,
+                  status: r.status as "open" | "done",
+                }))}
                 canEdit={canEditOps}
                 zebra={i % 2 === 1}
                 updateAction={updateServiceAction}
