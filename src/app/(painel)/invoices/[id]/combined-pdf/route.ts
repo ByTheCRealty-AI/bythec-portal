@@ -82,7 +82,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const page = pdf.addPage([PAGE_W, PAGE_H]);
+  // `page` é MUTÁVEL: os itens de serviço/geral podem ter descrições longas que
+  // exigem quebra de linha E quebra de página. As helpers T/TR/hline desenham
+  // sempre na página CORRENTE (fecham sobre a variável `page`).
+  let page = pdf.addPage([PAGE_W, PAGE_H]);
 
   const T = (s: string, x: number, y: number, size: number, f = font, color = INK) =>
     page.drawText(s ?? "", { x, y, size, font: f, color });
@@ -95,6 +98,53 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness: 0.7, color });
 
   let y = PAGE_H - MARGIN;
+
+  // Quebra de página: se não cabe `space` pts, começa página nova e reseta y.
+  const BOTTOM_LIMIT = MARGIN + 6;
+  const ensure = (space: number) => {
+    if (y - space < BOTTOM_LIMIT) {
+      page = pdf.addPage([PAGE_W, PAGE_H]);
+      y = PAGE_H - MARGIN;
+    }
+  };
+  // Normaliza tipografia (aspas/travessões curvos → ASCII) e remove só o que a
+  // Helvetica/WinAnsi não consegue desenhar (senão pdf-lib lança).
+  const clean = (s: string | null | undefined) =>
+    (s ?? "")
+      .replace(/\r\n/g, "\n")
+      .replace(/[‘’‚‛]/g, "'")
+      .replace(/[“”„]/g, '"')
+      .replace(/[–—]/g, "-")
+      .replace(/…/g, "...")
+      .replace(/[^\n\x20-\x7E\xA0-\xFF]/g, "");
+  // Quebra o texto em linhas que cabem em maxW (respeita \n; parte palavra gigante).
+  const wrapText = (text: string, f: typeof font, size: number, maxW: number): string[] => {
+    const out: string[] = [];
+    for (const para of clean(text).split("\n")) {
+      if (para.trim() === "") { out.push(""); continue; }
+      let line = "";
+      for (const word of para.split(/\s+/).filter(Boolean)) {
+        const test = line ? `${line} ${word}` : word;
+        if (f.widthOfTextAtSize(test, size) <= maxW) {
+          line = test;
+        } else {
+          if (line) out.push(line);
+          if (f.widthOfTextAtSize(word, size) > maxW) {
+            let chunk = "";
+            for (const ch of word) {
+              if (f.widthOfTextAtSize(chunk + ch, size) <= maxW) chunk += ch;
+              else { if (chunk) out.push(chunk); chunk = ch; }
+            }
+            line = chunk;
+          } else {
+            line = word;
+          }
+        }
+      }
+      if (line) out.push(line);
+    }
+    return out;
+  };
 
   // ---- Header ----
   T("By the C Realty", MARGIN, y - 4, 18, bold);
@@ -183,36 +233,57 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const rightEnd = drawColumn(rightX, "Owner Overview", ownerItems, "Total Received by Owner", inv.total_received_by_owner ?? 0);
     y = Math.min(leftEnd, rightEnd) - 10;
   } else if (isGeneral) {
-    // General: tabela simples (description + amount) + Total.
+    // General: tabela simples (description + amount) + Total. Descrição QUEBRA
+    // em várias linhas e páginas quando é longa.
+    const AMOUNT_COL = 90;
+    const descMaxW = PAGE_W - MARGIN * 2 - AMOUNT_COL;
     T("Description", MARGIN, y, 8.5, bold, MUTED);
     TR("Amount", PAGE_W - MARGIN, y, 8.5, bold, MUTED);
     y -= 6;
     hline(y);
     y -= 16;
     for (const it of inv.items) {
-      T(it.description, MARGIN, y, 10);
-      TR(money(it.total), PAGE_W - MARGIN, y, 10);
-      y -= 16;
+      const lines = wrapText(it.description, font, 10, descMaxW);
+      if (lines.length === 0) lines.push("");
+      ensure(lines.length * 13 + 6);
+      const amountStr = money(it.total);
+      lines.forEach((ln, li) => {
+        T(ln, MARGIN, y, 10);
+        if (li === 0) TR(amountStr, PAGE_W - MARGIN, y, 10);
+        y -= 13;
+      });
+      y -= 5;
     }
-    y -= 8;
+    ensure(40);
+    y -= 3;
     hline(y + 6);
     const generalTotal = inv.general_total ?? inv.items.reduce((a, it) => a + it.total, 0);
     T("Total", PAGE_W - MARGIN - 180, y - 8, 11, bold);
     TR(money(generalTotal), PAGE_W - MARGIN, y - 8, 12, bold, GREEN);
     y -= 26;
   } else {
-    // Service: tabela única + totais.
+    // Service: tabela única + totais. Descrição QUEBRA em várias linhas/páginas.
+    const AMOUNT_COL = 90;
+    const descMaxW = PAGE_W - MARGIN * 2 - AMOUNT_COL;
     T("Description", MARGIN, y, 8.5, bold, MUTED);
     TR("Amount", PAGE_W - MARGIN, y, 8.5, bold, MUTED);
     y -= 6;
     hline(y);
     y -= 16;
     for (const it of inv.items) {
-      T(it.description, MARGIN, y, 10);
-      TR(money(it.total), PAGE_W - MARGIN, y, 10);
-      y -= 16;
+      const lines = wrapText(it.description, font, 10, descMaxW);
+      if (lines.length === 0) lines.push("");
+      ensure(lines.length * 13 + 6);
+      const amountStr = money(it.total);
+      lines.forEach((ln, li) => {
+        T(ln, MARGIN, y, 10);
+        if (li === 0) TR(amountStr, PAGE_W - MARGIN, y, 10);
+        y -= 13;
+      });
+      y -= 5;
     }
-    y -= 8;
+    ensure(70);
+    y -= 3;
     hline(y + 6);
     const labor = inv.labor_total ?? 0;
     const material = inv.material_total ?? 0;
@@ -227,11 +298,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   // ---- Notes ----
   if (inv.notes) {
+    const noteLines = wrapText(inv.notes, font, 9, PAGE_W - MARGIN * 2);
+    ensure(noteLines.length * 12 + 34);
     y -= 10;
     hline(y + 8);
     T("NOTES", MARGIN, y - 6, 8.5, bold, MUTED);
-    T(inv.notes.slice(0, 400), MARGIN, y - 22, 9, font, INK);
-    y -= 40;
+    let ny = y - 22;
+    for (const ln of noteLines) {
+      T(ln, MARGIN, ny, 9);
+      ny -= 12;
+    }
+    y = ny - 8;
   }
 
   // ---- Footer ----
