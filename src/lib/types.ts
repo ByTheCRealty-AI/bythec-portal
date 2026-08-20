@@ -184,6 +184,8 @@ export interface Property {
   sold_at: string | null;
   // Aparece no formulário público /apply quando true (migration 0029).
   accepting_applications?: boolean;
+  accepts_year_round?: boolean;
+  accepts_winter?: boolean;
   // join opcional
   owner?: Pick<Client, "id" | "name" | "email"> | null;
 }

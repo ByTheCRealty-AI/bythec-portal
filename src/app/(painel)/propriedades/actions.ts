@@ -98,7 +98,11 @@ export async function updatePropriedadeAction(id: string, fd: FormData) {
       sale_commission_rate: num(fd, "sale_commission_rate"),
       sale_commission: num(fd, "sale_commission"),
       // Aparece no formulário público /apply quando marcado. Default false.
-      accepting_applications: str(fd, "accepting_applications") === "1",
+      // Tipos de aluguel aceitos no /apply; accepting_applications = aceita algum.
+      accepts_year_round: str(fd, "accepts_year_round") === "1",
+      accepts_winter: str(fd, "accepts_winter") === "1",
+      accepting_applications:
+        str(fd, "accepts_year_round") === "1" || str(fd, "accepts_winter") === "1",
       notes: str(fd, "notes"),
     })
     .eq("id", id);

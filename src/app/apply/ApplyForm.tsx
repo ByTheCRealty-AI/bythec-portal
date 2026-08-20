@@ -347,7 +347,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       <Section title={d.propertySection}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={d.rentalType} required>
-            <select className={inputCls + E("rental_type")} value={f.rental_type} onChange={(e) => set("rental_type", e.target.value as FlatState["rental_type"])}>
+            <select className={inputCls + E("rental_type")} value={f.rental_type} onChange={(e) => { set("rental_type", e.target.value as FlatState["rental_type"]); set("property_id", ""); }}>
               <option value="">{d.rentalTypePlaceholder}</option>
               <option value="year_round">{d.rentalTypeYearRound}</option>
               <option value="winter">{d.rentalTypeWinter}</option>
@@ -361,7 +361,15 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         <Field label={d.propertyLabel} required>
           <select className={inputCls + E("property_id")} value={f.property_id} onChange={(e) => set("property_id", e.target.value)}>
             <option value="">{d.propertyPlaceholder}</option>
-            {properties.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {properties
+              .filter((p) =>
+                f.rental_type === "year_round"
+                  ? p.accepts_year_round
+                  : f.rental_type === "winter"
+                    ? p.accepts_winter
+                    : true
+              )
+              .map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             <option value={OTHER}>{d.propertyOther}</option>
           </select>
         </Field>

@@ -168,20 +168,24 @@ export function PropriedadeEditForm({
           <textarea name="notes" rows={3} defaultValue={p.notes ?? ""} className={inputClass} />
         </Field>
 
-        <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
-          <input
-            type="checkbox"
-            name="accepting_applications"
-            value="1"
-            defaultChecked={p.accepting_applications ?? false}
-            className="mt-0.5 h-4 w-4 accent-[#198577]"
-          />
-          <span className="text-sm text-ink/80">
-            <span className="font-semibold text-ink">Accept applications on the website</span>
-            <br />
-            When on, this property appears in the property list on the public rental application form (/apply).
-          </span>
-        </label>
+        <div className="mt-5 rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
+          <p className="text-sm font-semibold text-ink">Accept rental applications on the website</p>
+          <p className="mt-1 text-xs text-ink/55">
+            Check which rental type(s) this property accepts. It appears on the public application form (/apply)
+            only for the types you select — an applicant who picks &quot;Year-round&quot; sees only year-round
+            properties, and &quot;Winter&quot; sees only winter ones.
+          </p>
+          <div className="mt-3 flex flex-col gap-2.5">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink/80">
+              <input type="checkbox" name="accepts_year_round" value="1" defaultChecked={p.accepts_year_round ?? false} className="h-4 w-4 accent-[#198577]" />
+              Year-round rental
+            </label>
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink/80">
+              <input type="checkbox" name="accepts_winter" value="1" defaultChecked={p.accepts_winter ?? false} className="h-4 w-4 accent-[#198577]" />
+              Winter / off-season rental
+            </label>
+          </div>
+        </div>
       </section>
 
       <div className="flex items-center gap-3">

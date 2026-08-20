@@ -23,7 +23,7 @@ async function loadProperties(): Promise<PropertyOption[]> {
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("properties")
-      .select("id, address, address2")
+      .select("id, address, address2, accepts_year_round, accepts_winter")
       .eq("accepting_applications", true)
       .is("archived_at", null)
       .order("address", { ascending: true });
@@ -31,6 +31,8 @@ async function loadProperties(): Promise<PropertyOption[]> {
     return data.map((p) => ({
       id: p.id as string,
       label: [p.address, p.address2].filter(Boolean).join(" · "),
+      accepts_year_round: Boolean(p.accepts_year_round),
+      accepts_winter: Boolean(p.accepts_winter),
     }));
   } catch {
     // Sem env do admin (preview) — devolve lista vazia; o form usa texto livre.

@@ -101,4 +101,9 @@ export interface ApplicationInput {
 }
 
 // Opção de propriedade passada do server pro dropdown público.
-export interface PropertyOption { id: string; label: string }
+export interface PropertyOption {
+  id: string;
+  label: string;
+  accepts_year_round: boolean;
+  accepts_winter: boolean;
+}
