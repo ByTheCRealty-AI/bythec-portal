@@ -179,6 +179,9 @@ export interface Property {
   sale_price: number | null;
   sale_commission_rate: number | null;
   sale_commission: number | null;
+  // Data em que a casa foi vendida (editável na página da propriedade, migration
+  // 0034). Registro da listing; a receita do Finances vem do deal do cliente.
+  sold_at: string | null;
   // Aparece no formulário público /apply quando true (migration 0029).
   accepting_applications?: boolean;
   // join opcional

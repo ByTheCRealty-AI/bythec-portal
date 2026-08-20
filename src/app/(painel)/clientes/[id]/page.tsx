@@ -23,11 +23,15 @@ import {
 import {
   CLIENT_TYPE_LABEL,
   PROPERTY_TYPE_LABEL,
+  DEAL_SIDE_LABEL,
+  DEAL_STATUS_LABEL,
   type Client,
   type Property,
   type Note,
   type Document,
 } from "@/lib/types";
+import { InlineDateEditor } from "@/components/InlineDateEditor";
+import { setDealClosedDateAction } from "@/app/(painel)/sales/actions";
 import { money, date } from "@/lib/format";
 import { operatorNameMap, withCreatorNames } from "@/lib/operators";
 import { Home, Pencil, FileText, StickyNote } from "lucide-react";
@@ -153,6 +157,33 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           ].filter(Boolean).join(" · ") || "None"}
         />
       </Card>
+      {client.client_type === "buy_sell_client" && (
+        <Card>
+          <h3 className="h-display mb-3 text-sm text-ink/70">Deal</h3>
+          <Row label="Side" value={client.deal_side ? DEAL_SIDE_LABEL[client.deal_side] : null} />
+          <Row
+            label="Status"
+            value={client.deal_status ? DEAL_STATUS_LABEL[client.deal_status] : "Active"}
+          />
+          <Row
+            label="Closing date"
+            value={
+              client.deal_status && client.deal_status !== "active" ? (
+                <InlineDateEditor
+                  action={setDealClosedDateAction}
+                  id={client.id}
+                  initial={client.deal_closed_at}
+                  canEdit={can(profile, "clients.edit")}
+                />
+              ) : (
+                <span className="text-sm text-ink/45">
+                  Open — close the deal in Sales to set a date
+                </span>
+              )
+            }
+          />
+        </Card>
+      )}
       {client.notes && (
         <Card className="md:col-span-2">
           <h3 className="h-display mb-2 text-sm text-ink/70">Notes</h3>

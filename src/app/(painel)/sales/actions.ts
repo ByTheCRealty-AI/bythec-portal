@@ -215,3 +215,54 @@ export async function setListingStatusAction(fd: FormData) {
   revalidatePath("/sales");
   revalidatePath(`/propriedades/${id}`);
 }
+
+// YYYY-MM-DD ou null (limpa). Guarda contra lixo antes de tocar no banco.
+function ymdOrNull(value: string | null): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+// ---- Editar a DATA de fechamento de um deal buy/sell (cliente que comprou /
+// vendedor cuja casa vendeu). Antes era carimbada como "hoje" e imutável; agora
+// a Andrea corrige/define. É a data que o Finances usa pra reconhecer a comissão.
+export async function setDealClosedDateAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to edit sales clients.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing client reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({ deal_closed_at: ymdOrNull(str(fd, "date")) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/sales");
+  revalidatePath("/clientes");
+  revalidatePath(`/clientes/${id}`);
+  revalidatePath("/finances");
+}
+
+// ---- Editar a DATA em que uma listing For Sale foi vendida (properties.sold_at,
+// migration 0034). Registro da listing — não muda a receita do Finances.
+export async function setListingSoldDateAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to edit listings.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing property reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("properties")
+    .update({ sold_at: ymdOrNull(str(fd, "date")) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/sales");
+  revalidatePath(`/propriedades/${id}`);
+  revalidatePath("/finances");
+}

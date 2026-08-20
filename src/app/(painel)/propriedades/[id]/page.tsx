@@ -14,6 +14,8 @@ import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
 import { BulkDocumentImport } from "@/components/inline-forms/BulkDocumentImport";
+import { InlineDateEditor } from "@/components/InlineDateEditor";
+import { setListingSoldDateAction } from "@/app/(painel)/sales/actions";
 import { SortableDocumentList } from "@/components/inline-forms/SortableDocumentList";
 import { NoteRow } from "@/components/inline-forms/NoteRow";
 import { ServiceRow } from "@/components/inline-forms/ServiceRow";
@@ -396,6 +398,17 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               }
             />
             <Row label="Status" value={p.sale_status ?? null} />
+            <Row
+              label="Sold date"
+              value={
+                <InlineDateEditor
+                  action={setListingSoldDateAction}
+                  id={p.id}
+                  initial={p.sold_at}
+                  canEdit={can(profile, "properties.edit")}
+                />
+              }
+            />
           </div>
         </Card>
       )}
