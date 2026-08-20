@@ -123,6 +123,11 @@ export async function submitApplication(
       .insert({
         language: input.language === "pt" ? "pt" : "en",
         status: "new",
+        rental_type:
+          input.rental_type === "year_round" || input.rental_type === "winter"
+            ? input.rental_type
+            : null,
+        lease_start: clean(input.lease_start),
         property_id: clean(input.property_id),
         property_other: clean(input.property_other),
 

@@ -104,7 +104,12 @@ export function ApplicationsClient({ applications }: { applications: RentalAppli
                     {a.email || a.phone || "—"} {a.language === "pt" && <span className="ml-1">· PT</span>}
                   </div>
                 </td>
-                <td className="hidden px-4 py-3 text-ink/70 sm:table-cell">{propertyLabel(a)}</td>
+                <td className="hidden px-4 py-3 text-ink/70 sm:table-cell">
+                  <div>{propertyLabel(a)}</div>
+                  {a.rental_type && (
+                    <div className="text-xs text-ink/45">{rentalTypeLabel(a.rental_type)}</div>
+                  )}
+                </td>
                 <td className="hidden px-4 py-3 text-ink/60 md:table-cell">{fmtDate(a.submitted_at)}</td>
                 <td className="px-4 py-3">
                   <StatusBadge s={a.status} />
@@ -220,6 +225,13 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
               ))}
             </div>
           </div>
+
+          {/* Rental */}
+          <Group title="Rental">
+            <Row label="Rental type">{rentalTypeLabel(a.rental_type)}</Row>
+            <Row label="Desired start">{a.lease_start ? fmtDate(a.lease_start) : "—"}</Row>
+            <Row label="Property">{propertyLabel(a)}</Row>
+          </Group>
 
           {/* Payment */}
           <Group title="Application fee">
@@ -427,6 +439,12 @@ function yn(v: boolean | null | undefined, detail?: string | null): string {
   if (v == null) return "—";
   const base = v ? "Yes" : "No";
   return v && detail ? `${base} — ${detail}` : base;
+}
+
+function rentalTypeLabel(t: string | null | undefined): string {
+  if (t === "year_round") return "Year-round";
+  if (t === "winter") return "Winter / off-season";
+  return "—";
 }
 
 function govIdLabel(t: string | null): string {

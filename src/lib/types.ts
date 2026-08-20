@@ -748,6 +748,8 @@ export interface RentalApplication {
   language: "en" | "pt";
   status: ApplicationStatus;
 
+  rental_type: string | null;       // 'year_round' | 'winter'
+  lease_start: string | null;       // data desejada de início (YYYY-MM-DD)
   property_id: string | null;
   property_other: string | null;
 

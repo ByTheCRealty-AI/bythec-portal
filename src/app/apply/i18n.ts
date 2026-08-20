@@ -20,6 +20,11 @@ export interface Dict {
 
   // Seções
   propertySection: string;
+  rentalType: string;
+  rentalTypePlaceholder: string;
+  rentalTypeYearRound: string;
+  rentalTypeWinter: string;
+  leaseStart: string;
   propertyLabel: string;
   propertyPlaceholder: string;
   propertyOther: string;
@@ -138,6 +143,11 @@ const en: Dict = {
   langPT: "Português",
 
   propertySection: "Property Applying For",
+  rentalType: "Rental type",
+  rentalTypePlaceholder: "Select rental type…",
+  rentalTypeYearRound: "Year-round rental",
+  rentalTypeWinter: "Winter / off-season rental",
+  leaseStart: "Desired lease start date",
   propertyLabel: "Property",
   propertyPlaceholder: "Select a property…",
   propertyOther: "Not listed / other",
@@ -257,6 +267,11 @@ const pt: Dict = {
   langPT: "Português",
 
   propertySection: "Propriedade Solicitada",
+  rentalType: "Tipo de aluguel",
+  rentalTypePlaceholder: "Selecione o tipo…",
+  rentalTypeYearRound: "Aluguel anual",
+  rentalTypeWinter: "Aluguel de inverno (temporada)",
+  leaseStart: "Data de início desejada do aluguel",
   propertyLabel: "Propriedade",
   propertyPlaceholder: "Selecione uma propriedade…",
   propertyOther: "Não listada / outra",

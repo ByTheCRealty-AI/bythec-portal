@@ -39,6 +39,8 @@ export interface AttachmentInput {
 
 export interface ApplicationInput {
   language: "en" | "pt";
+  rental_type: "year_round" | "winter" | null;
+  lease_start: string | null;
   property_id: string | null;
   property_other: string | null;
 

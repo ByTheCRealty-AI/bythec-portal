@@ -49,6 +49,8 @@ interface UploadedFile { path: string; file_name: string; content_type: string }
 interface OccRow { name: string; dob: string; is_adult: boolean; phone: string; idFile: UploadedFile | null }
 
 interface FlatState {
+  rental_type: "" | "year_round" | "winter";
+  lease_start: string;
   property_id: string;
   property_other: string;
   full_name: string;
@@ -89,7 +91,7 @@ interface FlatState {
 }
 
 const EMPTY_FLAT: FlatState = {
-  property_id: "", property_other: "", full_name: "", date_of_birth: "",
+  rental_type: "", lease_start: "", property_id: "", property_other: "", full_name: "", date_of_birth: "",
   has_ssn: "", ssn: "", ssn_none_explanation: "", phone: "",
   has_license: "", drivers_license: "", drivers_license_state: "", gov_id_type: "", gov_id_number: "",
   email: "", occupants_count: "",
@@ -149,6 +151,8 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     const need = (key: string, v: string) => { if (!v.trim()) e.add(key); };
     const occCount = numOrNull(f.occupants_count);
 
+    if (!f.rental_type) e.add("rental_type");
+    need("lease_start", f.lease_start);
     if (!f.property_id) e.add("property_id");
     if (f.property_id === OTHER) need("property_other", f.property_other);
 
@@ -250,6 +254,8 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 
     return {
       language: lang,
+      rental_type: f.rental_type || null,
+      lease_start: f.lease_start || null,
       property_id: isOther || !f.property_id ? null : f.property_id,
       property_other: isOther ? f.property_other.trim() || null : null,
 
@@ -339,6 +345,19 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 
       {/* Propriedade */}
       <Section title={d.propertySection}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={d.rentalType} required>
+            <select className={inputCls + E("rental_type")} value={f.rental_type} onChange={(e) => set("rental_type", e.target.value as FlatState["rental_type"])}>
+              <option value="">{d.rentalTypePlaceholder}</option>
+              <option value="year_round">{d.rentalTypeYearRound}</option>
+              <option value="winter">{d.rentalTypeWinter}</option>
+            </select>
+          </Field>
+          <Field label={d.leaseStart} required>
+            <input type="date" className={inputCls + E("lease_start")} value={f.lease_start} onChange={(e) => set("lease_start", e.target.value)} />
+          </Field>
+        </div>
+        <div className="mt-4">
         <Field label={d.propertyLabel} required>
           <select className={inputCls + E("property_id")} value={f.property_id} onChange={(e) => set("property_id", e.target.value)}>
             <option value="">{d.propertyPlaceholder}</option>
@@ -346,6 +365,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
             <option value={OTHER}>{d.propertyOther}</option>
           </select>
         </Field>
+        </div>
         {f.property_id === OTHER && (
           <div className="mt-4"><Field label={d.propertyOtherLabel} required>
             <input className={inputCls + E("property_other")} value={f.property_other} onChange={(e) => set("property_other", e.target.value)} />
