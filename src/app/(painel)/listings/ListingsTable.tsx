@@ -19,7 +19,7 @@ import { useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
   Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink,
-  Home, Eye, EyeOff, RotateCcw, AlertTriangle,
+  Home, Eye, EyeOff, RotateCcw, AlertTriangle, Link2, Lock,
 } from "lucide-react";
 import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass } from "@/components/ui";
 import { cx, money } from "@/lib/format";
@@ -28,6 +28,7 @@ import {
   LISTING_CATEGORY_LABEL,
   LISTING_CATEGORY_TAB,
   type Listing,
+  type ListingPropertyOption,
   type PropertyType,
 } from "@/lib/types";
 
@@ -89,7 +90,7 @@ function Modal({ onClose, children, z = 50, wide }: { onClose: () => void; child
   );
 }
 
-function DetailRow({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+function DetailRow({ label, value, accent }: { label: React.ReactNode; value: React.ReactNode; accent?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4 border-t border-black/[0.06] py-2.5 text-sm">
       <span className="text-ink/45">{label}</span>
@@ -100,30 +101,109 @@ function DetailRow({ label, value, accent }: { label: string; value: React.React
 
 // ---- Form ------------------------------------------------------------------
 
-function ListingFields({ l, clients }: { l?: Listing; clients: ClientOption[] }) {
+function ListingFields({
+  l, clients, properties,
+}: {
+  l?: Listing;
+  clients: ClientOption[];
+  properties: ListingPropertyOption[];
+}) {
   // Category dirige a aba do site; mostramos ao vivo onde a listing vai cair,
   // pra ninguém publicar na aba errada sem perceber.
   const [category, setCategory] = useState<PropertyType | "">(l?.category ?? "");
 
+  // Campos que o picker de property PREENCHE. Ficam controlados pra o autofill
+  // conseguir escrever neles; o usuário edita por cima livremente depois (o
+  // endereço é COPIADO, não amarrado — a listing é peça de marketing).
+  const [propertyId, setPropertyId] = useState<string>(l?.property_id ?? "");
+  const [address, setAddress] = useState<string>(l?.address ?? "");
+  const [address2, setAddress2] = useState<string>(l?.address2 ?? "");
+  const [clientId, setClientId] = useState<string>(l?.client_id ?? "");
+  const [price, setPrice] = useState<string>(l?.price != null ? String(l.price) : "");
+  const [cover, setCover] = useState<string>(l?.cover_photo_url ?? "");
+
+  // Escolher uma property puxa o que ela já sabe. Só preenche campo VAZIO,
+  // exceto endereço/dono, que são o motivo de existir do picker. Assim ninguém
+  // perde um preço ou uma foto que já tinha digitado à mão.
+  function pickProperty(id: string) {
+    setPropertyId(id);
+    if (!id) return;
+    const p = properties.find((x) => x.id === id);
+    if (!p) return;
+    setAddress(p.address ?? "");
+    setAddress2(p.address2 ?? "");
+    if (p.owner_id) setClientId(p.owner_id);
+    if (p.property_type && !category) setCategory(p.property_type);
+    if (p.rent_price != null && !price) setPrice(String(p.rent_price));
+    if (p.photo_url && !cover) setCover(p.photo_url);
+  }
+
+  const picked = properties.find((x) => x.id === propertyId);
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {/* ---- Puxar de uma property já cadastrada ---- */}
+      <div className="sm:col-span-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+          <Link2 className="h-3.5 w-3.5" /> Use a property you already manage
+        </p>
+        <p className="mb-3 text-xs text-ink/55">
+          Pick the house and the address fills in for you, along with the owner, the type and
+          the rent when we have them. Everything stays editable afterwards.
+        </p>
+        <select
+          name="property_id"
+          value={propertyId}
+          onChange={(e) => pickProperty(e.target.value)}
+          className={selectClass}
+        >
+          <option value="">Not linked — I&rsquo;ll type the address myself</option>
+          {properties.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.address}{p.address2 ? ` · ${p.address2}` : ""}
+            </option>
+          ))}
+        </select>
+        {picked && (
+          <p className="mt-2 text-xs text-primary">
+            Pulled from {picked.address}. Edits below only change the listing, never the property.
+          </p>
+        )}
+      </div>
+
       <div className="sm:col-span-2">
         <Field label="Property address *" hint="Street, town, state — this is the title shown on the website.">
-          <input name="address" required defaultValue={l?.address ?? ""} className={inputClass} placeholder="123 Main St, Falmouth, MA 02540" />
+          <input
+            name="address"
+            required
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className={inputClass}
+            placeholder="123 Main St, Falmouth, MA 02540"
+          />
         </Field>
       </div>
 
       <Field label="Unit / apt">
-        <input name="address2" defaultValue={l?.address2 ?? ""} className={inputClass} placeholder="Apt 2B" />
+        <input
+          name="address2"
+          value={address2}
+          onChange={(e) => setAddress2(e.target.value)}
+          className={inputClass}
+          placeholder="Apt 2B"
+        />
       </Field>
 
-      <Field label="Owner (client)" hint="Optional — links the listing to the property owner.">
-        <select name="client_id" defaultValue={l?.client_id ?? ""} className={selectClass}>
+      <Field label="Owner (client)">
+        <select name="client_id" value={clientId} onChange={(e) => setClientId(e.target.value)} className={selectClass}>
           <option value="">Not linked</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+        <span className="mt-1 flex items-center gap-1 text-xs text-ink/45">
+          <Lock className="h-3 w-3" /> Internal only — the owner is never shown on the website.
+        </span>
       </Field>
 
       <Field
@@ -153,7 +233,7 @@ function ListingFields({ l, clients }: { l?: Listing; clients: ClientOption[] })
       </Field>
 
       <Field label="Price" hint={category === "year_round_rental" ? "Monthly rent." : "Sale price, or nightly/weekly rate."}>
-        <input name="price" defaultValue={l?.price != null ? String(l.price) : ""} className={inputClass} placeholder="$2,400" />
+        <input name="price" value={price} onChange={(e) => setPrice(e.target.value)} className={inputClass} placeholder="$2,400" />
       </Field>
 
       <Field label="Available from">
@@ -180,7 +260,7 @@ function ListingFields({ l, clients }: { l?: Listing; clients: ClientOption[] })
             <input name="listing_id" defaultValue={l?.listing_id ?? ""} className={inputClass} placeholder="22401234" />
           </Field>
           <Field label="Cover photo URL" hint="Must be a public image URL.">
-            <input name="cover_photo_url" defaultValue={l?.cover_photo_url ?? ""} className={inputClass} placeholder="https://…/photo.jpg" />
+            <input name="cover_photo_url" value={cover} onChange={(e) => setCover(e.target.value)} className={inputClass} placeholder="https://…/photo.jpg" />
           </Field>
         </div>
       </div>
@@ -233,10 +313,11 @@ function ListingFields({ l, clients }: { l?: Listing; clients: ClientOption[] })
 }
 
 function ListingForm({
-  l, clients, action, onDone, onCancel, submitLabel,
+  l, clients, properties, action, onDone, onCancel, submitLabel,
 }: {
   l?: Listing;
   clients: ClientOption[];
+  properties: ListingPropertyOption[];
   action: Action;
   onDone: () => void;
   onCancel: () => void;
@@ -266,7 +347,7 @@ function ListingForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <ListingFields l={l} clients={clients} />
+      <ListingFields l={l} clients={clients} properties={properties} />
       {error && (
         <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{error}</p>
       )}
@@ -361,13 +442,14 @@ function FeaturedToggle({ l, action, canManage, size = "sm" }: { l: Listing; act
 // ---- Tabela ----------------------------------------------------------------
 
 export function ListingsTable({
-  listings, deleted, clients, canManage, canPurge,
+  listings, deleted, clients, properties, canManage, canPurge,
   createAction, updateAction, deleteAction, restoreAction, purgeAction,
   toggleActiveAction, toggleFeaturedAction,
 }: {
   listings: Listing[];
   deleted: Listing[];
   clients: ClientOption[];
+  properties: ListingPropertyOption[];
   canManage: boolean;
   canPurge: boolean;
   createAction: Action;
@@ -627,6 +709,7 @@ export function ListingsTable({
               <ListingForm
                 l={open.listing ?? undefined}
                 clients={clients}
+                properties={properties}
                 action={open.listing ? updateAction : createAction}
                 submitLabel={open.listing ? "Save changes" : "Create listing"}
                 onCancel={() => (open.listing ? setOpen({ listing: open.listing, editing: false }) : setOpen(null))}
@@ -660,6 +743,28 @@ export function ListingsTable({
                     value={open.listing.available_date ? new Date(`${open.listing.available_date}T12:00:00Z`).toLocaleDateString("en-US") : null}
                   />
                   <DetailRow label="Listing number" value={open.listing.listing_id} />
+                  <DetailRow
+                    label="Managed property"
+                    value={
+                      open.listing.property_id
+                        ? properties.find((p) => p.id === open.listing!.property_id)?.address ?? "Linked"
+                        : null
+                    }
+                  />
+                  {/* Interno. A Andrea pediu explicitamente que o dono NUNCA
+                      apareça pro público — o site não renderiza este campo. */}
+                  <DetailRow
+                    label={
+                      <span className="inline-flex items-center gap-1">
+                        Owner <Lock className="h-3 w-3 text-ink/30" />
+                      </span>
+                    }
+                    value={
+                      open.listing.client_id
+                        ? clients.find((c) => c.id === open.listing!.client_id)?.name ?? "Linked"
+                        : null
+                    }
+                  />
                   <DetailRow
                     label="Website tab"
                     value={open.listing.category ? LISTING_CATEGORY_TAB[open.listing.category] : null}

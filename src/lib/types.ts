@@ -889,7 +889,12 @@ export const LISTING_CATEGORY_TAB: Record<PropertyType, string> = {
 
 export interface Listing {
   id: string;
-  client_id: string | null; // dono do imóvel, se cadastrado como client
+  // Propriedade que a By the C já administra e que esta listing anuncia.
+  // Opcional: existe listing de imóvel que não está sob gestão. O endereço é
+  // COPIADO na hora de escolher (não lido pelo FK) — a listing é peça de
+  // marketing e continua dizendo o que dizia mesmo se a property mudar/sumir.
+  property_id: string | null;
+  client_id: string | null; // dono do imóvel — INTERNO, nunca vai pro site
   address: string;
   address2: string | null; // unidade/apto — da nossa base, NUNCA do Google
   description: string | null;
@@ -923,4 +928,16 @@ export interface Listing {
 // Colunas que a tela de Listings lê. Mantido junto do tipo pra não sair de
 // sincronia com o select da página.
 export const LISTING_COLUMNS =
-  "id, client_id, address, address2, description, available_date, airbnb_link, mls_link, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
+  "id, property_id, client_id, address, address2, description, available_date, airbnb_link, mls_link, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
+
+// Propriedade oferecida no picker "pull from an existing property" do form de
+// listing. Só os campos que o form usa pra preencher sozinho.
+export interface ListingPropertyOption {
+  id: string;
+  address: string;
+  address2: string | null;
+  owner_id: string | null;
+  property_type: PropertyType | null;
+  rent_price: number | null;
+  photo_url: string | null;
+}

@@ -79,6 +79,10 @@ function payload(fd: FormData) {
   return {
     address: str(fd, "address"),
     address2: str(fd, "address2"),
+    // Link opcional pra property que a By the C administra. O endereço acima já
+    // veio COPIADO do picker — guardamos o id só pra rastrear a origem.
+    property_id: str(fd, "property_id"),
+    // Dono do imóvel. INTERNO: nunca sai pro site público (ver decisions 2026-08-21).
     client_id: str(fd, "client_id"),
     description: str(fd, "description"),
     available_date: str(fd, "available_date"),

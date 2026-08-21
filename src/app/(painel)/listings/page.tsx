@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can, canDelete } from "@/lib/auth/capabilities";
-import { LISTING_COLUMNS, type Listing } from "@/lib/types";
+import { LISTING_COLUMNS, type Listing, type ListingPropertyOption } from "@/lib/types";
 import { ListingsTable, type ClientOption } from "./ListingsTable";
 import {
   createListingAction,
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 async function load() {
   try {
     const supabase = createClient();
-    const [live, deleted, clients] = await Promise.all([
+    const [live, deleted, clients, properties] = await Promise.all([
       supabase
         .from("listings")
         .select(LISTING_COLUMNS)
@@ -40,6 +40,13 @@ async function load() {
         .select("id, name")
         .is("archived_at", null)
         .order("name", { ascending: true }),
+      // Propriedades já administradas — alimentam o picker "pull from an
+      // existing property", que preenche endereço/dono/categoria sozinho.
+      supabase
+        .from("properties")
+        .select("id, address, address2, owner_id, property_type, rent_price, photo_url")
+        .is("archived_at", null)
+        .order("address", { ascending: true }),
     ]);
     if (live.error) throw live.error;
     return {
@@ -47,9 +54,10 @@ async function load() {
       listings: (live.data ?? []) as unknown as Listing[],
       deleted: (deleted.data ?? []) as unknown as Listing[],
       clients: (clients.data ?? []) as ClientOption[],
+      properties: (properties.data ?? []) as ListingPropertyOption[],
     };
   } catch {
-    return { ok: false as const, listings: [], deleted: [], clients: [] };
+    return { ok: false as const, listings: [], deleted: [], clients: [], properties: [] };
   }
 }
 
@@ -67,7 +75,7 @@ export default async function ListingsPage() {
     );
   }
 
-  const { ok, listings, deleted, clients } = await load();
+  const { ok, listings, deleted, clients, properties } = await load();
 
   return (
     <>
@@ -88,6 +96,7 @@ export default async function ListingsPage() {
         listings={listings}
         deleted={deleted}
         clients={clients}
+        properties={properties}
         canManage={canManage}
         canPurge={canDelete(profile)}
         createAction={createListingAction}
