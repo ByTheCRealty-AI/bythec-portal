@@ -219,3 +219,96 @@ export async function purgeListingAction(fd: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/listings");
 }
+
+// =============================================================================
+// FOTOS DA LISTING
+// =============================================================================
+// Os BYTES não passam por aqui: o navegador converte (HEIC→JPEG), redimensiona
+// e sobe direto pro bucket `listing-photos` com a sessão do usuário (RLS de
+// storage exige listings.manage). Estas actions só cuidam da LINHA no banco.
+//
+// O bucket é PÚBLICO e separado do `documents` (que é privado e guarda invoices
+// + IDs de aplicação com SSN). Regra travada: os dois nunca se misturam.
+
+export async function addListingPhotoAction(fd: FormData) {
+  await assertCanManage();
+  const listingId = str(fd, "listing_id");
+  const storagePath = str(fd, "storage_path");
+  const url = str(fd, "url");
+  if (!listingId || !storagePath || !url) throw new Error("Missing photo details.");
+
+  const supabase = createClient();
+  const profile = await getProfile();
+
+  // Nova foto entra no FIM da galeria.
+  const { data: last } = await supabase
+    .from("listing_photos")
+    .select("sort_order")
+    .eq("listing_id", listingId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = ((last?.sort_order as number | undefined) ?? -1) + 1;
+
+  const { error } = await supabase.from("listing_photos").insert({
+    listing_id: listingId,
+    storage_path: storagePath,
+    url,
+    sort_order: nextOrder,
+    created_by: profile?.id ?? null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/listings");
+}
+
+// Apaga o ARQUIVO no storage antes da linha. Ordem importa: se a linha sumisse
+// primeiro e o remove falhasse, o objeto ficaria órfão no bucket sem nada
+// apontando pra ele (é exatamente a sujeira de storage que já temos pendente do
+// import de documentos).
+export async function deleteListingPhotoAction(fd: FormData) {
+  await assertCanManage();
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing photo reference.");
+
+  const supabase = createClient();
+  const { data: photo, error: readErr } = await supabase
+    .from("listing_photos")
+    .select("id, storage_path")
+    .eq("id", id)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!photo) return; // já sumiu — nada a fazer
+
+  const { error: storageErr } = await supabase.storage
+    .from("listing-photos")
+    .remove([photo.storage_path as string]);
+  // Falha de storage NÃO bloqueia: melhor um objeto órfão do que uma foto
+  // fantasma que a dona não consegue tirar da tela (e do site).
+  if (storageErr) console.error("listing photo storage remove failed:", storageErr.message);
+
+  const { error } = await supabase.from("listing_photos").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/listings");
+}
+
+// Reordenar = definir quem é a CAPA. O trigger sync_listing_cover reaponta
+// listings.cover_photo_url pra primeira foto sozinho.
+export async function reorderListingPhotosAction(fd: FormData) {
+  await assertCanManage();
+  const listingId = str(fd, "listing_id");
+  const raw = str(fd, "order"); // ids separados por vírgula, na ordem nova
+  if (!listingId || !raw) throw new Error("Missing photo order.");
+  const ids = raw.split(",").map((x) => x.trim()).filter(Boolean);
+  if (ids.length === 0) return;
+
+  const supabase = createClient();
+  for (let i = 0; i < ids.length; i++) {
+    const { error } = await supabase
+      .from("listing_photos")
+      .update({ sort_order: i })
+      .eq("id", ids[i])
+      .eq("listing_id", listingId); // trava: só reordena dentro da própria listing
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath("/listings");
+}

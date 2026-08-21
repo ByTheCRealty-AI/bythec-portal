@@ -23,11 +23,13 @@ import {
 } from "lucide-react";
 import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass } from "@/components/ui";
 import { cx, money } from "@/lib/format";
+import { ListingPhotos } from "./ListingPhotos";
 import {
   LISTING_STATUS_LABEL,
   LISTING_CATEGORY_LABEL,
   LISTING_CATEGORY_TAB,
   type Listing,
+  type ListingPhoto,
   type ListingPropertyOption,
   type PropertyType,
 } from "@/lib/types";
@@ -434,14 +436,16 @@ function FeaturedToggle({ l, action, canManage, size = "sm" }: { l: Listing; act
 // ---- Tabela ----------------------------------------------------------------
 
 export function ListingsTable({
-  listings, deleted, clients, properties, canManage, canPurge,
+  listings, deleted, clients, properties, photosByListing, canManage, canPurge,
   createAction, updateAction, deleteAction, restoreAction, purgeAction,
   toggleActiveAction, toggleFeaturedAction,
+  addPhotoAction, deletePhotoAction, reorderPhotosAction,
 }: {
   listings: Listing[];
   deleted: Listing[];
   clients: ClientOption[];
   properties: ListingPropertyOption[];
+  photosByListing: Record<string, ListingPhoto[]>;
   canManage: boolean;
   canPurge: boolean;
   createAction: Action;
@@ -451,6 +455,9 @@ export function ListingsTable({
   purgeAction: Action;
   toggleActiveAction: Action;
   toggleFeaturedAction: Action;
+  addPhotoAction: Action;
+  deletePhotoAction: Action;
+  reorderPhotosAction: Action;
 }) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"all" | PropertyType | "hidden" | "deleted">("all");
@@ -606,6 +613,21 @@ export function ListingsTable({
                       {!showingDeleted && (
                         <FeaturedToggle l={l} action={toggleFeaturedAction} canManage={canManage} />
                       )}
+                      {/* Thumbnail da capa — <img> de propósito (thumbnail
+                          interno; next/image exigiria configurar o host). */}
+                      {l.cover_photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={l.cover_photo_url}
+                          alt=""
+                          loading="lazy"
+                          className="h-10 w-14 shrink-0 rounded-lg border border-black/[0.08] object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-10 w-14 shrink-0 place-items-center rounded-lg border border-dashed border-black/[0.12] bg-black/[0.02] text-ink/25">
+                          <Home className="h-4 w-4" />
+                        </div>
+                      )}
                       <div>
                         <div className="font-semibold text-ink">
                           {l.address}
@@ -663,7 +685,7 @@ export function ListingsTable({
 
       {/* Janelinha da listing */}
       {open && (
-        <Modal onClose={() => setOpen(null)} wide={open.editing}>
+        <Modal onClose={() => setOpen(null)} wide={open.editing || !!open.listing}>
           <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
             <div className="flex items-start gap-2">
               {open.listing && !open.editing && !open.listing.archived_at && (
@@ -725,6 +747,20 @@ export function ListingsTable({
                     ))}
                   </div>
                 )}
+
+                {/* Fotos: só numa listing que já existe (precisa de id pro
+                    caminho no storage). Na criação, salva primeiro e a galeria
+                    aparece ao reabrir. */}
+                <div className="mb-6 border-t border-black/[0.06] pt-5">
+                  <ListingPhotos
+                    listingId={open.listing.id}
+                    photos={photosByListing[open.listing.id] ?? []}
+                    canManage={canManage && !open.listing.archived_at}
+                    addAction={addPhotoAction}
+                    deleteAction={deletePhotoAction}
+                    reorderAction={reorderPhotosAction}
+                  />
+                </div>
 
                 <div className="mb-5">
                   <DetailRow label="Unit / apt" value={open.listing.address2} />

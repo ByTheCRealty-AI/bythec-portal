@@ -2,11 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can, canDelete } from "@/lib/auth/capabilities";
-import { LISTING_COLUMNS, type Listing, type ListingPropertyOption } from "@/lib/types";
+import { LISTING_COLUMNS, type Listing, type ListingPhoto, type ListingPropertyOption } from "@/lib/types";
 import { ListingsTable, type ClientOption } from "./ListingsTable";
 import {
   createListingAction,
   updateListingAction,
+  addListingPhotoAction,
+  deleteListingPhotoAction,
+  reorderListingPhotosAction,
   deleteListingAction,
   restoreListingAction,
   purgeListingAction,
@@ -21,7 +24,7 @@ export const dynamic = "force-dynamic";
 async function load() {
   try {
     const supabase = createClient();
-    const [live, deleted, clients, properties] = await Promise.all([
+    const [live, deleted, clients, properties, photos] = await Promise.all([
       supabase
         .from("listings")
         .select(LISTING_COLUMNS)
@@ -47,6 +50,12 @@ async function load() {
         .select("id, address, address2, owner_id, property_type, rent_price, photo_url")
         .is("archived_at", null)
         .order("address", { ascending: true }),
+      // Todas as fotos de uma vez (dezenas de linhas) e agrupadas em memória —
+      // mais barato que uma query por listing.
+      supabase
+        .from("listing_photos")
+        .select("id, listing_id, storage_path, url, sort_order, created_at, created_by")
+        .order("sort_order", { ascending: true }),
     ]);
     if (live.error) throw live.error;
     return {
@@ -55,9 +64,10 @@ async function load() {
       deleted: (deleted.data ?? []) as unknown as Listing[],
       clients: (clients.data ?? []) as ClientOption[],
       properties: (properties.data ?? []) as ListingPropertyOption[],
+      photos: (photos.data ?? []) as ListingPhoto[],
     };
   } catch {
-    return { ok: false as const, listings: [], deleted: [], clients: [], properties: [] };
+    return { ok: false as const, listings: [], deleted: [], clients: [], properties: [], photos: [] };
   }
 }
 
@@ -75,7 +85,11 @@ export default async function ListingsPage() {
     );
   }
 
-  const { ok, listings, deleted, clients, properties } = await load();
+  const { ok, listings, deleted, clients, properties, photos } = await load();
+
+  // listing_id -> fotos, na ordem de exibição.
+  const photosByListing: Record<string, ListingPhoto[]> = {};
+  for (const p of photos) (photosByListing[p.listing_id] ??= []).push(p);
 
   return (
     <>
@@ -97,6 +111,7 @@ export default async function ListingsPage() {
         deleted={deleted}
         clients={clients}
         properties={properties}
+        photosByListing={photosByListing}
         canManage={canManage}
         canPurge={canDelete(profile)}
         createAction={createListingAction}
@@ -106,6 +121,9 @@ export default async function ListingsPage() {
         purgeAction={purgeListingAction}
         toggleActiveAction={toggleListingActiveAction}
         toggleFeaturedAction={toggleListingFeaturedAction}
+        addPhotoAction={addListingPhotoAction}
+        deletePhotoAction={deleteListingPhotoAction}
+        reorderPhotosAction={reorderListingPhotosAction}
       />
     </>
   );

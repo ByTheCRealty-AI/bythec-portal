@@ -941,3 +941,17 @@ export interface ListingPropertyOption {
   rent_price: number | null;
   photo_url: string | null;
 }
+
+// Foto da listing. Vive no bucket PÚBLICO `listing-photos` (separado do
+// `documents`, que é privado e guarda invoices + IDs com SSN — regra travada:
+// os dois nunca se misturam). A de menor sort_order é a CAPA; um trigger no
+// banco mantém listings.cover_photo_url apontando pra ela.
+export interface ListingPhoto {
+  id: string;
+  listing_id: string;
+  storage_path: string;
+  url: string;
+  sort_order: number;
+  created_at: string;
+  created_by: string | null;
+}
