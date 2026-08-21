@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth/session";
 import { can, canDelete } from "@/lib/auth/capabilities";
-import type { ListingStatus, ListingType, PropertyType } from "@/lib/types";
+import type { ListingStatus } from "@/lib/types";
 
 function str(fd: FormData, key: string): string | null {
   const v = fd.get(key);
@@ -48,21 +48,11 @@ function link(fd: FormData, key: string): string | null {
   return `https://${raw.replace(/^\/+/, "")}`;
 }
 
-const LISTING_TYPES: ListingType[] = ["rental", "sale"];
 const LISTING_STATUSES: ListingStatus[] = ["active", "pending", "sold", "rented", "off_market"];
-const CATEGORIES: PropertyType[] = ["year_round_rental", "vacation_rental", "off_season_rental", "for_sale"];
 
-function listingType(fd: FormData): ListingType {
-  const v = str(fd, "listing_type");
-  return LISTING_TYPES.includes(v as ListingType) ? (v as ListingType) : "rental";
-}
 function listingStatus(fd: FormData): ListingStatus {
   const v = str(fd, "listing_status");
   return LISTING_STATUSES.includes(v as ListingStatus) ? (v as ListingStatus) : "active";
-}
-function category(fd: FormData): PropertyType | null {
-  const v = str(fd, "category");
-  return CATEGORIES.includes(v as PropertyType) ? (v as PropertyType) : null;
 }
 
 async function assertCanManage() {
@@ -72,11 +62,19 @@ async function assertCanManage() {
   }
 }
 
-// Campos compartilhados por create e update. `category` decide a aba do site;
-// listing_type é derivado dela pra os dois nunca se contradizerem.
+// Campos compartilhados por create e update.
+// Os 4 tipos são INDEPENDENTES (migration 0040): uma casa pode ser vacation E
+// winter. `category` e `listing_type` NÃO são mandados daqui — o trigger
+// sync_listing_category deriva os dois das flags, então nunca se contradizem.
 function payload(fd: FormData) {
-  const cat = category(fd);
+  const flags = {
+    is_for_sale: fd.get("is_for_sale") === "1",
+    is_year_round: fd.get("is_year_round") === "1",
+    is_vacation: fd.get("is_vacation") === "1",
+    is_winter: fd.get("is_winter") === "1",
+  };
   return {
+    ...flags,
     address: str(fd, "address"),
     address2: str(fd, "address2"),
     // Link opcional pra property que a By the C administra. O endereço acima já
@@ -89,9 +87,6 @@ function payload(fd: FormData) {
     airbnb_link: link(fd, "airbnb_link"),
     mls_link: link(fd, "mls_link"),
     price: num(fd, "price"),
-    category: cat,
-    // Derivado: a aba For Sale é o único caso de venda.
-    listing_type: cat ? (cat === "for_sale" ? "sale" : "rental") : listingType(fd),
     listing_status: listingStatus(fd),
     active: str(fd, "active") === "1",
     featured: str(fd, "featured") === "1",
@@ -110,10 +105,17 @@ function payload(fd: FormData) {
   };
 }
 
+function assertHasType(body: ReturnType<typeof payload>) {
+  if (!body.is_for_sale && !body.is_year_round && !body.is_vacation && !body.is_winter) {
+    throw new Error("Pick at least one type for this listing.");
+  }
+}
+
 export async function createListingAction(fd: FormData) {
   await assertCanManage();
   const body = payload(fd);
   if (!body.address) throw new Error("A property address is required.");
+  assertHasType(body);
   const supabase = createClient();
   // slug é gerado pelo trigger set_listing_slug (não mandar daqui).
   const { error } = await supabase.from("listings").insert(body);
@@ -127,6 +129,7 @@ export async function updateListingAction(fd: FormData) {
   if (!id) throw new Error("Missing listing reference.");
   const body = payload(fd);
   if (!body.address) throw new Error("A property address is required.");
+  assertHasType(body);
   const supabase = createClient();
   const { error } = await supabase
     .from("listings")

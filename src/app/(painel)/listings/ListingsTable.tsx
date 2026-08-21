@@ -26,8 +26,11 @@ import { cx, money } from "@/lib/format";
 import { ListingPhotos } from "./ListingPhotos";
 import {
   LISTING_STATUS_LABEL,
-  LISTING_CATEGORY_LABEL,
-  LISTING_CATEGORY_TAB,
+  LISTING_TYPE_FLAGS,
+  LISTING_TYPE_FLAG_LABEL,
+  LISTING_TYPE_FLAG_HINT,
+  listingTypeFlags,
+  type ListingTypeFlag,
   type Listing,
   type ListingPhoto,
   type ListingPropertyOption,
@@ -37,19 +40,12 @@ import {
 type Action = (fd: FormData) => void | Promise<void>;
 export type ClientOption = { id: string; name: string };
 
-const CATEGORY_ORDER: PropertyType[] = [
-  "year_round_rental",
-  "vacation_rental",
-  "off_season_rental",
-  "for_sale",
-];
-
 // Rótulo curto do preço, por categoria. Temporada varia (noite/semana), então
 // nunca inventamos a unidade — o anúncio externo é quem manda.
 function priceLabel(l: Listing): string {
   if (l.price == null) return "—";
   const p = money(l.price);
-  if (l.category === "year_round_rental") return `${p}/mo`;
+  if (l.is_year_round) return `${p}/mo`;
   return p;
 }
 
@@ -110,9 +106,15 @@ function ListingFields({
   clients: ClientOption[];
   properties: ListingPropertyOption[];
 }) {
-  // Category dirige a aba do site; mostramos ao vivo onde a listing vai cair,
-  // pra ninguém publicar na aba errada sem perceber.
-  const [category, setCategory] = useState<PropertyType | "">(l?.category ?? "");
+  // Os 4 tipos são INDEPENDENTES (migration 0040): "some homes are vacation and
+  // winter, some winter only, some vacation only". Marcar quantos valerem.
+  const [types, setTypes] = useState<Record<ListingTypeFlag, boolean>>({
+    is_for_sale: l?.is_for_sale ?? false,
+    is_year_round: l?.is_year_round ?? false,
+    is_vacation: l?.is_vacation ?? false,
+    is_winter: l?.is_winter ?? false,
+  });
+  const anyType = LISTING_TYPE_FLAGS.some((f) => types[f]);
 
   // Campos que o picker de property PREENCHE. Ficam controlados pra o autofill
   // conseguir escrever neles; o usuário edita por cima livremente depois (o
@@ -134,7 +136,17 @@ function ListingFields({
     setAddress(p.address ?? "");
     setAddress2(p.address2 ?? "");
     if (p.owner_id) setClientId(p.owner_id);
-    if (p.property_type && !category) setCategory(p.property_type);
+    // A property já sabe o tipo dela; liga a flag equivalente se nada foi marcado.
+    if (p.property_type && !LISTING_TYPE_FLAGS.some((f) => types[f])) {
+      const map: Record<PropertyType, ListingTypeFlag> = {
+        for_sale: "is_for_sale",
+        year_round_rental: "is_year_round",
+        vacation_rental: "is_vacation",
+        off_season_rental: "is_winter",
+      };
+      const flag = map[p.property_type];
+      if (flag) setTypes((t) => ({ ...t, [flag]: true }));
+    }
     if (p.rent_price != null && !price) setPrice(String(p.rent_price));
   }
 
@@ -206,23 +218,37 @@ function ListingFields({
         </span>
       </Field>
 
-      <Field
-        label="Category *"
-        hint={category ? `Shows on the “${LISTING_CATEGORY_TAB[category as PropertyType]}” tab of the website.` : "Decides which tab of the website it appears on."}
-      >
-        <select
-          name="category"
-          required
-          value={category}
-          onChange={(e) => setCategory(e.target.value as PropertyType | "")}
-          className={selectClass}
-        >
-          <option value="">Select…</option>
-          {CATEGORY_ORDER.map((c) => (
-            <option key={c} value={c}>{LISTING_CATEGORY_LABEL[c]}</option>
+      {/* Tipos: independentes. Uma casa pode ser vacation E winter. */}
+      <div className="sm:col-span-2 rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink/50">
+          What is this listing for? *
+        </p>
+        <p className="mt-0.5 mb-3 text-xs text-ink/45">
+          Tick everything that applies — a house can be a vacation rental and a winter rental at
+          the same time.
+        </p>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {LISTING_TYPE_FLAGS.map((f) => (
+            <label key={f} className="flex items-start gap-2.5 text-sm text-ink/80">
+              <input
+                type="checkbox"
+                name={f}
+                value="1"
+                checked={types[f]}
+                onChange={(e) => setTypes((t) => ({ ...t, [f]: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 rounded border-black/20"
+              />
+              <span>
+                <span className="font-semibold text-ink">{LISTING_TYPE_FLAG_LABEL[f]}</span>
+                <span className="block text-xs text-ink/50">{LISTING_TYPE_FLAG_HINT[f]}</span>
+              </span>
+            </label>
           ))}
-        </select>
-      </Field>
+        </div>
+        {!anyType && (
+          <p className="mt-3 text-xs font-semibold text-red-600">Pick at least one.</p>
+        )}
+      </div>
 
       <Field label="Status">
         <select name="listing_status" defaultValue={l?.listing_status ?? "active"} className={selectClass}>
@@ -232,7 +258,7 @@ function ListingFields({
         </select>
       </Field>
 
-      <Field label="Price" hint={category === "year_round_rental" ? "Monthly rent." : "Sale price, or nightly/weekly rate."}>
+      <Field label="Price" hint={types.is_year_round ? "Monthly rent." : "Sale price, or nightly/weekly rate."}>
         <input name="price" value={price} onChange={(e) => setPrice(e.target.value)} className={inputClass} placeholder="$2,400" />
       </Field>
 
@@ -327,6 +353,12 @@ function ListingForm({
     if (l) fd.set("id", l.id);
     if (!((fd.get("address") as string) ?? "").trim()) {
       setError("A property address is required.");
+      return;
+    }
+    // Espelha o assertHasType do servidor — erra perto do campo, não depois do
+    // round-trip.
+    if (!LISTING_TYPE_FLAGS.some((f) => fd.get(f) === "1")) {
+      setError("Pick at least one type for this listing — for sale, year-round, vacation or winter.");
       return;
     }
     start(async () => {
@@ -460,7 +492,10 @@ export function ListingsTable({
   reorderPhotosAction: Action;
 }) {
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"all" | PropertyType | "hidden" | "deleted">("all");
+  // Filtro por FLAG: "Vacation Rental" traz tudo que é vacation, inclusive as
+  // que também são winter (antes, com category única, uma vacation+winter só
+  // aparecia num dos filtros).
+  const [tab, setTab] = useState<"all" | ListingTypeFlag | "hidden" | "deleted">("all");
   const [open, setOpen] = useState<{ listing: Listing | null; editing: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Listing | null>(null);
   const [confirmPurge, setConfirmPurge] = useState<Listing | null>(null);
@@ -474,7 +509,7 @@ export function ListingsTable({
     const term = query.trim().toLowerCase();
     let rows = source;
     if (tab === "hidden") rows = rows.filter((l) => !l.active);
-    else if (tab !== "all" && tab !== "deleted") rows = rows.filter((l) => l.category === tab);
+    else if (tab !== "all" && tab !== "deleted") rows = rows.filter((l) => l[tab] === true);
     if (!term) return rows;
     return rows.filter((l) => {
       const hay = `${l.address ?? ""} ${l.address2 ?? ""} ${l.description ?? ""}`.toLowerCase();
@@ -487,7 +522,9 @@ export function ListingsTable({
       all: listings.length,
       hidden: listings.filter((l) => !l.active).length,
       deleted: deleted.length,
-      ...Object.fromEntries(CATEGORY_ORDER.map((c) => [c, listings.filter((l) => l.category === c).length])),
+      ...Object.fromEntries(
+        LISTING_TYPE_FLAGS.map((f) => [f, listings.filter((l) => l[f] === true).length])
+      ),
     }),
     [listings, deleted]
   ) as Record<string, number>;
@@ -508,7 +545,11 @@ export function ListingsTable({
 
   const chips: { key: typeof tab; label: string; count: number }[] = [
     { key: "all", label: "All", count: counts.all },
-    ...CATEGORY_ORDER.map((c) => ({ key: c, label: LISTING_CATEGORY_LABEL[c], count: counts[c] ?? 0 })),
+    ...LISTING_TYPE_FLAGS.map((f) => ({
+      key: f,
+      label: LISTING_TYPE_FLAG_LABEL[f],
+      count: counts[f] ?? 0,
+    })),
     { key: "hidden", label: "Hidden", count: counts.hidden },
     { key: "deleted", label: "Deleted", count: counts.deleted },
   ];
@@ -638,12 +679,16 @@ export function ListingsTable({
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    {l.category ? (
-                      <Badge tone={l.category === "for_sale" ? "gold" : "orange"}>
-                        {LISTING_CATEGORY_LABEL[l.category]}
-                      </Badge>
-                    ) : (
+                    {listingTypeFlags(l).length === 0 ? (
                       <span className="text-ink/40">—</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {listingTypeFlags(l).map((f) => (
+                          <Badge key={f} tone={f === "is_for_sale" ? "gold" : "orange"}>
+                            {LISTING_TYPE_FLAG_LABEL[f]}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-ink/75">{priceLabel(l)}</td>
@@ -697,11 +742,11 @@ export function ListingsTable({
                 </h3>
                 {open.listing && !open.editing && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    {open.listing.category && (
-                      <Badge tone={open.listing.category === "for_sale" ? "gold" : "orange"}>
-                        {LISTING_CATEGORY_LABEL[open.listing.category]}
+                    {listingTypeFlags(open.listing).map((f) => (
+                      <Badge key={f} tone={f === "is_for_sale" ? "gold" : "orange"}>
+                        {LISTING_TYPE_FLAG_LABEL[f]}
                       </Badge>
-                    )}
+                    ))}
                     <Badge tone="neutral">{LISTING_STATUS_LABEL[open.listing.listing_status]}</Badge>
                     {open.listing.archived_at && <Badge tone="muted">Deleted</Badge>}
                   </div>
@@ -793,8 +838,12 @@ export function ListingsTable({
                     }
                   />
                   <DetailRow
-                    label="Website tab"
-                    value={open.listing.category ? LISTING_CATEGORY_TAB[open.listing.category] : null}
+                    label="Listed as"
+                    value={
+                      listingTypeFlags(open.listing)
+                        .map((f) => LISTING_TYPE_FLAG_LABEL[f])
+                        .join(", ") || null
+                    }
                   />
                   <DetailRow
                     label="On the website"

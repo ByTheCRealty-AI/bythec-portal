@@ -916,7 +916,14 @@ export interface Listing {
   half_baths: number | null;
   garage: number | null;
   guests: number | null;
-  // Migration 0037 (também em 0033)
+  // Migration 0040 — tipos INDEPENDENTES: uma casa pode ser vacation E winter,
+  // à venda E alugada, etc. Qualquer combinação vale.
+  is_for_sale: boolean;
+  is_year_round: boolean;
+  is_vacation: boolean;
+  is_winter: boolean;
+  // DERIVADA das flags por trigger. Existe só pro site atual, que escolhe a aba
+  // por ela. Não editar à mão — escrever nas flags acima.
   category: PropertyType | null;
   sqft: number | null;
   slug: string | null;
@@ -928,7 +935,7 @@ export interface Listing {
 // Colunas que a tela de Listings lê. Mantido junto do tipo pra não sair de
 // sincronia com o select da página.
 export const LISTING_COLUMNS =
-  "id, property_id, client_id, address, address2, description, available_date, airbnb_link, mls_link, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
+  "id, property_id, client_id, is_for_sale, is_year_round, is_vacation, is_winter, address, address2, description, available_date, airbnb_link, mls_link, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
 
 // Propriedade oferecida no picker "pull from an existing property" do form de
 // listing. Só os campos que o form usa pra preencher sozinho.
@@ -954,4 +961,39 @@ export interface ListingPhoto {
   sort_order: number;
   created_at: string;
   created_by: string | null;
+}
+
+// Os 4 tipos que uma listing pode ter, INDEPENDENTES entre si (migration 0040).
+// A ordem aqui é a ordem que aparece no form e nos chips.
+export type ListingTypeFlag = "is_for_sale" | "is_year_round" | "is_vacation" | "is_winter";
+
+export const LISTING_TYPE_FLAGS: ListingTypeFlag[] = [
+  "is_for_sale",
+  "is_year_round",
+  "is_vacation",
+  "is_winter",
+];
+
+export const LISTING_TYPE_FLAG_LABEL: Record<ListingTypeFlag, string> = {
+  is_for_sale: "For Sale",
+  is_year_round: "Year-Round Rental",
+  is_vacation: "Vacation Rental",
+  is_winter: "Winter / Off-Season",
+};
+
+export const LISTING_TYPE_FLAG_HINT: Record<ListingTypeFlag, string> = {
+  is_for_sale: "The home is on the market.",
+  is_year_round: "Long-term tenant, twelve months.",
+  is_vacation: "Short stays in season (Airbnb / VRBO).",
+  is_winter: "Off-season rental, roughly September to May.",
+};
+
+// Quais flags a listing tem, na ordem canônica.
+export function listingTypeFlags(l: {
+  is_for_sale?: boolean | null;
+  is_year_round?: boolean | null;
+  is_vacation?: boolean | null;
+  is_winter?: boolean | null;
+}): ListingTypeFlag[] {
+  return LISTING_TYPE_FLAGS.filter((f) => l[f] === true);
 }
