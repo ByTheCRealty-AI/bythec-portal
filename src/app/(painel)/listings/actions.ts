@@ -88,7 +88,6 @@ function payload(fd: FormData) {
     available_date: str(fd, "available_date"),
     airbnb_link: link(fd, "airbnb_link"),
     mls_link: link(fd, "mls_link"),
-    listing_id: str(fd, "listing_id"),
     price: num(fd, "price"),
     category: cat,
     // Derivado: a aba For Sale é o único caso de venda.
@@ -96,7 +95,12 @@ function payload(fd: FormData) {
     listing_status: listingStatus(fd),
     active: str(fd, "active") === "1",
     featured: str(fd, "featured") === "1",
-    cover_photo_url: link(fd, "cover_photo_url"),
+    // listing_id e cover_photo_url saíram do form (Andrea 2026-08-21: não usa o
+    // nº do MLS, e as fotos dela são arquivos jpg/heic, não URL). As COLUNAS
+    // continuam no banco de propósito — cover_photo_url é onde o upload de foto
+    // vai gravar a URL pública quando for construído. Por isso NÃO entram neste
+    // payload: um update que mandasse null aqui apagaria a foto sem querer
+    // (mesmo furo da lesson 2026-08-14 no updateServiceAction).
     bedrooms: int(fd, "bedrooms"),
     bathrooms: int(fd, "bathrooms"),
     half_baths: int(fd, "half_baths"),

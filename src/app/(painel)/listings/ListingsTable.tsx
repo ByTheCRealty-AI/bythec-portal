@@ -120,7 +120,6 @@ function ListingFields({
   const [address2, setAddress2] = useState<string>(l?.address2 ?? "");
   const [clientId, setClientId] = useState<string>(l?.client_id ?? "");
   const [price, setPrice] = useState<string>(l?.price != null ? String(l.price) : "");
-  const [cover, setCover] = useState<string>(l?.cover_photo_url ?? "");
 
   // Escolher uma property puxa o que ela já sabe. Só preenche campo VAZIO,
   // exceto endereço/dono, que são o motivo de existir do picker. Assim ninguém
@@ -135,7 +134,6 @@ function ListingFields({
     if (p.owner_id) setClientId(p.owner_id);
     if (p.property_type && !category) setCategory(p.property_type);
     if (p.rent_price != null && !price) setPrice(String(p.rent_price));
-    if (p.photo_url && !cover) setCover(p.photo_url);
   }
 
   const picked = properties.find((x) => x.id === propertyId);
@@ -255,12 +253,6 @@ function ListingFields({
           </Field>
           <Field label="CCIAOR / MLS link">
             <input name="mls_link" defaultValue={l?.mls_link ?? ""} className={inputClass} placeholder="cciaor.com/listing/22401234" />
-          </Field>
-          <Field label="Listing number" hint="MLS or Airbnb reference number.">
-            <input name="listing_id" defaultValue={l?.listing_id ?? ""} className={inputClass} placeholder="22401234" />
-          </Field>
-          <Field label="Cover photo URL" hint="Must be a public image URL.">
-            <input name="cover_photo_url" value={cover} onChange={(e) => setCover(e.target.value)} className={inputClass} placeholder="https://…/photo.jpg" />
           </Field>
         </div>
       </div>
@@ -478,7 +470,7 @@ export function ListingsTable({
     else if (tab !== "all" && tab !== "deleted") rows = rows.filter((l) => l.category === tab);
     if (!term) return rows;
     return rows.filter((l) => {
-      const hay = `${l.address ?? ""} ${l.address2 ?? ""} ${l.listing_id ?? ""} ${l.description ?? ""}`.toLowerCase();
+      const hay = `${l.address ?? ""} ${l.address2 ?? ""} ${l.description ?? ""}`.toLowerCase();
       return term.split(/\s+/).every((w) => hay.includes(w));
     });
   }, [source, tab, query]);
@@ -742,7 +734,6 @@ export function ListingsTable({
                     label="Available from"
                     value={open.listing.available_date ? new Date(`${open.listing.available_date}T12:00:00Z`).toLocaleDateString("en-US") : null}
                   />
-                  <DetailRow label="Listing number" value={open.listing.listing_id} />
                   <DetailRow
                     label="Managed property"
                     value={
