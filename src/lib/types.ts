@@ -838,3 +838,89 @@ export interface RentalApplicationAttachment {
   content_type: string | null;
   created_at: string;
 }
+
+// =============================================================================
+// LISTINGS — o anúncio que aparece no site público (bythecrealty.com)
+// =============================================================================
+// Diferente de `property`: a property é o imóvel que a By the C administra
+// (nunca deletada, só arquivada); a listing é a PEÇA DE MARKETING dele. Uma
+// listing pode ser deletada por qualquer um do time (recuperável) e o expurgo
+// definitivo é owner-only, via RPC admin_delete_listing (migration 0037).
+//
+// Dois interruptores diferentes, que a Andrea trata como coisas distintas:
+//   active   — está no ar no site? false = some do site, mas o registro fica.
+//   featured — sobe pra home do site (só vale se active também for true).
+
+export type ListingType = "rental" | "sale";
+
+export type ListingStatus =
+  | "active"
+  | "pending"
+  | "sold"
+  | "rented"
+  | "off_market";
+
+export const LISTING_STATUS_LABEL: Record<ListingStatus, string> = {
+  active: "Active",
+  pending: "Pending",
+  sold: "Sold",
+  rented: "Rented",
+  off_market: "Off market",
+};
+
+// `category` reusa o enum property_type e é o que decide EM QUAL ABA do site a
+// listing cai: for_sale → For Sale · year_round_rental → Long-Term ·
+// vacation_rental/off_season_rental → Vacation & Winter.
+export const LISTING_CATEGORY_LABEL: Record<PropertyType, string> = {
+  for_sale: "For Sale",
+  year_round_rental: "Long-Term (Year-Round)",
+  vacation_rental: "Vacation Rental",
+  off_season_rental: "Winter / Off-Season",
+};
+
+// Aba do site pública correspondente a cada category (só pra mostrar ao usuário
+// onde a listing vai aparecer). Espelha deriveTab() em website/src/lib/listings.ts.
+export const LISTING_CATEGORY_TAB: Record<PropertyType, string> = {
+  for_sale: "For Sale",
+  year_round_rental: "Long-Term Rentals",
+  vacation_rental: "Vacation & Winter",
+  off_season_rental: "Vacation & Winter",
+};
+
+export interface Listing {
+  id: string;
+  client_id: string | null; // dono do imóvel, se cadastrado como client
+  address: string;
+  address2: string | null; // unidade/apto — da nossa base, NUNCA do Google
+  description: string | null;
+  available_date: string | null;
+  // Link externo clicável pro anúncio real. Airbnb pra temporada, CCIAOR/MLS
+  // pra venda e long-term. Os dois são opcionais e podem coexistir.
+  airbnb_link: string | null;
+  mls_link: string | null;
+  listing_id: string | null; // nº do anúncio no MLS/Airbnb
+  price: number | null;
+  listing_type: ListingType;
+  listing_status: ListingStatus;
+  active: boolean;
+  featured: boolean;
+  cover_photo_url: string | null;
+  // Specs
+  bedrooms: number | null;
+  bathrooms: number | null;
+  half_baths: number | null;
+  garage: number | null;
+  guests: number | null;
+  // Migration 0037 (também em 0033)
+  category: PropertyType | null;
+  sqft: number | null;
+  slug: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Colunas que a tela de Listings lê. Mantido junto do tipo pra não sair de
+// sincronia com o select da página.
+export const LISTING_COLUMNS =
+  "id, client_id, address, address2, description, available_date, airbnb_link, mls_link, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";

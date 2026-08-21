@@ -1,0 +1,794 @@
+"use client";
+
+// =============================================================================
+// Listings — o que o site público mostra.
+// =============================================================================
+// Padrão da casa (igual Providers): linha limpa e clicável → janelinha (modal)
+// com detalhe + Edit + Delete; Delete abre um SEGUNDO modal de confirmação.
+// Modal SEMPRE via createPortal(document.body) — lesson 2026-08-14: `fixed`
+// dentro do AppShell (que tem transform) ancora no ancestral e o card some da
+// tela.
+//
+// Dois interruptores que a Andrea trata como coisas diferentes:
+//   On the website (active)  — desligar tira do site na hora, sem deletar nada.
+//   Featured                 — sobe pra home do site; só vale se estiver active.
+//
+// Delete é recuperável pra todo mundo (vai pra aba "Deleted", dá pra restaurar).
+// "Delete permanently" só aparece pra owner, e só dentro da aba Deleted.
+import { useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
+import {
+  Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink,
+  Home, Eye, EyeOff, RotateCcw, AlertTriangle,
+} from "lucide-react";
+import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass } from "@/components/ui";
+import { cx, money } from "@/lib/format";
+import {
+  LISTING_STATUS_LABEL,
+  LISTING_CATEGORY_LABEL,
+  LISTING_CATEGORY_TAB,
+  type Listing,
+  type PropertyType,
+} from "@/lib/types";
+
+type Action = (fd: FormData) => void | Promise<void>;
+export type ClientOption = { id: string; name: string };
+
+const CATEGORY_ORDER: PropertyType[] = [
+  "year_round_rental",
+  "vacation_rental",
+  "off_season_rental",
+  "for_sale",
+];
+
+// Rótulo curto do preço, por categoria. Temporada varia (noite/semana), então
+// nunca inventamos a unidade — o anúncio externo é quem manda.
+function priceLabel(l: Listing): string {
+  if (l.price == null) return "—";
+  const p = money(l.price);
+  if (l.category === "year_round_rental") return `${p}/mo`;
+  return p;
+}
+
+function specLine(l: Listing): string {
+  const bits: string[] = [];
+  if (l.bedrooms != null) bits.push(`${l.bedrooms} bd`);
+  if (l.bathrooms != null) {
+    const half = l.half_baths ? `.${l.half_baths}` : "";
+    bits.push(`${l.bathrooms}${half} ba`);
+  }
+  if (l.sqft != null) bits.push(`${l.sqft.toLocaleString("en-US")} sqft`);
+  if (l.guests != null) bits.push(`sleeps ${l.guests}`);
+  return bits.join(" · ");
+}
+
+// Link externo do anúncio. Airbnb pra temporada, CCIAOR/MLS pra venda e
+// long-term. Se a listing tiver os dois, mostramos os dois.
+function externalLinks(l: Listing): { label: string; href: string }[] {
+  const out: { label: string; href: string }[] = [];
+  if (l.airbnb_link) out.push({ label: "Airbnb", href: l.airbnb_link });
+  if (l.mls_link) out.push({ label: "CCIAOR / MLS", href: l.mls_link });
+  return out;
+}
+
+function Modal({ onClose, children, z = 50, wide }: { onClose: () => void; children: React.ReactNode; z?: number; wide?: boolean }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: z }}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        className={cx(
+          "relative max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-black/[0.08] bg-white shadow-2xl",
+          wide ? "max-w-2xl" : "max-w-md"
+        )}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function DetailRow({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-t border-black/[0.06] py-2.5 text-sm">
+      <span className="text-ink/45">{label}</span>
+      <span className={"text-right " + (accent ? "text-primary" : "text-ink/85")}>{value || "—"}</span>
+    </div>
+  );
+}
+
+// ---- Form ------------------------------------------------------------------
+
+function ListingFields({ l, clients }: { l?: Listing; clients: ClientOption[] }) {
+  // Category dirige a aba do site; mostramos ao vivo onde a listing vai cair,
+  // pra ninguém publicar na aba errada sem perceber.
+  const [category, setCategory] = useState<PropertyType | "">(l?.category ?? "");
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <Field label="Property address *" hint="Street, town, state — this is the title shown on the website.">
+          <input name="address" required defaultValue={l?.address ?? ""} className={inputClass} placeholder="123 Main St, Falmouth, MA 02540" />
+        </Field>
+      </div>
+
+      <Field label="Unit / apt">
+        <input name="address2" defaultValue={l?.address2 ?? ""} className={inputClass} placeholder="Apt 2B" />
+      </Field>
+
+      <Field label="Owner (client)" hint="Optional — links the listing to the property owner.">
+        <select name="client_id" defaultValue={l?.client_id ?? ""} className={selectClass}>
+          <option value="">Not linked</option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field
+        label="Category *"
+        hint={category ? `Shows on the “${LISTING_CATEGORY_TAB[category as PropertyType]}” tab of the website.` : "Decides which tab of the website it appears on."}
+      >
+        <select
+          name="category"
+          required
+          value={category}
+          onChange={(e) => setCategory(e.target.value as PropertyType | "")}
+          className={selectClass}
+        >
+          <option value="">Select…</option>
+          {CATEGORY_ORDER.map((c) => (
+            <option key={c} value={c}>{LISTING_CATEGORY_LABEL[c]}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Status">
+        <select name="listing_status" defaultValue={l?.listing_status ?? "active"} className={selectClass}>
+          {Object.entries(LISTING_STATUS_LABEL).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Price" hint={category === "year_round_rental" ? "Monthly rent." : "Sale price, or nightly/weekly rate."}>
+        <input name="price" defaultValue={l?.price != null ? String(l.price) : ""} className={inputClass} placeholder="$2,400" />
+      </Field>
+
+      <Field label="Available from">
+        <input name="available_date" type="date" defaultValue={l?.available_date ?? ""} className={inputClass} />
+      </Field>
+
+      {/* ---- Links externos (o pedido da Andrea) ---- */}
+      <div className="sm:col-span-2 mt-1 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">
+          Link to the live listing
+        </p>
+        <p className="mb-3 text-xs text-ink/55">
+          Paste the Airbnb or CCIAOR/MLS address. It becomes a clickable button here and on the
+          website, so people can open the real listing. You can fill in one or both.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Airbnb link">
+            <input name="airbnb_link" defaultValue={l?.airbnb_link ?? ""} className={inputClass} placeholder="airbnb.com/rooms/12345678" />
+          </Field>
+          <Field label="CCIAOR / MLS link">
+            <input name="mls_link" defaultValue={l?.mls_link ?? ""} className={inputClass} placeholder="cciaor.com/listing/22401234" />
+          </Field>
+          <Field label="Listing number" hint="MLS or Airbnb reference number.">
+            <input name="listing_id" defaultValue={l?.listing_id ?? ""} className={inputClass} placeholder="22401234" />
+          </Field>
+          <Field label="Cover photo URL" hint="Must be a public image URL.">
+            <input name="cover_photo_url" defaultValue={l?.cover_photo_url ?? ""} className={inputClass} placeholder="https://…/photo.jpg" />
+          </Field>
+        </div>
+      </div>
+
+      {/* ---- Specs ---- */}
+      <Field label="Bedrooms">
+        <input name="bedrooms" inputMode="numeric" defaultValue={l?.bedrooms != null ? String(l.bedrooms) : ""} className={inputClass} placeholder="3" />
+      </Field>
+      <Field label="Full baths">
+        <input name="bathrooms" inputMode="numeric" defaultValue={l?.bathrooms != null ? String(l.bathrooms) : ""} className={inputClass} placeholder="2" />
+      </Field>
+      <Field label="Half baths">
+        <input name="half_baths" inputMode="numeric" defaultValue={l?.half_baths != null ? String(l.half_baths) : ""} className={inputClass} placeholder="1" />
+      </Field>
+      <Field label="Garage spaces">
+        <input name="garage" inputMode="numeric" defaultValue={l?.garage != null ? String(l.garage) : ""} className={inputClass} placeholder="1" />
+      </Field>
+      <Field label="Square feet">
+        <input name="sqft" inputMode="numeric" defaultValue={l?.sqft != null ? String(l.sqft) : ""} className={inputClass} placeholder="1,850" />
+      </Field>
+      <Field label="Sleeps" hint="Vacation rentals — max guests.">
+        <input name="guests" inputMode="numeric" defaultValue={l?.guests != null ? String(l.guests) : ""} className={inputClass} placeholder="6" />
+      </Field>
+
+      <div className="sm:col-span-2">
+        <Field label="Description" hint="Shown on the website listing page.">
+          <textarea name="description" rows={4} defaultValue={l?.description ?? ""} className={inputClass} />
+        </Field>
+      </div>
+
+      {/* ---- Interruptores do site ---- */}
+      <div className="sm:col-span-2 space-y-3 rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
+        <label className="flex items-start gap-2.5 text-sm text-ink/80">
+          <input type="checkbox" name="active" value="1" defaultChecked={l?.active ?? true} className="mt-0.5 h-4 w-4 rounded border-black/20" />
+          <span>
+            <span className="font-semibold text-ink">Show on the website</span>
+            <span className="block text-xs text-ink/50">Uncheck to pull it from the public site. Nothing is deleted.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2.5 text-sm text-ink/80">
+          <input type="checkbox" name="featured" value="1" defaultChecked={l?.featured ?? false} className="mt-0.5 h-4 w-4 rounded border-black/20" />
+          <span>
+            <span className="font-semibold text-ink">Feature on the home page</span>
+            <span className="block text-xs text-ink/50">Only applies while the listing is shown on the website.</span>
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function ListingForm({
+  l, clients, action, onDone, onCancel, submitLabel,
+}: {
+  l?: Listing;
+  clients: ClientOption[];
+  action: Action;
+  onDone: () => void;
+  onCancel: () => void;
+  submitLabel: string;
+}) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    if (l) fd.set("id", l.id);
+    if (!((fd.get("address") as string) ?? "").trim()) {
+      setError("A property address is required.");
+      return;
+    }
+    start(async () => {
+      try {
+        await action(fd);
+        onDone();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <ListingFields l={l} clients={clients} />
+      {error && (
+        <p className="rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{error}</p>
+      )}
+      <div className="flex gap-3">
+        <button type="submit" disabled={pending} className={buttonClass("primary")}>
+          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          {pending ? "Saving…" : submitLabel}
+        </button>
+        <button type="button" onClick={onCancel} disabled={pending} className={buttonClass("ghost")}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ---- Toggles inline --------------------------------------------------------
+
+// Olho = está no ar no site? Otimista, com rollback se a action falhar.
+function ActiveToggle({ l, action, canManage }: { l: Listing; action: Action; canManage: boolean }) {
+  const [pending, start] = useTransition();
+  const [on, setOn] = useState(l.active);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!canManage) return;
+    const next = !on;
+    setOn(next);
+    const fd = new FormData();
+    fd.set("id", l.id);
+    fd.set("active", next ? "1" : "0");
+    start(async () => {
+      try { await action(fd); } catch { setOn(!next); }
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={pending || !canManage}
+      title={on ? "Live on the website — click to hide" : "Hidden from the website — click to show"}
+      aria-label={on ? "Hide from website" : "Show on website"}
+      className={cx(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition disabled:opacity-60",
+        on
+          ? "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+          : "border-black/10 bg-black/[0.04] text-ink/45 hover:bg-black/[0.07]"
+      )}
+    >
+      {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : on ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+      {on ? "On website" : "Hidden"}
+    </button>
+  );
+}
+
+// Estrela = featured na home. Desabilitada quando a listing não está no ar,
+// porque featured só tem efeito entre as active (o site filtra por active).
+function FeaturedToggle({ l, action, canManage, size = "sm" }: { l: Listing; action: Action; canManage: boolean; size?: "sm" | "lg" }) {
+  const [pending, start] = useTransition();
+  const [on, setOn] = useState(l.featured);
+  const cls = size === "lg" ? "h-5 w-5" : "h-4 w-4";
+  const blocked = !l.active;
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!canManage || blocked) return;
+    const next = !on;
+    setOn(next);
+    const fd = new FormData();
+    fd.set("id", l.id);
+    fd.set("featured", next ? "1" : "0");
+    start(async () => {
+      try { await action(fd); } catch { setOn(!next); }
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={pending || !canManage || blocked}
+      aria-label={on ? "Remove from home page" : "Feature on home page"}
+      title={blocked ? "Turn the listing on first to feature it" : on ? "Featured on the home page — click to remove" : "Feature on the home page"}
+      className="shrink-0 rounded-md p-0.5 transition hover:bg-black/[0.04] disabled:opacity-40"
+    >
+      <Star className={cx(cls, on ? "fill-amber-400 text-amber-500" : "text-ink/25 hover:text-ink/45")} />
+    </button>
+  );
+}
+
+// ---- Tabela ----------------------------------------------------------------
+
+export function ListingsTable({
+  listings, deleted, clients, canManage, canPurge,
+  createAction, updateAction, deleteAction, restoreAction, purgeAction,
+  toggleActiveAction, toggleFeaturedAction,
+}: {
+  listings: Listing[];
+  deleted: Listing[];
+  clients: ClientOption[];
+  canManage: boolean;
+  canPurge: boolean;
+  createAction: Action;
+  updateAction: Action;
+  deleteAction: Action;
+  restoreAction: Action;
+  purgeAction: Action;
+  toggleActiveAction: Action;
+  toggleFeaturedAction: Action;
+}) {
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"all" | PropertyType | "hidden" | "deleted">("all");
+  const [open, setOpen] = useState<{ listing: Listing | null; editing: boolean } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Listing | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState<Listing | null>(null);
+  const [rowPending, startRow] = useTransition();
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  const showingDeleted = tab === "deleted";
+  const source = showingDeleted ? deleted : listings;
+
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    let rows = source;
+    if (tab === "hidden") rows = rows.filter((l) => !l.active);
+    else if (tab !== "all" && tab !== "deleted") rows = rows.filter((l) => l.category === tab);
+    if (!term) return rows;
+    return rows.filter((l) => {
+      const hay = `${l.address ?? ""} ${l.address2 ?? ""} ${l.listing_id ?? ""} ${l.description ?? ""}`.toLowerCase();
+      return term.split(/\s+/).every((w) => hay.includes(w));
+    });
+  }, [source, tab, query]);
+
+  const counts = useMemo(
+    () => ({
+      all: listings.length,
+      hidden: listings.filter((l) => !l.active).length,
+      deleted: deleted.length,
+      ...Object.fromEntries(CATEGORY_ORDER.map((c) => [c, listings.filter((l) => l.category === c).length])),
+    }),
+    [listings, deleted]
+  ) as Record<string, number>;
+
+  function runRowAction(action: Action, l: Listing, after: () => void) {
+    setRowError(null);
+    const fd = new FormData();
+    fd.set("id", l.id);
+    startRow(async () => {
+      try {
+        await action(fd);
+        after();
+      } catch (err) {
+        setRowError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      }
+    });
+  }
+
+  const chips: { key: typeof tab; label: string; count: number }[] = [
+    { key: "all", label: "All", count: counts.all },
+    ...CATEGORY_ORDER.map((c) => ({ key: c, label: LISTING_CATEGORY_LABEL[c], count: counts[c] ?? 0 })),
+    { key: "hidden", label: "Hidden", count: counts.hidden },
+    { key: "deleted", label: "Deleted", count: counts.deleted },
+  ];
+
+  return (
+    <>
+      {/* Chips de filtro */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {chips.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setTab(c.key)}
+            className={cx(
+              "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition",
+              tab === c.key
+                ? "border-primary bg-primary text-white"
+                : "border-black/10 bg-white text-ink/60 hover:border-black/20 hover:text-ink"
+            )}
+          >
+            {c.label}
+            <span className={cx("ml-1.5", tab === c.key ? "text-white/70" : "text-ink/35")}>{c.count}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/35" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search address or listing number…"
+            className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-9 pr-3 text-sm text-ink placeholder:text-ink/40 outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+          />
+        </div>
+        {canManage && !showingDeleted && (
+          <button type="button" onClick={() => setOpen({ listing: null, editing: true })} className={buttonClass("primary")}>
+            <Plus className="h-4 w-4" /> Add listing
+          </button>
+        )}
+      </div>
+
+      {rowError && (
+        <p className="mb-4 rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{rowError}</p>
+      )}
+
+      {showingDeleted && deleted.length > 0 && (
+        <p className="mb-3 text-xs text-ink/50">
+          Deleted listings are kept here so they can be restored. A restored listing comes back
+          hidden from the website, so it can be reviewed before going live again.
+        </p>
+      )}
+
+      {source.length === 0 ? (
+        <EmptyState
+          icon={<Home className="h-6 w-6" />}
+          title={showingDeleted ? "Nothing deleted" : "No listings yet"}
+          message={
+            showingDeleted
+              ? "Deleted listings show up here and can be restored."
+              : "Listings are what the public website shows. Add the first one to get started."
+          }
+          cta={
+            canManage && !showingDeleted ? (
+              <button type="button" onClick={() => setOpen({ listing: null, editing: true })} className={buttonClass("primary")}>
+                <Plus className="h-4 w-4" /> Add listing
+              </button>
+            ) : undefined
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-10 text-center text-sm text-ink/55 shadow-card">
+          No listings match this filter.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-black/[0.08] bg-white shadow-card">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
+              <tr>
+                <th className="px-5 py-3 font-bold">Property</th>
+                <th className="px-5 py-3 font-bold">Category</th>
+                <th className="px-5 py-3 font-bold">Price</th>
+                <th className="px-5 py-3 font-bold">Link</th>
+                <th className="px-5 py-3 font-bold">{showingDeleted ? "Deleted" : "Website"}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((l, i) => (
+                <tr
+                  key={l.id}
+                  onClick={() => setOpen({ listing: l, editing: false })}
+                  className={cx(
+                    "cursor-pointer border-t border-black/[0.05] transition hover:bg-primary/[0.04]",
+                    i % 2 === 1 && "bg-black/[0.015]",
+                    showingDeleted && "opacity-70"
+                  )}
+                >
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      {!showingDeleted && (
+                        <FeaturedToggle l={l} action={toggleFeaturedAction} canManage={canManage} />
+                      )}
+                      <div>
+                        <div className="font-semibold text-ink">
+                          {l.address}
+                          {l.address2 ? <span className="text-ink/50"> · {l.address2}</span> : null}
+                        </div>
+                        {specLine(l) && <div className="text-xs text-ink/45">{specLine(l)}</div>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {l.category ? (
+                      <Badge tone={l.category === "for_sale" ? "gold" : "orange"}>
+                        {LISTING_CATEGORY_LABEL[l.category]}
+                      </Badge>
+                    ) : (
+                      <span className="text-ink/40">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-ink/75">{priceLabel(l)}</td>
+                  <td className="px-5 py-3.5">
+                    {externalLinks(l).length === 0 ? (
+                      <span className="text-ink/35">—</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {externalLinks(l).map((x) => (
+                          <a
+                            key={x.href}
+                            href={x.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.06]"
+                          >
+                            {x.label} <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {showingDeleted ? (
+                      <span className="text-xs text-ink/45">
+                        {l.archived_at ? new Date(l.archived_at).toLocaleDateString("en-US") : "—"}
+                      </span>
+                    ) : (
+                      <ActiveToggle l={l} action={toggleActiveAction} canManage={canManage} />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Janelinha da listing */}
+      {open && (
+        <Modal onClose={() => setOpen(null)} wide={open.editing}>
+          <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-6 py-4">
+            <div className="flex items-start gap-2">
+              {open.listing && !open.editing && !open.listing.archived_at && (
+                <FeaturedToggle l={open.listing} action={toggleFeaturedAction} canManage={canManage} size="lg" />
+              )}
+              <div>
+                <h3 className="h-display text-lg text-ink">
+                  {open.listing ? (open.editing ? "Edit listing" : open.listing.address) : "New listing"}
+                </h3>
+                {open.listing && !open.editing && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    {open.listing.category && (
+                      <Badge tone={open.listing.category === "for_sale" ? "gold" : "orange"}>
+                        {LISTING_CATEGORY_LABEL[open.listing.category]}
+                      </Badge>
+                    )}
+                    <Badge tone="neutral">{LISTING_STATUS_LABEL[open.listing.listing_status]}</Badge>
+                    {open.listing.archived_at && <Badge tone="muted">Deleted</Badge>}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(null)}
+              aria-label="Close"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink/45 transition hover:bg-black/[0.04] hover:text-ink"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {open.editing ? (
+              <ListingForm
+                l={open.listing ?? undefined}
+                clients={clients}
+                action={open.listing ? updateAction : createAction}
+                submitLabel={open.listing ? "Save changes" : "Create listing"}
+                onCancel={() => (open.listing ? setOpen({ listing: open.listing, editing: false }) : setOpen(null))}
+                onDone={() => setOpen(null)}
+              />
+            ) : open.listing ? (
+              <>
+                {/* Links externos em destaque — é o que a Andrea vai clicar. */}
+                {externalLinks(open.listing).length > 0 && (
+                  <div className="mb-5 flex flex-wrap gap-2">
+                    {externalLinks(open.listing).map((x) => (
+                      <a
+                        key={x.href}
+                        href={x.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={buttonClass("ghost")}
+                      >
+                        <ExternalLink className="h-4 w-4" /> View on {x.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mb-5">
+                  <DetailRow label="Unit / apt" value={open.listing.address2} />
+                  <DetailRow label="Price" value={priceLabel(open.listing)} accent />
+                  <DetailRow label="Specs" value={specLine(open.listing)} />
+                  <DetailRow
+                    label="Available from"
+                    value={open.listing.available_date ? new Date(`${open.listing.available_date}T12:00:00Z`).toLocaleDateString("en-US") : null}
+                  />
+                  <DetailRow label="Listing number" value={open.listing.listing_id} />
+                  <DetailRow
+                    label="Website tab"
+                    value={open.listing.category ? LISTING_CATEGORY_TAB[open.listing.category] : null}
+                  />
+                  <DetailRow
+                    label="On the website"
+                    value={
+                      open.listing.archived_at
+                        ? "No — deleted"
+                        : open.listing.active
+                        ? open.listing.featured ? "Yes — featured on the home page" : "Yes"
+                        : "No — hidden"
+                    }
+                  />
+                  <DetailRow
+                    label="Description"
+                    value={open.listing.description ? <span className="whitespace-pre-wrap">{open.listing.description}</span> : null}
+                  />
+                </div>
+
+                {canManage && (
+                  <div className="flex flex-wrap gap-3">
+                    {open.listing.archived_at ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={rowPending}
+                          onClick={() => open.listing && runRowAction(restoreAction, open.listing, () => setOpen(null))}
+                          className={buttonClass("primary")}
+                        >
+                          {rowPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                          Restore
+                        </button>
+                        {canPurge && (
+                          <button
+                            type="button"
+                            onClick={() => open.listing && setConfirmPurge(open.listing)}
+                            className={buttonClass("danger")}
+                          >
+                            <AlertTriangle className="h-4 w-4" /> Delete permanently
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setOpen({ listing: open.listing, editing: true })}
+                          className={buttonClass("primary")}
+                        >
+                          <Pencil className="h-4 w-4" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => open.listing && setConfirmDelete(open.listing)}
+                          className={buttonClass("danger")}
+                        >
+                          <Trash2 className="h-4 w-4" /> Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirmação de delete (recuperável) */}
+      {confirmDelete && (
+        <Modal onClose={() => !rowPending && setConfirmDelete(null)} z={60}>
+          <div className="px-6 py-5">
+            <h3 className="h-display text-lg text-ink">Delete this listing?</h3>
+            <p className="mt-2 text-sm text-ink/70">
+              <span className="font-semibold text-ink">{confirmDelete.address}</span> will be removed
+              from the list and from the public website. It moves to the{" "}
+              <span className="font-semibold text-ink">Deleted</span> tab, so it can be restored if
+              this was a mistake.
+            </p>
+            {rowError && <p className="mt-3 text-sm text-red-600">{rowError}</p>}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={rowPending}
+                onClick={() => runRowAction(deleteAction, confirmDelete, () => { setConfirmDelete(null); setOpen(null); })}
+                className={buttonClass("danger")}
+              >
+                {rowPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {rowPending ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(null)} disabled={rowPending} className={buttonClass("ghost")}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirmação de expurgo definitivo — OWNER ONLY */}
+      {confirmPurge && (
+        <Modal onClose={() => !rowPending && setConfirmPurge(null)} z={60}>
+          <div className="px-6 py-5">
+            <h3 className="h-display text-lg text-ink">Permanently delete this listing?</h3>
+            <p className="mt-2 text-sm text-ink/70">
+              This erases <span className="font-semibold text-ink">{confirmPurge.address}</span> from
+              the database for good, along with any notes and documents attached to it.
+            </p>
+            <p className="mt-2 text-sm font-semibold text-red-600">
+              This cannot be undone — not even by you.
+            </p>
+            {rowError && <p className="mt-3 text-sm text-red-600">{rowError}</p>}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={rowPending}
+                onClick={() => runRowAction(purgeAction, confirmPurge, () => { setConfirmPurge(null); setOpen(null); })}
+                className={buttonClass("danger")}
+              >
+                {rowPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                {rowPending ? "Deleting…" : "Yes, delete forever"}
+              </button>
+              <button type="button" onClick={() => setConfirmPurge(null)} disabled={rowPending} className={buttonClass("ghost")}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

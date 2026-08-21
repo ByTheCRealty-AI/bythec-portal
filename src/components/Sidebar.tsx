@@ -73,7 +73,7 @@ const NAV: Item[] = [
   { href: "/services", label: "Services", icon: Hammer, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "providers.view" },
   { href: "/sales", label: "Sales", icon: KeyRound, ready: true, cap: "clients.own" },
-  { href: "/listings", label: "Listings", icon: Building2, ready: false, cap: "listings.view" },
+  { href: "/listings", label: "Listings", icon: Building2, ready: true, cap: "listings.view" },
 ];
 
 export type SidebarUser = {

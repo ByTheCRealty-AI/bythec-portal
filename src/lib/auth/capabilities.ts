@@ -41,6 +41,7 @@ export type Capability =
   | "properties.own" // ver/gerir SOMENTE as propriedades que o próprio usuário criou (realtor)
   | "providers.view" // ver (read-only) a lista compartilhada de service providers
   | "listings.view" // ver (read-only) todas as listings
+  | "listings.manage" // criar/editar/deletar (recuperável) listings — TODOS os papéis internos + realtor
   | "users.create"
   | "users.delete"
   | "users.manage_access";
@@ -62,6 +63,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "properties.own",
   "providers.view",
   "listings.view",
+  "listings.manage",
   "users.create",
   "users.delete",
   "users.manage_access",
@@ -85,6 +87,7 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "properties.own": "Properties — view & manage only their own (scoped)",
   "providers.view": "Providers — view the shared list (read-only)",
   "listings.view": "Listings — view all (read-only)",
+  "listings.manage": "Listings — create, edit & delete",
   "users.create": "Users — invite & create logins",
   "users.delete": "Users — delete logins",
   "users.manage_access": "Users — edit roles & permissions",
@@ -93,6 +96,7 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
 export const CAPABILITY_HINT: Partial<Record<Capability, string>> = {
   "financials.full": "Grants everything in invoices, payments, expenses, commissions and owner payouts.",
   "applications.manage": "Public rental applications include an applicant's SSN/ITIN — grant only to people who should see that.",
+  "listings.manage": "Everyone on the team manages listings, realtors included. Deleting a listing is recoverable — only the owner can permanently remove one.",
   "users.delete": "Owner only. Removes a person's login from the system.",
   "users.manage_access": "Lets this person edit other people's role and permissions.",
 };
@@ -117,6 +121,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "properties.own",
     "providers.view",
     "listings.view",
+    "listings.manage",
     "users.create",
     "users.manage_access",
     // NÃO tem users.delete
@@ -137,6 +142,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "properties.own",
     "providers.view",
     "listings.view",
+    "listings.manage",
     // SEM financials.full (Finances), SEM gestão de usuários
   ],
   // Externos: sem capacidade interna, EXCETO o quadro de lembretes — realtor
@@ -153,6 +159,7 @@ export const ROLE_DEFAULT_CAPS: Record<AppRole, Capability[]> = {
     "properties.own",
     "providers.view",
     "listings.view",
+    "listings.manage", // 2026-08-21 Andrea: realtor opera listings como todo mundo
     "invoices.general", // realtor vê SOMENTE invoices gerais (não service/seasonal)
   ],
 };
@@ -232,11 +239,16 @@ export function canDeleteUsers(actor: ProfileLike): boolean {
   return can(actor, "users.delete") && actor.role === "owner";
 }
 
-// Pode PERMANENTEMENTE deletar clientes/propriedades (hard delete via RPC)?
+// Pode PERMANENTEMENTE deletar clientes/propriedades/listings (hard delete via RPC)?
 // OWNER ONLY — NÃO é uma capability concedível (não aparece em Users & Access,
 // não entra na union Capability). É amarrado ao papel `owner` direto, de
 // propósito: é a ação mais destrutiva do sistema. O banco (admin_delete_*)
 // reforça isso server-side; este helper só guarda a UI e as server actions.
+//
+// LISTINGS (2026-08-21): qualquer um do time deleta uma listing, mas isso é
+// RECUPERÁVEL (archived_at). O expurgo definitivo passa por admin_delete_listing
+// e continua owner-only — por isso a tela de Listings usa listings.manage pro
+// delete normal e canDelete() só pro "Delete permanently".
 export function canDelete(
   profile: Pick<ProfileLike, "role" | "active"> | null | undefined
 ): boolean {
