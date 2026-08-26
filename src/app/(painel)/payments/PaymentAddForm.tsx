@@ -39,7 +39,17 @@ export type PaymentPropertyOption = {
 };
 
 const COMMISSION_HINT =
-  "By the C year-round commission is 10% of monthly rent, counted when received.";
+  "By the C year-round commission is 10% of monthly rent, counted when received. Auto-filled from the amount — edit it if this property has a different rate.";
+
+// 10% do valor digitado, arredondado a centavos. Usado pra pré-preencher a
+// comissão de TODO aluguel (monthly / first month / last month) — antes o campo
+// nascia vazio e era fácil esquecer no first/last month, o que deixava a comissão
+// fora do Owner payout (o owner aparecia recebendo o aluguel cheio).
+function tenPercent(amount: string): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.round(n * 10) / 100);
+}
 
 // Propriedade fixa: usada no modo embutido (aba Payments da propriedade). Quando
 // passada, o picker some, o property_id vai num hidden, e o valor pré-preenche
@@ -73,9 +83,16 @@ export function PaymentAddForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [amount, setAmount] = useState(
-    fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : ""
-  );
+  const initialAmount = fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : "";
+  const [amount, setAmount] = useState(initialAmount);
+  // Comissão acompanha o valor (10%) até alguém digitar a mão — daí para de seguir.
+  const [commission, setCommission] = useState(() => tenPercent(initialAmount));
+  const [commissionEdited, setCommissionEdited] = useState(false);
+
+  function changeAmount(value: string) {
+    setAmount(value);
+    if (!commissionEdited) setCommission(tenPercent(value));
+  }
   // Selected kind drives which field set we show. Security deposit swaps the
   // single amount/date for total + installments + first due date.
   const [kind, setKind] = useState<PaymentKind>("monthly");
@@ -93,11 +110,13 @@ export function PaymentAddForm({
   function onPickProperty(id: string) {
     const p = properties.find((x) => x.id === id);
     // Só pré-preenche; o usuário pode sobrescrever depois.
-    setAmount(p?.rent_price != null ? String(p.rent_price) : "");
+    changeAmount(p?.rent_price != null ? String(p.rent_price) : "");
   }
 
   function resetAmount() {
-    setAmount(fixedProperty?.rent_price != null ? String(fixedProperty.rent_price) : "");
+    setAmount(initialAmount);
+    setCommission(tenPercent(initialAmount));
+    setCommissionEdited(false);
   }
 
   function reset() {
@@ -312,7 +331,7 @@ export function PaymentAddForm({
                 step="0.01"
                 min={0}
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => changeAmount(e.target.value)}
                 className={inputClass}
                 placeholder="2500.00"
               />
@@ -323,6 +342,11 @@ export function PaymentAddForm({
                 type="number"
                 step="0.01"
                 min={0}
+                value={commission}
+                onChange={(e) => {
+                  setCommissionEdited(true);
+                  setCommission(e.target.value);
+                }}
                 className={inputClass}
                 placeholder="Optional"
               />

@@ -12,7 +12,7 @@ import { useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Wallet, Upload, Loader2, FileText, Trash2, ExternalLink } from "lucide-react";
 import { money } from "@/lib/format";
-import type { Payment, PaymentAttachment } from "@/lib/types";
+import { PAYMENT_KIND_LABEL, type Payment, type PaymentAttachment } from "@/lib/types";
 
 const METHODS = ["eCheck", "Zelle", "Cash", "Other"];
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -134,6 +134,10 @@ export function OwnerPayoutControl({
   const paymentId = payment.id;
   const paid = payment.owner_paid;
   const receipts = (payment.attachments ?? []).filter((a) => a.category === "owner_payout");
+  // Aluguel recebido SEM comissão lançada: o repasse fica inflado (rent cheio).
+  // Sinaliza em vez de calar — foi assim que o first/last month do 15 Oak Neck #22
+  // passou batido.
+  const missingCommission = Number(payment.commission ?? 0) <= 0;
 
   const [pending, start] = useTransition();
   const [localMethod, setLocalMethod] = useState<string>(payment.owner_payment_method ?? "");
@@ -241,7 +245,20 @@ export function OwnerPayoutControl({
           <p className="text-sm font-semibold text-ink">
             <Wallet className="mr-1 inline h-4 w-4 text-ink/50" /> Owner payout
           </p>
-          <p className="text-xs text-ink/55">Owner’s share · {money(ownerOwed(payment))}</p>
+          <p className="text-xs text-ink/55">
+            Owner’s share · {money(ownerOwed(payment))}
+            <span className="text-ink/40">
+              {" "}
+              ({money(Number(payment.rent_amount ?? 0))} rent − {money(Number(payment.commission ?? 0))}{" "}
+              commission)
+            </span>
+          </p>
+          {missingCommission && (
+            <p className="mt-1 text-[11px] font-medium text-amber-700">
+              No commission recorded on this {PAYMENT_KIND_LABEL[payment.kind].toLowerCase()} — the owner’s
+              share above is the full rent. Edit the payment to add it.
+            </p>
+          )}
         </div>
         {canManage ? (
           <label className="inline-flex cursor-pointer select-none items-center gap-2">
