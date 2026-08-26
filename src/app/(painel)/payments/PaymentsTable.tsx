@@ -59,10 +59,12 @@ function StatusBadge({ payment }: { payment: Payment }) {
   );
 }
 
-// Rent kinds can be paid in installments; security deposit has its own tab.
-const RENT_KINDS_FOR_PARTS = new Set(["monthly", "first_month", "last_month"]);
+// Todo pagamento pode ser quitado em parcelas (payment_parts) — aluguel E
+// security deposit. O depósito já vem dividido em installments; ESTE é o outro
+// eixo: o inquilino pagar UMA installment em pedaços (ex.: $900 em $400 + $500).
+const KINDS_WITH_PARTS = new Set(["monthly", "first_month", "last_month", "security_deposit"]);
 function supportsParts(p: Payment): boolean {
-  return RENT_KINDS_FOR_PARTS.has(p.kind);
+  return KINDS_WITH_PARTS.has(p.kind);
 }
 
 // Selo de status da comissão (SOMENTE LEITURA) pra célula da linha. Marcar/

@@ -36,6 +36,7 @@ import { PaymentWindow } from "./PaymentEntryButton";
 import { OwnerPayoutControl, ownerOwed, type OwnerPayoutActions } from "./OwnerPayoutControl";
 import { type CommissionActions } from "./CommissionCollectedControl";
 import { DepositReceivedControl, type DepositActions } from "./DepositReceivedControl";
+import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
 
 type TabKey = "due" | "monthly" | "past" | "deposit" | "owner_payouts";
 
@@ -44,6 +45,20 @@ type TabKey = "due" | "monthly" | "past" | "deposit" | "owner_payouts";
 const RENT_KINDS: PaymentKind[] = ["monthly", "first_month", "last_month"];
 function isRentKind(p: Payment): boolean {
   return RENT_KINDS.includes(p.kind);
+}
+
+// Parcelas (payment_parts) valem pra aluguel E pra security deposit — uma
+// installment de depósito também pode ser paga em pedaços.
+function supportsPartsFor(p: Payment): boolean {
+  return isRentKind(p) || p.kind === "security_deposit";
+}
+
+// Quanto já entrou nesta linha. Uma linha 'received' conta pelo valor cheio
+// (pode ter sido marcada de uma vez, sem parcelas itemizadas).
+function paidOn(p: Payment): number {
+  const due = Number(p.rent_amount ?? 0);
+  if (p.status === "received") return due;
+  return Math.min(due, Number(p.amount_paid ?? 0));
 }
 
 // ---- helpers de data (America/New_York) ------------------------------------
@@ -272,7 +287,7 @@ function DueRow({
         onClose={() => setPayOpen(false)}
         payment={p}
         canManage={canManage}
-        supportsParts={isRentKind(p)}
+        supportsParts={supportsPartsFor(p)}
         setStatus={setStatus}
         addPartAction={addPartAction}
         updatePartAction={updatePartAction}
@@ -341,7 +356,7 @@ function PastRow({
         onClose={() => setPayOpen(false)}
         payment={p}
         canManage={canManage}
-        supportsParts={isRentKind(p)}
+        supportsParts={supportsPartsFor(p)}
         setStatus={setStatus}
         addPartAction={addPartAction}
         updatePartAction={updatePartAction}
@@ -543,13 +558,19 @@ export function PaymentsClient({
       });
       const total = sorted.reduce((sum, p) => sum + (p.rent_amount ?? 0), 0);
       const received = sorted.filter((p) => p.status === "received");
-      const receivedTotal = received.reduce((sum, p) => sum + (p.rent_amount ?? 0), 0);
+      // Progresso em DINHEIRO conta também o que entrou parcialmente numa
+      // installment ainda aberta (ex.: $400 dos $900) — senão o card diz $0.
+      const paidTotal = sorted.reduce((sum, p) => sum + paidOn(p), 0);
+      const partialCount = sorted.filter(
+        (p) => p.status !== "received" && paidOn(p) > 0
+      ).length;
       return {
         key,
         items: sorted,
         total,
         receivedCount: received.length,
-        receivedTotal,
+        receivedTotal: paidTotal,
+        partialCount,
         // Pra ordenar grupos: due_date da primeira parcela.
         sortRef: ymdOf(sorted[0]?.due_date) ?? "",
       };
@@ -963,6 +984,9 @@ export function PaymentsClient({
                   updateDepositTotalAction={updateDepositTotalAction}
                   deleteDepositGroupAction={deleteDepositGroupAction}
                   depositActions={depositActions}
+                  addPartAction={addPartAction}
+                  updatePartAction={updatePartAction}
+                  deletePartAction={deletePartAction}
                 />
               ))}
             </div>
@@ -1047,7 +1071,10 @@ type DepositGroup = {
   items: Payment[];
   total: number;
   receivedCount: number;
+  // Dinheiro que já entrou no depósito, incluindo o que foi pago em pedaços
+  // numa installment ainda aberta.
   receivedTotal: number;
+  partialCount: number;
   sortRef: string;
 };
 
@@ -1059,6 +1086,9 @@ function DepositGroupCard({
   updateDepositTotalAction,
   deleteDepositGroupAction,
   depositActions,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   group: DepositGroup;
   canManage: boolean;
@@ -1067,6 +1097,10 @@ function DepositGroupCard({
   updateDepositTotalAction: (fd: FormData) => void | Promise<void>;
   deleteDepositGroupAction: (fd: FormData) => void | Promise<void>;
   depositActions: DepositActions;
+  // Parcelas: pagar UMA installment em pedaços (mesmo motor do aluguel).
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
 }) {
   const first = group.items[0];
   const totalInstallments = first?.installment_total ?? group.items.length;
@@ -1119,6 +1153,12 @@ function DepositGroupCard({
             >
               {group.receivedCount} of {group.items.length} received ·{" "}
               {money(group.receivedTotal)} of {money(group.total)}
+              {group.partialCount > 0 && (
+                <span className="text-amber-600">
+                  {" "}
+                  · {group.partialCount} partial
+                </span>
+              )}
             </div>
           </div>
           {canManage && (
@@ -1205,6 +1245,9 @@ function DepositGroupCard({
               setStatus={setStatus}
               updateAction={updateAction}
               depositActions={depositActions}
+              addPartAction={addPartAction}
+              updatePartAction={updatePartAction}
+              deletePartAction={deletePartAction}
             />
           ))}
         </tbody>
@@ -1226,6 +1269,9 @@ function DepositInstallmentRow({
   setStatus,
   updateAction,
   depositActions,
+  addPartAction,
+  updatePartAction,
+  deletePartAction,
 }: {
   p: Payment;
   totalInstallments: number;
@@ -1235,12 +1281,20 @@ function DepositInstallmentRow({
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   depositActions: DepositActions;
+  addPartAction: (fd: FormData) => void | Promise<void>;
+  updatePartAction: (fd: FormData) => void | Promise<void>;
+  deletePartAction: (fd: FormData) => void | Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [managing, setManaging] = useState(false);
   const no = p.installment_no ?? indexInGroup + 1;
   const total = p.installment_total ?? totalInstallments;
   const receiptCount = (p.attachments ?? []).filter((a) => a.category !== "owner_payout").length;
+  // Parcial: ainda due, mas já entrou dinheiro (payment_parts). Mesmo critério
+  // derivado do aluguel — não existe status 'partial' no banco.
+  const due = Number(p.rent_amount ?? 0);
+  const paidSoFar = Math.min(due, Number(p.amount_paid ?? 0));
+  const isPartial = p.status !== "received" && paidSoFar > 0;
 
   if (editing && canManage) {
     return (
@@ -1330,6 +1384,15 @@ function DepositInstallmentRow({
                 </span>
               )}
             </span>
+          ) : isPartial ? (
+            <span className="inline-flex flex-col items-start gap-0.5">
+              <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                Partial
+              </span>
+              <span className="text-[11px] text-ink/45">
+                {money(paidSoFar)} in · {money(due - paidSoFar)} left
+              </span>
+            </span>
           ) : (
             <span className="inline-flex items-center rounded-full border border-secondary/25 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
               Due
@@ -1351,7 +1414,7 @@ function DepositInstallmentRow({
               >
                 {p.status === "due" ? (
                   <>
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Mark received
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Record payment
                   </>
                 ) : (
                   <>
@@ -1372,14 +1435,32 @@ function DepositInstallmentRow({
       </tr>
       {managing && canManage && (
         <tr className="border-t border-black/[0.05] bg-primary/[0.02]">
-          <td colSpan={5} className="px-5 py-4">
-            <DepositReceivedControl
+          <td colSpan={5} className="space-y-4 px-5 py-4">
+            {/* Pagar esta installment em pedaços (mesmo motor do aluguel). Quando
+                a soma fecha o valor, a linha vira "Received" sozinha. */}
+            <div>
+              <p className="text-sm font-semibold text-ink">Partial payments</p>
+              <p className="text-xs text-ink/45">
+                Log each piece as it comes in. When they add up to the installment, it flips to
+                received on its own.
+              </p>
+            </div>
+            <RentInstallmentsPanel
               payment={p}
               canManage={canManage}
-              actions={depositActions}
-              setStatus={setStatus}
-              onDone={() => setManaging(false)}
+              addPartAction={addPartAction}
+              updatePartAction={updatePartAction}
+              deletePartAction={deletePartAction}
             />
+            <div className="border-t border-black/[0.06] pt-4">
+              <DepositReceivedControl
+                payment={p}
+                canManage={canManage}
+                actions={depositActions}
+                setStatus={setStatus}
+                onDone={() => setManaging(false)}
+              />
+            </div>
           </td>
         </tr>
       )}

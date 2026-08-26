@@ -196,10 +196,10 @@ export function PaymentWindow({
   onClose: () => void;
   payment: Payment;
   canManage: boolean;
-  // Aluguel (monthly/first/last) suporta parcelas; depósito etc. não → só o atalho.
+  // Aluguel (monthly/first/last) E security deposit suportam parcelas.
   supportsParts: boolean;
   setStatus: (id: string, status: PaymentStatus) => Promise<void>;
-  // Parcelas — só aluguel. Opcionais: um depósito abre a janela sem elas.
+  // Parcelas — aluguel e depósito. Opcionais: sem elas a janela abre só com os atalhos.
   addPartAction?: (fd: FormData) => void | Promise<void>;
   updatePartAction?: (fd: FormData) => void | Promise<void>;
   deletePartAction?: (fd: FormData) => void | Promise<void>;
@@ -233,9 +233,10 @@ export function PaymentWindow({
 
   const addr = payment.property?.address ?? "Payment";
   const isDeposit = payment.kind === "security_deposit";
-  // Painel de parcelas: só aluguel, e só quando as actions de parcela existem.
+  // Painel de parcelas: aluguel E depósito (uma installment de depósito também
+  // pode entrar em pedaços), sempre que as actions de parcela existirem.
   const showPanel =
-    supportsParts && !isDeposit && !!addPartAction && !!updatePartAction && !!deletePartAction;
+    supportsParts && !!addPartAction && !!updatePartAction && !!deletePartAction;
 
   function close() {
     setEditMode(false);
@@ -297,15 +298,37 @@ export function PaymentWindow({
           <span className="font-semibold text-ink">{money(payment.rent_amount)}</span>
         </div>
 
-        {/* ---- Depósito: recibo obrigatório + data editável + recibos ---- */}
+        {/* ---- Depósito: parcelas (opcional) + recibo obrigatório + data ---- */}
         {isDeposit && depositActions ? (
-          <DepositReceivedControl
-            payment={payment}
-            canManage={canManage}
-            actions={depositActions}
-            setStatus={setStatus}
-            onDone={() => router.refresh()}
-          />
+          <>
+            {showPanel && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-ink">Partial payments</p>
+                  <p className="text-xs text-ink/45">
+                    Log each piece as it comes in. When they add up to the installment, it flips to
+                    received on its own.
+                  </p>
+                </div>
+                <RentInstallmentsPanel
+                  payment={payment}
+                  canManage={canManage}
+                  addPartAction={addPartAction!}
+                  updatePartAction={updatePartAction!}
+                  deletePartAction={deletePartAction!}
+                />
+              </div>
+            )}
+            <div className={showPanel ? "border-t border-black/[0.06] pt-4" : undefined}>
+              <DepositReceivedControl
+                payment={payment}
+                canManage={canManage}
+                actions={depositActions}
+                setStatus={setStatus}
+                onDone={() => router.refresh()}
+              />
+            </div>
+          </>
         ) : (
           !isDeposit && (
             <>
