@@ -217,6 +217,7 @@ function DueRow({
   deletePartAction,
   commissionActions,
   ownerActions,
+  depositActions,
   properties,
   updateAction,
   deleteAction,
@@ -231,6 +232,9 @@ function DueRow({
   deletePartAction: (fd: FormData) => void | Promise<void>;
   commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
+  // Security deposit: sem isso a janela de um depósito abria VAZIA (nada pra
+  // marcar recebido). A aba Due lista depósito junto com aluguel, então precisa.
+  depositActions: DepositActions;
   properties: PaymentPropertyOption[];
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
@@ -279,6 +283,20 @@ function DueRow({
         <td className="px-5 py-3.5 text-right">
           <div className="inline-flex flex-wrap items-center justify-end gap-2">
             <CommissionStatusBadge payment={p} />
+            {/* Depósito não tem comissão, então a célula ficava vazia e nada
+                dizia que dá pra marcar recebido daqui. Botão explícito. */}
+            {canManage && p.kind === "security_deposit" && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPayOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.06] px-2.5 py-1.5 text-xs font-semibold text-primary transition-all duration-200 hover:border-primary/50 hover:bg-primary/[0.10]"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> Record payment
+              </button>
+            )}
           </div>
         </td>
       </tr>
@@ -297,6 +315,7 @@ function DueRow({
         deleteAction={deleteAction}
         ownerActions={ownerActions}
         commissionActions={commissionActions}
+        depositActions={depositActions}
       />
     </>
   );
@@ -757,6 +776,7 @@ export function PaymentsClient({
                   deletePartAction={deletePartAction}
                   commissionActions={commissionActions}
                   ownerActions={ownerActions}
+                  depositActions={depositActions}
                   properties={properties}
                   updateAction={updateAction}
                   deleteAction={deleteAction}
@@ -775,6 +795,7 @@ export function PaymentsClient({
                   deletePartAction={deletePartAction}
                   commissionActions={commissionActions}
                   ownerActions={ownerActions}
+                  depositActions={depositActions}
                   properties={properties}
                   updateAction={updateAction}
                   deleteAction={deleteAction}
@@ -793,6 +814,7 @@ export function PaymentsClient({
                   deletePartAction={deletePartAction}
                   commissionActions={commissionActions}
                   ownerActions={ownerActions}
+                  depositActions={depositActions}
                   properties={properties}
                   updateAction={updateAction}
                   deleteAction={deleteAction}
@@ -1554,6 +1576,7 @@ function DueSection({
   deletePartAction,
   commissionActions,
   ownerActions,
+  depositActions,
   properties,
   updateAction,
   deleteAction,
@@ -1569,6 +1592,7 @@ function DueSection({
   deletePartAction: (fd: FormData) => void | Promise<void>;
   commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
+  depositActions: DepositActions;
   properties: PaymentPropertyOption[];
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
@@ -1604,6 +1628,7 @@ function DueSection({
                 deletePartAction={deletePartAction}
                 commissionActions={commissionActions}
                 ownerActions={ownerActions}
+                depositActions={depositActions}
                 properties={properties}
                 updateAction={updateAction}
                 deleteAction={deleteAction}
