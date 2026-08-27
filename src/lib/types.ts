@@ -535,6 +535,7 @@ export const EXPENSE_CATEGORY_OPTIONS: string[] = [
   "Office",
   "Travel / Mileage",
   "Professional Services",
+  "Gifts",
   "Other",
 ];
 
