@@ -31,6 +31,17 @@ export function PropriedadeNovoForm({
   const isForSale = !!types.is_for_sale;
   const isAnyRental = isRental || !!types.is_vacation;
 
+  // Endereço estruturado (rua / cidade / estado / CEP), como no cadastro de
+  // cliente. O resto do app usa o campo único `address`, então compomos as partes
+  // num hidden `address` (nada muda em listas/invoices/PDF). Unit fica separado.
+  const [addr, setAddr] = useState({ street: "", city: "", state: "MA", zip: "" });
+  const composedAddress = [
+    addr.street.trim(),
+    [addr.city.trim(), addr.state.trim(), addr.zip.trim()].filter(Boolean).join(" "),
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   // Sem clientes cadastrados não dá pra pendurar propriedade. CTA pro fluxo de
   // criação de cliente (empty state nunca vazio).
   if (owners.length === 0) {
@@ -73,17 +84,47 @@ export function PropriedadeNovoForm({
             defaults={types}
             onChange={setTypes}
           />
-          <Field label="Address *" hint="From our records, with unit number — never from Google.">
+          <Field label="Street address *" hint="From our records — never from Google.">
             <input
-              name="address"
+              value={addr.street}
+              onChange={(e) => setAddr((a) => ({ ...a, street: e.target.value }))}
               required
               className={inputClass}
-              placeholder="12 Rainbow Ave, East Falmouth MA 02536"
+              placeholder="12 Rainbow Ave"
             />
           </Field>
           <Field label="Unit / apt">
             <input name="address2" className={inputClass} placeholder="Unit 1" />
           </Field>
+          <Field label="City / town">
+            <input
+              value={addr.city}
+              onChange={(e) => setAddr((a) => ({ ...a, city: e.target.value }))}
+              className={inputClass}
+              placeholder="East Falmouth"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-5">
+            <Field label="State">
+              <input
+                value={addr.state}
+                onChange={(e) => setAddr((a) => ({ ...a, state: e.target.value }))}
+                className={inputClass}
+                placeholder="MA"
+              />
+            </Field>
+            <Field label="ZIP">
+              <input
+                value={addr.zip}
+                onChange={(e) => setAddr((a) => ({ ...a, zip: e.target.value }))}
+                className={inputClass}
+                placeholder="02536"
+                inputMode="numeric"
+              />
+            </Field>
+          </div>
+          {/* Endereço composto — é o que o resto do app lê como `address`. */}
+          <input type="hidden" name="address" value={composedAddress} />
         </div>
       </section>
 
@@ -183,6 +224,31 @@ export function PropriedadeNovoForm({
                 ))}
               </select>
             </Field>
+          </div>
+        </section>
+      )}
+
+      {/* Website applications — só aparece quando é algum tipo de aluguel. */}
+      {isAnyRental && (
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Website applications</h2>
+          <div className="rounded-xl border border-black/[0.08] bg-black/[0.015] p-4">
+            <p className="text-sm font-semibold text-ink">Accept rental applications on the website</p>
+            <p className="mt-1 text-xs text-ink/55">
+              Check which rental type(s) this property accepts. It appears on the public application form
+              (/apply) only for the types you select. Vacation rentals are marketed on Airbnb / VRBO, so
+              the website application covers year-round and off-season.
+            </p>
+            <div className="mt-3 flex flex-col gap-2.5">
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink/80">
+                <input type="checkbox" name="accepts_year_round" value="1" className="h-4 w-4 accent-[#198577]" />
+                Year-round rental
+              </label>
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink/80">
+                <input type="checkbox" name="accepts_winter" value="1" className="h-4 w-4 accent-[#198577]" />
+                Winter / off-season rental
+              </label>
+            </div>
           </div>
         </section>
       )}

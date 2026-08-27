@@ -64,6 +64,13 @@ export async function createPropriedadeStandaloneAction(fd: FormData) {
       sale_price: num(fd, "sale_price"),
       sale_commission_rate: num(fd, "sale_commission_rate"),
       sale_commission: num(fd, "sale_commission"),
+      // "Accept rental applications on the website" (mesma semântica do update):
+      // aparece no /apply público pros tipos marcados. accepting_applications =
+      // aceita algum. Só relevante quando é aluguel.
+      accepts_year_round: str(fd, "accepts_year_round") === "1",
+      accepts_winter: str(fd, "accepts_winter") === "1",
+      accepting_applications:
+        str(fd, "accepts_year_round") === "1" || str(fd, "accepts_winter") === "1",
       notes: str(fd, "notes"),
     })
     .select("id")
