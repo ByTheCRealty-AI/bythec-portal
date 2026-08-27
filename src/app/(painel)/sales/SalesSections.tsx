@@ -27,7 +27,12 @@ export type ListingRow = {
   id: string;
   address: string;
   address2: string | null;
-  commission_fee: number | null;
+  // Comissão da VENDA (migration 0027) — não confundir com properties.commission_fee,
+  // que é a taxa do ALUGUEL. Esta tela mostrava commission_fee e por isso vinha
+  // sempre vazia mesmo com a comissão preenchida na propriedade.
+  sale_price: number | null;
+  sale_commission: number | null;
+  sale_commission_rate: number | null;
   sale_status: string | null;
   realtor_id: string | null;
   owner: { id: string; name: string } | null;
@@ -541,6 +546,7 @@ function ListingsTable({
         <tr>
           <th className="px-5 py-3 font-bold">Address</th>
           <th className="px-5 py-3 font-bold">Seller</th>
+          <th className="px-5 py-3 font-bold">Price</th>
           <th className="px-5 py-3 font-bold">Commission</th>
           <th className="px-5 py-3 font-bold">Sale status</th>
           <th className="px-5 py-3 font-bold">Realtor</th>
@@ -567,7 +573,21 @@ function ListingsTable({
                 "—"
               )}
             </td>
-            <td className="px-5 py-3.5 text-ink/65">{money(p.commission_fee)}</td>
+            <td className="px-5 py-3.5 text-ink/65">
+              {p.sale_price != null ? money(p.sale_price) : "—"}
+            </td>
+            <td className="px-5 py-3.5 text-ink/65">
+              {p.sale_commission != null ? (
+                <span className="font-semibold text-ink/85">
+                  {money(p.sale_commission)}
+                  {p.sale_commission_rate != null && (
+                    <span className="ml-1 font-normal text-ink/40">· {p.sale_commission_rate}%</span>
+                  )}
+                </span>
+              ) : (
+                "—"
+              )}
+            </td>
             <td className="px-5 py-3.5">
               <InlineSelect
                 name="sale_status"

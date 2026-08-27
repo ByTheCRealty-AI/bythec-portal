@@ -20,6 +20,19 @@ export function AddForSaleListingForm({
   action: (fd: FormData) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  // Preço × % → $ (mesma conta do SaleFields da propriedade). O $ é o que vale;
+  // a Andrea pode sobrescrever.
+  const [price, setPrice] = useState("");
+  const [rate, setRate] = useState("");
+  const [amount, setAmount] = useState("");
+
+  function recompute(nextPrice: string, nextRate: string) {
+    const pr = parseFloat(nextPrice);
+    const r = parseFloat(nextRate);
+    if (Number.isFinite(pr) && Number.isFinite(r)) {
+      setAmount((Math.round(pr * r) / 100).toFixed(2));
+    }
+  }
 
   if (!open) {
     return (
@@ -71,8 +84,47 @@ export function AddForSaleListingForm({
         <Field label="Unit / address line 2">
           <input name="address2" className={inputClass} placeholder="Apt, unit, etc. (optional)" />
         </Field>
-        <Field label="Commission ($)" hint="By the C commission for this sale.">
-          <input name="commission_fee" type="number" step="0.01" min={0} className={inputClass} placeholder="0.00" />
+        <Field label="Sale price (USD)" hint="What the house is being sold for.">
+          <input
+            name="sale_price"
+            type="number"
+            step="0.01"
+            min={0}
+            value={price}
+            onChange={(e) => {
+              setPrice(e.target.value);
+              recompute(e.target.value, rate);
+            }}
+            className={inputClass}
+            placeholder="650000"
+          />
+        </Field>
+        <Field label="My commission %" hint="Optional — fills in the amount from the price.">
+          <input
+            name="sale_commission_rate"
+            type="number"
+            step="0.01"
+            min={0}
+            value={rate}
+            onChange={(e) => {
+              setRate(e.target.value);
+              recompute(price, e.target.value);
+            }}
+            className={inputClass}
+            placeholder="2.5"
+          />
+        </Field>
+        <Field label="My commission (USD)" hint="Auto-filled from the %. You can override it.">
+          <input
+            name="sale_commission"
+            type="number"
+            step="0.01"
+            min={0}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={inputClass}
+            placeholder="16250"
+          />
         </Field>
       </div>
 

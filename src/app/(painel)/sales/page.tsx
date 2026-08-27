@@ -26,7 +26,7 @@ async function load() {
         .order("name", { ascending: true }),
       supabase
         .from("properties")
-        .select("id, address, address2, commission_fee, sale_status, realtor_id, owner:owner_id (id, name)")
+        .select("id, address, address2, sale_price, sale_commission, sale_commission_rate, sale_status, realtor_id, owner:owner_id (id, name)")
         .eq("property_type", "for_sale")
         .is("archived_at", null)
         .order("address", { ascending: true }),

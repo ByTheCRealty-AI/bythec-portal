@@ -105,7 +105,11 @@ export async function addForSaleListingAction(fd: FormData) {
       address_text: address.toLowerCase(),
       property_type: "for_sale",
       sale_status: "active",
-      commission_fee: numOrNull(fd, "commission_fee"),
+      // Comissão da VENDA (0027). Antes gravava commission_fee — que é a taxa do
+      // ALUGUEL — então o valor sumia da propriedade e da tela de Sales.
+      sale_price: numOrNull(fd, "sale_price"),
+      sale_commission_rate: numOrNull(fd, "sale_commission_rate"),
+      sale_commission: numOrNull(fd, "sale_commission"),
       realtor_id: str(fd, "realtor_id"),
       notes: str(fd, "notes"),
     })
