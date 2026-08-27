@@ -1,17 +1,14 @@
-"use client";
-
 // =============================================================================
 // SalesCommissionsSection — comissões de venda (brokerage) na tela Finances.
-// O valor NÃO é digitado aqui: vem da propriedade (properties.sale_commission,
-// migration 0027), preenchida uma vez na aba Sales junto com o preço e a %.
-// Esta tela só registra o CAIXA — quando a comissão entrou de verdade (0041).
+// SÓ LEITURA. O valor vem da propriedade (properties.sale_commission, 0027),
+// preenchida uma vez na aba Sales junto com o preço e a %. Casa vendida =
+// comissão ganha; não existe etapa de "owed" nem botão de marcar recebido —
+// a comissão de venda sai na mesa do fechamento.
 // Antes, o valor era digitado de novo no deal do cliente e nada se conversava:
 // $10.250 na propriedade e $0,00 aqui.
 // =============================================================================
-import { useState, useTransition } from "react";
 import Link from "next/link";
 import { money, date } from "@/lib/format";
-import { Check, Loader2 } from "lucide-react";
 
 export type SoldListing = {
   id: string;
@@ -22,18 +19,10 @@ export type SoldListing = {
   sale_commission_rate: number | null;
   sale_status: string | null;
   sold_at: string | null;
-  sale_commission_received: boolean;
-  sale_commission_received_at: string | null;
   owner: { id: string; name: string } | null;
 };
 
-export function SalesCommissionsSection({
-  listings,
-  action,
-}: {
-  listings: SoldListing[];
-  action: (propertyId: string, received: boolean) => Promise<void>;
-}) {
+export function SalesCommissionsSection({ listings }: { listings: SoldListing[] }) {
   if (listings.length === 0) {
     return (
       <div className="rounded-2xl border border-black/[0.08] bg-white px-5 py-6 text-center text-sm text-ink/50 shadow-card">
@@ -56,12 +45,11 @@ export function SalesCommissionsSection({
             <th className="px-4 py-3 font-bold">Closed</th>
             <th className="px-4 py-3 font-bold">Sale price</th>
             <th className="px-4 py-3 font-bold">Commission</th>
-            <th className="px-4 py-3 font-bold">Received</th>
           </tr>
         </thead>
         <tbody>
           {listings.map((l, i) => (
-            <ListingRow key={l.id} listing={l} action={action} zebra={i % 2 === 1} />
+            <ListingRow key={l.id} listing={l} zebra={i % 2 === 1} />
           ))}
         </tbody>
       </table>
@@ -69,32 +57,9 @@ export function SalesCommissionsSection({
   );
 }
 
-function ListingRow({
-  listing,
-  action,
-  zebra,
-}: {
-  listing: SoldListing;
-  action: (propertyId: string, received: boolean) => Promise<void>;
-  zebra: boolean;
-}) {
-  const [received, setReceived] = useState(listing.sale_commission_received);
-  const [pending, start] = useTransition();
-  const [err, setErr] = useState(false);
-  // Sem comissão na propriedade não há o que receber — a Andrea preenche em Sales.
+function ListingRow({ listing, zebra }: { listing: SoldListing; zebra: boolean }) {
+  // Sem comissão na propriedade não há o que mostrar — a Andrea preenche em Sales.
   const missing = listing.sale_commission == null || listing.sale_commission <= 0;
-
-  function toggle() {
-    const next = !received;
-    setReceived(next);
-    setErr(false);
-    start(() =>
-      action(listing.id, next).catch(() => {
-        setReceived(!next);
-        setErr(true);
-      })
-    );
-  }
 
   return (
     <tr className={zebra ? "bg-black/[0.012]" : ""}>
@@ -135,32 +100,6 @@ function ListingRow({
             )}
           </span>
         )}
-      </td>
-      <td className="px-4 py-3">
-        <button
-          type="button"
-          onClick={toggle}
-          disabled={pending || missing}
-          className={
-            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 " +
-            (received
-              ? "bg-primary/10 text-primary hover:bg-primary/20"
-              : "bg-black/[0.05] text-ink/55 hover:bg-black/[0.08]")
-          }
-        >
-          {pending ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : received ? (
-            <Check className="h-3 w-3" />
-          ) : null}
-          {received ? "Received" : "Mark received"}
-        </button>
-        {received && listing.sale_commission_received_at && (
-          <span className="ml-2 text-[11px] text-ink/45">
-            {date(listing.sale_commission_received_at)}
-          </span>
-        )}
-        {err && <span className="ml-2 text-xs text-red-600">try again</span>}
       </td>
     </tr>
   );

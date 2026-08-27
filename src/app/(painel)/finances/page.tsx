@@ -6,7 +6,6 @@ import { can } from "@/lib/auth/capabilities";
 import { money } from "@/lib/format";
 import { Home, CalendarDays, Hammer, KeyRound, Receipt, TrendingUp, FileText } from "lucide-react";
 import { SalesCommissionsSection, type SoldListing } from "./SalesCommissionsSection";
-import { setSaleCommissionReceivedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -50,12 +49,13 @@ export default async function FinancesPage({
         "kind, bythec_commission, labor_total, material_total, service_commission, commission_collected, commission_collected_at, general_total, paid, paid_date, date"
       ),
     // Comissão de venda: LIDA da propriedade (sale_commission, 0027), não digitada
-    // de novo. Conta quando a casa está vendida — sale_status='sold' OU sold_at
-    // preenchido (a Andrea pode registrar a data antes de mexer no status).
+    // de novo. Casa vendida = comissão ganha (sai na mesa do fechamento, não tem
+    // etapa de cobrança). Vendida = sale_status='sold' OU sold_at preenchido — a
+    // Andrea pode registrar a data antes de mexer no status.
     supabase
       .from("properties")
       .select(
-        "id, address, address2, sale_price, sale_commission, sale_commission_rate, sale_status, sold_at, sale_commission_received, sale_commission_received_at, owner:owner_id (id, name)"
+        "id, address, address2, sale_price, sale_commission, sale_commission_rate, sale_status, sold_at, owner:owner_id (id, name)"
       )
       .eq("property_type", "for_sale")
       .is("archived_at", null)
@@ -67,8 +67,6 @@ export default async function FinancesPage({
   const payments = pays ?? [];
   const invoices = invs ?? [];
   const soldListings = (sold ?? []) as unknown as SoldListing[];
-  // Data que carimba a venda no tempo: quando a comissão entrou, senão o fechamento.
-  const soldWhen = (l: SoldListing) => l.sale_commission_received_at ?? l.sold_at;
   const expenses = exps ?? [];
 
   // Anos disponíveis a partir dos dados (+ ano corrente).
@@ -82,7 +80,7 @@ export default async function FinancesPage({
     if (y) yearsSet.add(y);
   }
   for (const l of soldListings) {
-    const y = yearOf(soldWhen(l));
+    const y = yearOf(l.sold_at);
     if (y) yearsSet.add(y);
   }
   for (const e of expenses) {
@@ -139,13 +137,13 @@ export default async function FinancesPage({
     }
   }
 
+  // Venda não tem "owed": a comissão sai na mesa do fechamento. Casa vendida =
+  // comissão ganha, contada no mês do fechamento. Por isso pending fica sempre 0.
   const sales: Stream = { received: 0, pending: 0 };
   for (const l of soldListings) {
     const amt = n(l.sale_commission);
-    if (!amt) continue;
-    if (l.sale_commission_received) {
-      if (match(soldWhen(l))) sales.received += amt;
-    } else if (match(l.sold_at)) sales.pending += amt;
+    if (!amt || !match(l.sold_at)) continue;
+    sales.received += amt;
   }
 
   const expensesTotal = expenses.reduce((s, e) => (match(e.date as string) ? s + n(e.price) : s), 0);
@@ -158,7 +156,7 @@ export default async function FinancesPage({
 
   const listingsForYear = isAll
     ? soldListings
-    : soldListings.filter((l) => yearOf(soldWhen(l)) === selYear);
+    : soldListings.filter((l) => yearOf(l.sold_at) === selYear);
 
   // ---- Monthly earnings (RECEIVED per period) ----
   // For a specific year: 12 months. For "All time": one row per year. Buckets by
@@ -200,7 +198,7 @@ export default async function FinancesPage({
     }
   }
   for (const l of soldListings) {
-    if (l.sale_commission_received) addTo(bucketKey(soldWhen(l)), "sales", n(l.sale_commission));
+    addTo(bucketKey(l.sold_at), "sales", n(l.sale_commission));
   }
   const periodRows = (
     isAll
@@ -213,12 +211,14 @@ export default async function FinancesPage({
   const maxPeriod = Math.max(1, ...periodRows.map((r) => r.total));
   const periodsTotal = periodRows.reduce((s, r) => s + r.total, 0);
 
+  // owed:false = stream sem etapa de cobrança (venda fecha e paga na hora), então
+  // o card não mostra uma coluna Owed que seria $0,00 pra sempre.
   const streams = [
-    { key: "yr", label: "Year-round rent commission", icon: Home, s: yearRound },
-    { key: "seasonal", label: "Seasonal commission (Airbnb/VRBO)", icon: CalendarDays, s: seasonal },
-    { key: "service", label: "Service commission (10%)", icon: Hammer, s: service },
-    { key: "general", label: "General invoices", icon: FileText, s: general },
-    { key: "sales", label: "Sales commission", icon: KeyRound, s: sales },
+    { key: "yr", label: "Year-round rent commission", icon: Home, s: yearRound, owed: true },
+    { key: "seasonal", label: "Seasonal commission (Airbnb/VRBO)", icon: CalendarDays, s: seasonal, owed: true },
+    { key: "service", label: "Service commission (10%)", icon: Hammer, s: service, owed: true },
+    { key: "general", label: "General invoices", icon: FileText, s: general, owed: true },
+    { key: "sales", label: "Sales commission", icon: KeyRound, s: sales, owed: false },
   ];
 
   return (
@@ -263,7 +263,7 @@ export default async function FinancesPage({
 
       {/* Streams */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {streams.map(({ key, label, icon: Icon, s }) => (
+        {streams.map(({ key, label, icon: Icon, s, owed }) => (
           <div key={key} className="rounded-2xl border border-black/[0.08] bg-white p-5 shadow-card">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -276,10 +276,12 @@ export default async function FinancesPage({
                 <p className="text-xs uppercase tracking-wider text-ink/45">Received</p>
                 <p className="text-xl font-bold text-primary">{money(s.received)}</p>
               </div>
-              <div className="text-right">
-                <p className="text-xs uppercase tracking-wider text-ink/45">Owed</p>
-                <p className="text-lg font-semibold text-ink/70">{money(s.pending)}</p>
-              </div>
+              {owed && (
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wider text-ink/45">Owed</p>
+                  <p className="text-lg font-semibold text-ink/70">{money(s.pending)}</p>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -342,13 +344,10 @@ export default async function FinancesPage({
       <div className="mt-8">
         <h2 className="h-display mb-1 text-base text-ink">Sales commissions {isAll ? "" : `· ${sel}`}</h2>
         <p className="mb-3 text-sm text-ink/55">
-          Read straight from each sold listing — set the price and commission once in Sales.
-          Mark it here when the money lands.
+          Every house you have sold, with the commission read straight off the listing. Set the
+          price and commission once in Sales and it lands here.
         </p>
-        <SalesCommissionsSection
-          listings={listingsForYear}
-          action={setSaleCommissionReceivedAction}
-        />
+        <SalesCommissionsSection listings={listingsForYear} />
       </div>
     </>
   );

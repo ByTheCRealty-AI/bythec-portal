@@ -134,8 +134,10 @@ export interface Client {
   // stamped when the deal leaves active and cleared when reopened.
   deal_status: DealStatus | null;
   deal_closed_at: string | null;
-  // Brokerage commission earned on this deal (migration 0026). Entered by
-  // owner/manager in Finances for closed deals. received = paid to By the C.
+  // LEGADO (migration 0026): a comissão de venda era digitada aqui, no deal.
+  // Desde 2026-08-27 o Finances LÊ da propriedade (properties.sale_commission,
+  // 0027) e estes campos não alimentam mais nenhum número. Mantidos só pra não
+  // quebrar linhas antigas; nenhum deal chegou a ter valor. Ver migration 0041.
   sale_commission: number | null;
   sale_commission_received: boolean;
 }
@@ -180,12 +182,9 @@ export interface Property {
   sale_commission_rate: number | null;
   sale_commission: number | null;
   // Data em que a casa foi vendida (editável na página da propriedade E na aba
-  // Sales, migration 0034). Dirige o mês do stream Sales no Finances.
+  // Sales, migration 0034). Casa vendida = comissão ganha: dirige o mês do stream
+  // Sales no Finances, que não tem etapa de "owed" (0041).
   sold_at: string | null;
-  // Regime de caixa da venda (0041): a comissão já entrou? Dirige o stream
-  // Sales do Finances, que LÊ o valor daqui em vez de pedir de novo.
-  sale_commission_received: boolean;
-  sale_commission_received_at: string | null;
   // Aparece no formulário público /apply quando true (migration 0029).
   accepting_applications?: boolean;
   accepts_year_round?: boolean;
