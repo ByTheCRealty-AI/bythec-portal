@@ -3,7 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { ClientType, PropertyType, DealSide } from "@/lib/types";
+import {
+  clientRoleFlagsFromForm,
+  propertyTypeFlagsFromForm,
+  type DealSide,
+} from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can } from "@/lib/auth/capabilities";
 
@@ -36,17 +40,18 @@ function seasonalBase(fd: FormData): "host_payout" | "paid_by_guest" {
 
 // ---- Clientes --------------------------------------------------------------
 
+
 export async function createClienteAction(fd: FormData) {
   const supabase = createClient();
   const profile = await getProfile();
-  const clientType = str(fd, "client_type") as ClientType;
-  const isBuySell = clientType === "buy_sell_client";
+  const roles = clientRoleFlagsFromForm(fd);
+  const isBuySell = roles.is_buyer_seller;
   const { data, error } = await supabase
     .from("clients")
     .insert({
       name: str(fd, "name"),
       created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
-      client_type: clientType,
+      ...roles, // client_type é derivado por trigger (0043)
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       // Sales fields only stored for buy/sell clients.
       realtor_id: isBuySell ? str(fd, "realtor_id") : null,
@@ -75,13 +80,13 @@ export async function createClienteAction(fd: FormData) {
 
 export async function updateClienteAction(id: string, fd: FormData) {
   const supabase = createClient();
-  const clientType = str(fd, "client_type") as ClientType;
-  const isBuySell = clientType === "buy_sell_client";
+  const roles = clientRoleFlagsFromForm(fd);
+  const isBuySell = roles.is_buyer_seller;
   const { error } = await supabase
     .from("clients")
     .update({
       name: str(fd, "name"),
-      client_type: clientType,
+      ...roles, // client_type é derivado por trigger (0043)
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       // Buy/sell: persist the sales fields from the form. Other types: clear them
       // (a client that stops being buy/sell shouldn't keep a stale realtor/stage).
@@ -293,7 +298,7 @@ export async function createPropriedadeAction(ownerId: string, fd: FormData) {
     address,
     address2: str(fd, "address2"),
     address_text: address ? address.toLowerCase() : null,
-    property_type: str(fd, "property_type") as PropertyType,
+    ...propertyTypeFlagsFromForm(fd), // property_type é derivado por trigger (0042)
     commission_fee: num(fd, "commission_fee"),
     seasonal_commission_rate: seasonalRate(fd),
     seasonal_commission_base: seasonalBase(fd),

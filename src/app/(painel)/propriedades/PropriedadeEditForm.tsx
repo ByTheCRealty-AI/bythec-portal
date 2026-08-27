@@ -1,19 +1,20 @@
 "use client";
 
-// Form de EDIÇÃO de propriedade (client) — reativo ao Type: For Sale mostra a
-// seção Sale e esconde Commission(seasonal) + Lease/rent; rental mostra rent.
+// Form de EDIÇÃO de propriedade (client) — reativo ao Type. As seções aparecem
+// por FLAG e podem coexistir (0042): uma casa anual à venda mostra Lease/rent E
+// Sale ao mesmo tempo.
 // Espelha o PropriedadeNovoForm, mas com defaults do registro existente.
 import { useState } from "react";
 import Link from "next/link";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import {
-  PROPERTY_TYPE_LABEL,
+  PROPERTY_TYPE_FLAGS,
   SEASONAL_COMMISSION_BASE_LABEL,
   RENT_COLLECTION_LABEL,
   type Property,
-  type PropertyType,
 } from "@/lib/types";
 import { SaleFields } from "./SaleFields";
+import { TypeCheckboxes } from "@/components/TypeCheckboxes";
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
@@ -28,9 +29,20 @@ export function PropriedadeEditForm({
   action: (fd: FormData) => void | Promise<void>;
   cleaners?: { id: string; name: string }[];
 }) {
-  const [type, setType] = useState<PropertyType>(p.property_type);
-  const isRental = type === "year_round_rental" || type === "off_season_rental";
-  const isForSale = type === "for_sale";
+  // Multi-tipo (0042): as seções aparecem por FLAG, e podem aparecer juntas —
+  // uma casa anual que está à venda mostra as duas.
+  const [types, setTypes] = useState<Record<string, boolean>>({
+    is_year_round: p.is_year_round,
+    is_vacation: p.is_vacation,
+    is_winter: p.is_winter,
+    is_for_sale: p.is_for_sale,
+  });
+  const isRental = types.is_year_round || types.is_winter;
+  const isForSale = types.is_for_sale;
+  // Comissão de aluguel/temporada vale pra QUALQUER tipo de aluguel. Antes era
+  // "!isForSale" — com multi-tipo, uma casa de temporada que também está à venda
+  // perderia a seção inteira (0042).
+  const isAnyRental = isRental || types.is_vacation;
 
   return (
     <form action={action} className="space-y-8">
@@ -43,25 +55,17 @@ export function PropriedadeEditForm({
           <Field label="Unit / apt">
             <input name="address2" defaultValue={p.address2 ?? ""} className={inputClass} />
           </Field>
-          <Field label="Type *">
-            <select
-              name="property_type"
-              required
-              value={type}
-              onChange={(e) => setType(e.target.value as PropertyType)}
-              className={inputClass}
-            >
-              {Object.entries(PROPERTY_TYPE_LABEL).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <TypeCheckboxes
+            legend="Type"
+            note="Pick every one that applies — a house can be a vacation and a winter rental, and be for sale at the same time."
+            options={PROPERTY_TYPE_FLAGS}
+            defaults={types}
+            onChange={setTypes}
+          />
         </div>
       </section>
 
-      {!isForSale && (
+      {isAnyRental && (
         <section className="glass p-6">
           <h2 className="h-display mb-5 text-base text-ink">Commission</h2>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

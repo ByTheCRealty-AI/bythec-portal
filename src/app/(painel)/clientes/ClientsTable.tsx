@@ -7,11 +7,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { CLIENT_TYPE_LABEL, type Client, type ClientType } from "@/lib/types";
+import { clientRoleLabels, type Client } from "@/lib/types";
 
-function toneFor(t: ClientType): "gold" | "orange" | "neutral" {
-  if (t === "airbnb_owner") return "orange";
-  if (t === "landlord") return "gold";
+// Tom por LABEL (multi-papel, 0043): a pessoa pode mostrar mais de um selo.
+function toneFor(label: string): "gold" | "orange" | "neutral" {
+  if (label === "Airbnb Owner") return "orange";
+  if (label === "Landlord") return "gold";
   return "neutral";
 }
 
@@ -106,7 +107,13 @@ export function ClientsTable({
                     )}
                   </td>
                   <td className="px-5 py-3.5">
-                    <Badge tone={toneFor(c.client_type)}>{CLIENT_TYPE_LABEL[c.client_type]}</Badge>
+                    <span className="flex flex-wrap gap-1">
+                      {clientRoleLabels(c).map((label) => (
+                        <Badge key={label} tone={toneFor(label)}>
+                          {label}
+                        </Badge>
+                      ))}
+                    </span>
                   </td>
                   <td className="px-5 py-3.5 text-ink/65">
                     {c.email ?? "—"}

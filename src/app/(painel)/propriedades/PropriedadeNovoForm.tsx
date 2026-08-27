@@ -5,13 +5,13 @@ import Link from "next/link";
 import { Field, inputClass, buttonClass, EmptyState } from "@/components/ui";
 import { PlusCircle } from "lucide-react";
 import {
-  PROPERTY_TYPE_LABEL,
+  PROPERTY_TYPE_FLAGS,
   SEASONAL_COMMISSION_BASE_LABEL,
   RENT_COLLECTION_LABEL,
-  type PropertyType,
 } from "@/lib/types";
 import { createPropriedadeStandaloneAction } from "./actions";
 import { SaleFields } from "./SaleFields";
+import { TypeCheckboxes } from "@/components/TypeCheckboxes";
 
 type OwnerOption = { id: string; name: string };
 
@@ -25,9 +25,11 @@ export function PropriedadeNovoForm({
   owners: OwnerOption[];
   cleaners?: { id: string; name: string }[];
 }) {
-  const [type, setType] = useState<PropertyType | "">("");
-  const isRental = type === "year_round_rental" || type === "off_season_rental";
-  const isForSale = type === "for_sale";
+  // Multi-tipo (0042): seções por flag, podem coexistir.
+  const [types, setTypes] = useState<Record<string, boolean>>({});
+  const isRental = !!types.is_year_round || !!types.is_winter;
+  const isForSale = !!types.is_for_sale;
+  const isAnyRental = isRental || !!types.is_vacation;
 
   // Sem clientes cadastrados não dá pra pendurar propriedade. CTA pro fluxo de
   // criação de cliente (empty state nunca vazio).
@@ -64,24 +66,13 @@ export function PropriedadeNovoForm({
               ))}
             </select>
           </Field>
-          <Field label="Type *">
-            <select
-              name="property_type"
-              required
-              value={type}
-              onChange={(e) => setType(e.target.value as PropertyType)}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select…
-              </option>
-              {Object.entries(PROPERTY_TYPE_LABEL).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <TypeCheckboxes
+            legend="Type"
+            note="Pick every one that applies — a house can be a vacation and a winter rental, and be for sale at the same time."
+            options={PROPERTY_TYPE_FLAGS}
+            defaults={types}
+            onChange={setTypes}
+          />
           <Field label="Address *" hint="From our records, with unit number — never from Google.">
             <input
               name="address"
@@ -97,7 +88,7 @@ export function PropriedadeNovoForm({
       </section>
 
       {/* Comissão — só pra NÃO-venda (venda usa a seção Sale). */}
-      {!isForSale && (
+      {isAnyRental && (
         <section className="glass p-6">
           <h2 className="h-display mb-5 text-base text-ink">Commission</h2>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

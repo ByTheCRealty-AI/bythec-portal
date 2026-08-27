@@ -134,6 +134,12 @@ export interface Client {
   // stamped when the deal leaves active and cleared when reopened.
   deal_status: DealStatus | null;
   deal_closed_at: string | null;
+  // Multi-papel (0043): a verdade. client_type é derivado destas.
+  is_tenant: boolean;
+  is_landlord: boolean;
+  is_airbnb_owner: boolean;
+  is_buyer_seller: boolean;
+  is_off_season_tenant: boolean;
   // LEGADO (migration 0026): a comissão de venda era digitada aqui, no deal.
   // Desde 2026-08-27 o Finances LÊ da propriedade (properties.sale_commission,
   // 0027) e estes campos não alimentam mais nenhum número. Mantidos só pra não
@@ -175,6 +181,11 @@ export interface Property {
   updated_at: string;
   // Sales (brokerage) — only meaningful on for_sale properties.
   realtor_id: string | null;
+  // Multi-tipo (0042): a verdade. property_type acima é derivado destas.
+  is_year_round: boolean;
+  is_vacation: boolean;
+  is_winter: boolean;
+  is_for_sale: boolean;
   sale_status: string | null;
   // For Sale: list price + By the C's sale commission (migration 0027). rate = %
   // (drives the $ in the UI); sale_commission = $ earned (authoritative).
@@ -208,6 +219,93 @@ export const PROPERTY_TYPE_LABEL: Record<PropertyType, string> = {
   off_season_rental: "Off-Season Rental",
   for_sale: "For Sale",
 };
+
+// ---------------------------------------------------------------------------
+// MULTI-TIPO (migrations 0042 properties / 0043 clients)
+// Uma casa pode ser temporada E inverno E estar à venda; uma pessoa pode ser
+// landlord E buyer/seller. As flags is_* são a verdade; property_type e
+// client_type são DERIVADOS por trigger e servem só pra leituras antigas.
+// FILTRAR sempre por flag — filtrar pelo derivado faz o registro sumir da aba.
+// ---------------------------------------------------------------------------
+
+export type PropertyTypeFlag = "is_year_round" | "is_vacation" | "is_winter" | "is_for_sale";
+export type ClientRoleFlag =
+  | "is_tenant"
+  | "is_landlord"
+  | "is_airbnb_owner"
+  | "is_buyer_seller"
+  | "is_off_season_tenant";
+
+// Ordem de exibição dos selos e das checkboxes dos formulários.
+export const PROPERTY_TYPE_FLAGS: { flag: PropertyTypeFlag; label: string; hint: string }[] = [
+  { flag: "is_year_round", label: "Year-Round Rental", hint: "Rented on a 12-month lease." },
+  { flag: "is_vacation", label: "Vacation Rental", hint: "Summer / Airbnb / VRBO." },
+  { flag: "is_winter", label: "Off-Season Rental", hint: "Winter rental. Can pair with vacation." },
+  { flag: "is_for_sale", label: "For Sale", hint: "On the market. A rented house can also be for sale." },
+];
+
+export const CLIENT_ROLE_FLAGS: { flag: ClientRoleFlag; label: string; hint: string }[] = [
+  { flag: "is_tenant", label: "Tenant", hint: "Rents a year-round property." },
+  { flag: "is_landlord", label: "Landlord", hint: "Owns a year-round rental we manage." },
+  { flag: "is_airbnb_owner", label: "Airbnb Owner", hint: "Owns a vacation rental we manage." },
+  { flag: "is_off_season_tenant", label: "Off-Season Tenant", hint: "Winter / off-season renter." },
+  { flag: "is_buyer_seller", label: "Buyer / Seller", hint: "Buying or selling with us." },
+];
+
+// Checkboxes do formulário -> flags booleanas. Nenhuma marcada cai no default
+// (year-round / tenant), a mesma rede de segurança do trigger no banco.
+// Vivem AQUI e não nas actions: arquivo "use server" só pode exportar função
+// async, e estes helpers são síncronos.
+export function propertyTypeFlagsFromForm(fd: FormData): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  let any = false;
+  for (const { flag } of PROPERTY_TYPE_FLAGS) {
+    const on = fd.get(flag) === "1" || fd.get(flag) === "on";
+    out[flag] = on;
+    if (on) any = true;
+  }
+  if (!any) out.is_year_round = true;
+  return out;
+}
+
+export function clientRoleFlagsFromForm(fd: FormData): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  let any = false;
+  for (const { flag } of CLIENT_ROLE_FLAGS) {
+    const on = fd.get(flag) === "1" || fd.get(flag) === "on";
+    out[flag] = on;
+    if (on) any = true;
+  }
+  if (!any) out.is_tenant = true;
+  return out;
+}
+
+// Selos de uma linha: todos os tipos que a casa/pessoa realmente tem.
+export function propertyTypeLabels(p: {
+  is_year_round?: boolean | null;
+  is_vacation?: boolean | null;
+  is_winter?: boolean | null;
+  is_for_sale?: boolean | null;
+  property_type?: PropertyType | null;
+}): string[] {
+  const out = PROPERTY_TYPE_FLAGS.filter((f) => p[f.flag]).map((f) => f.label);
+  // Linha antiga que ainda não passou pelo backfill: cai no derivado.
+  if (out.length === 0 && p.property_type) return [PROPERTY_TYPE_LABEL[p.property_type]];
+  return out;
+}
+
+export function clientRoleLabels(c: {
+  is_tenant?: boolean | null;
+  is_landlord?: boolean | null;
+  is_airbnb_owner?: boolean | null;
+  is_buyer_seller?: boolean | null;
+  is_off_season_tenant?: boolean | null;
+  client_type?: ClientType | null;
+}): string[] {
+  const out = CLIENT_ROLE_FLAGS.filter((f) => c[f.flag]).map((f) => f.label);
+  if (out.length === 0 && c.client_type) return [CLIENT_TYPE_LABEL[c.client_type]];
+  return out;
+}
 
 export const DEAL_SIDE_LABEL: Record<DealSide, string> = {
   buyer: "Buyer",
@@ -948,7 +1046,12 @@ export interface ListingPropertyOption {
   address: string;
   address2: string | null;
   owner_id: string | null;
-  property_type: PropertyType | null;
+  // Flags da propriedade (0042) — mesmos nomes das flags da listing, então o
+  // pré-preenchimento copia TODAS de uma vez.
+  is_for_sale: boolean;
+  is_year_round: boolean;
+  is_vacation: boolean;
+  is_winter: boolean;
   rent_price: number | null;
   photo_url: string | null;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 // Inline "Add property for sale" form on the Sales · For sale tab. Creates a
-// properties row (property_type='for_sale', sale_status='active') — shows up here
+// properties row (is_for_sale, sale_status='active') — shows up here
 // AND in the main Properties list. owner_id = the seller (a client).
 import { useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";

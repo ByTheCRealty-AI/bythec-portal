@@ -21,8 +21,8 @@ import {
   deleteClientDocumentAction,
 } from "../actions";
 import {
-  CLIENT_TYPE_LABEL,
-  PROPERTY_TYPE_LABEL,
+  clientRoleLabels,
+  propertyTypeLabels,
   DEAL_SIDE_LABEL,
   DEAL_STATUS_LABEL,
   type Client,
@@ -141,7 +141,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       <Card>
         <h3 className="h-display mb-3 text-sm text-ink/70">Identification</h3>
         <Row label="Name" value={client.name} />
-        <Row label="Type" value={CLIENT_TYPE_LABEL[client.client_type]} />
+        <Row label="Type" value={clientRoleLabels(client).join(" · ")} />
         <Row label="Email" value={client.email} />
         <Row label="Phone" value={client.phone} />
       </Card>
@@ -157,7 +157,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           ].filter(Boolean).join(" · ") || "None"}
         />
       </Card>
-      {client.client_type === "buy_sell_client" && (
+      {client.is_buyer_seller && (
         <Card>
           <h3 className="h-display mb-3 text-sm text-ink/70">Deal</h3>
           <Row label="Side" value={client.deal_side ? DEAL_SIDE_LABEL[client.deal_side] : null} />
@@ -201,7 +201,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           <p className="font-semibold text-ink">{p.address}</p>
           {p.address2 && <p className="text-xs text-ink/45">{p.address2}</p>}
         </div>
-        <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
+        {propertyTypeLabels(p).map((label) => (
+          <Badge key={label} tone="orange">
+            {label}
+          </Badge>
+        ))}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
         <div>
@@ -382,7 +386,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       <BackButton />
       <PageHeader
         title={client.name}
-        subtitle={CLIENT_TYPE_LABEL[client.client_type]}
+        subtitle={clientRoleLabels(client).join(" · ")}
         action={
           <div className="flex items-center gap-3">
             {archived && <Badge tone="muted">Archived</Badge>}

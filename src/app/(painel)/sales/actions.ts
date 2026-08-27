@@ -3,8 +3,9 @@
 // =============================================================================
 // By the C — Sales (brokerage) server actions
 // =============================================================================
-// Buy/sell clients are NORMAL `clients` rows (client_type='buy_sell_client').
-// For-sale listings are NORMAL `properties` rows (property_type='for_sale').
+// Buy/sell clients are NORMAL `clients` rows (is_buyer_seller). For-sale
+// listings are NORMAL `properties` rows (is_for_sale). client_type and
+// property_type are DERIVED by trigger (0042/0043) — never written directly.
 // We never duplicate them — Sales just reads/writes the brokerage columns
 // (deal_side, sales_stage, realtor_id on clients; realtor_id, sale_status on
 // properties). Each action re-checks the capability server-side (defense in
@@ -13,7 +14,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { ClientType, DealSide, DealStatus } from "@/lib/types";
+import type { DealSide, DealStatus } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 
@@ -53,7 +54,7 @@ export async function addSalesClientAction(fd: FormData) {
     .insert({
       name,
       created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
-      client_type: "buy_sell_client" as ClientType,
+      is_buyer_seller: true, // client_type é derivado por trigger (0043)
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       sales_stage: str(fd, "sales_stage"),
       realtor_id: str(fd, "realtor_id"),
@@ -81,7 +82,7 @@ export async function addSalesClientAction(fd: FormData) {
 }
 
 // ---- Create a FOR-SALE listing straight from the Sales screen --------------
-// Produces a properties row (property_type='for_sale', sale_status='active') that
+// Produces a properties row (is_for_sale, sale_status='active') that
 // shows up in BOTH the For sale tab and the main Properties list. owner_id = the
 // seller (a client). Same properties.edit gate; RLS reinforces in the DB.
 export async function addForSaleListingAction(fd: FormData) {
@@ -103,7 +104,7 @@ export async function addForSaleListingAction(fd: FormData) {
       address,
       address2: str(fd, "address2"),
       address_text: address.toLowerCase(),
-      property_type: "for_sale",
+      is_for_sale: true, // property_type é derivado por trigger (0042)
       sale_status: "active",
       // Comissão da VENDA (0027). Antes gravava commission_fee — que é a taxa do
       // ALUGUEL — então o valor sumia da propriedade e da tela de Sales.
@@ -270,7 +271,7 @@ export async function setListingSaleMoneyAction(fd: FormData) {
       sale_commission: numOrNull(fd, "sale_commission"),
     })
     .eq("id", id)
-    .eq("property_type", "for_sale");
+    .eq("is_for_sale", true);
   if (error) throw new Error(error.message);
   revalidatePath("/sales");
   revalidatePath(`/propriedades/${id}`);

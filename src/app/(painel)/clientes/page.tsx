@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
-import { CLIENT_TYPE_LABEL, type Client } from "@/lib/types";
+import { CLIENT_ROLE_FLAGS, type Client } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { Users, Plus, Archive } from "lucide-react";
@@ -16,7 +16,10 @@ async function load(typeFilter?: string, archivedView = false) {
     const supabase = createClient();
     let q = supabase.from("clients").select("*").order("name", { ascending: true });
     q = archivedView ? q.not("archived_at", "is", null) : q.is("archived_at", null);
-    if (typeFilter) q = q.eq("client_type", typeFilter);
+    // Filtro por FLAG (0043): quem é landlord E buyer/seller aparece nos dois.
+    // Valor vem da URL: só nome de flag conhecido vira nome de coluna.
+    const flag = CLIENT_ROLE_FLAGS.find((f) => f.flag === typeFilter)?.flag;
+    if (flag) q = q.eq(flag, true);
     const { data, error } = await q;
     if (error) throw error;
     return { ok: true as const, clients: (data ?? []) as Client[] };
@@ -27,7 +30,7 @@ async function load(typeFilter?: string, archivedView = false) {
 
 const FILTERS: Array<{ value: string; label: string }> = [
   { value: "", label: "All" },
-  ...Object.entries(CLIENT_TYPE_LABEL).map(([value, label]) => ({ value, label })),
+  ...CLIENT_ROLE_FLAGS.map(({ flag, label }) => ({ value: flag, label })),
 ];
 
 export default async function ClientesPage({

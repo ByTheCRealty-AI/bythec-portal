@@ -34,7 +34,6 @@ import {
   type Listing,
   type ListingPhoto,
   type ListingPropertyOption,
-  type PropertyType,
 } from "@/lib/types";
 
 type Action = (fd: FormData) => void | Promise<void>;
@@ -136,16 +135,13 @@ function ListingFields({
     setAddress(p.address ?? "");
     setAddress2(p.address2 ?? "");
     if (p.owner_id) setClientId(p.owner_id);
-    // A property já sabe o tipo dela; liga a flag equivalente se nada foi marcado.
-    if (p.property_type && !LISTING_TYPE_FLAGS.some((f) => types[f])) {
-      const map: Record<PropertyType, ListingTypeFlag> = {
-        for_sale: "is_for_sale",
-        year_round_rental: "is_year_round",
-        vacation_rental: "is_vacation",
-        off_season_rental: "is_winter",
-      };
-      const flag = map[p.property_type];
-      if (flag) setTypes((t) => ({ ...t, [flag]: true }));
+    // A property já sabe os tipos dela (0042) e as flags têm o MESMO nome das da
+    // listing — copia TODAS. Antes só copiava uma, então uma casa temporada +
+    // inverno virava listing só de temporada.
+    if (!LISTING_TYPE_FLAGS.some((f) => types[f])) {
+      const copied: Partial<Record<ListingTypeFlag, boolean>> = {};
+      for (const f of LISTING_TYPE_FLAGS) if (p[f]) copied[f] = true;
+      if (Object.keys(copied).length) setTypes((t) => ({ ...t, ...copied }));
     }
     if (p.rent_price != null && !price) setPrice(String(p.rent_price));
   }

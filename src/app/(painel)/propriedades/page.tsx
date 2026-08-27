@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/components/ui";
-import { PROPERTY_TYPE_LABEL, type Property } from "@/lib/types";
+import { PROPERTY_TYPE_FLAGS, type Property } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { Home, Plus, Archive, FolderUp } from "lucide-react";
@@ -24,7 +24,12 @@ async function load(typeFilter?: string, archivedView = false) {
       .select("*, owner:owner_id (id, name), tenant:tenant_id (id, name)")
       .order("address", { ascending: true });
     q = archivedView ? q.not("archived_at", "is", null) : q.is("archived_at", null);
-    if (typeFilter) q = q.eq("property_type", typeFilter);
+    // O filtro é por FLAG (0042): uma casa temporada + inverno aparece nos DOIS
+    // filtros. Com o property_type derivado ela só apareceria em um.
+    // O valor vem da URL, então só aceita nome de flag conhecido — nunca passa
+    // string arbitrária como nome de coluna.
+    const flag = PROPERTY_TYPE_FLAGS.find((f) => f.flag === typeFilter)?.flag;
+    if (flag) q = q.eq(flag, true);
     const { data, error } = await q;
     if (error) throw error;
     return { ok: true as const, properties: (data ?? []) as unknown as PropertyRow[] };
@@ -35,7 +40,7 @@ async function load(typeFilter?: string, archivedView = false) {
 
 const FILTERS = [
   { value: "", label: "All" },
-  ...Object.entries(PROPERTY_TYPE_LABEL).map(([value, label]) => ({ value, label })),
+  ...PROPERTY_TYPE_FLAGS.map(({ flag, label }) => ({ value: flag, label })),
 ];
 
 export default async function PropriedadesPage({

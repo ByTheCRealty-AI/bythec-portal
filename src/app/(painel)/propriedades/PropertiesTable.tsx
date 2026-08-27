@@ -8,16 +8,17 @@ import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { money } from "@/lib/format";
-import { PROPERTY_TYPE_LABEL, type Property, type PropertyType } from "@/lib/types";
+import { propertyTypeLabels, type Property } from "@/lib/types";
 
 type PropertyRow = Property & {
   owner: { id: string; name: string } | null;
   tenant: { id: string; name: string } | null;
 };
 
-function toneFor(t: PropertyType): "gold" | "orange" | "neutral" {
-  if (t === "vacation_rental") return "orange";
-  if (t === "for_sale") return "gold";
+// Tom por LABEL (multi-tipo, 0042): a casa pode mostrar mais de um selo.
+function toneFor(label: string): "gold" | "orange" | "neutral" {
+  if (label === "Vacation Rental") return "orange";
+  if (label === "For Sale") return "gold";
   return "neutral";
 }
 
@@ -177,7 +178,13 @@ export function PropertiesTable({
                   ) : (
                     <>
                       <td className="px-5 py-3.5">
-                        <Badge tone={toneFor(p.property_type)}>{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
+                        <span className="flex flex-wrap gap-1">
+                          {propertyTypeLabels(p).map((label) => (
+                            <Badge key={label} tone={toneFor(label)}>
+                              {label}
+                            </Badge>
+                          ))}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5 text-ink/65">
                         {p.owner ? (

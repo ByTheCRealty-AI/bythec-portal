@@ -4,13 +4,14 @@ import { useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import { PhoneInput, AddressFields } from "@/components/form-fields";
 import {
-  CLIENT_TYPE_LABEL,
+  CLIENT_ROLE_FLAGS,
   DEAL_SIDE_LABEL,
   BUYER_STAGE_LABEL,
   SELLER_STAGE_LABEL,
 } from "@/lib/types";
 import type { Client, Realtor } from "@/lib/types";
 import Link from "next/link";
+import { TypeCheckboxes } from "@/components/TypeCheckboxes";
 
 // Field names das colunas de billing no banco (clients) pro AddressFields.
 const BILLING_ADDRESS_NAMES = {
@@ -38,9 +39,17 @@ export function ClienteForm({
   cancelHref: string;
   realtors?: Realtor[];
 }) {
-  const [clientType, setClientType] = useState<string>(client?.client_type ?? "");
+  // Multi-papel (0043): a mesma pessoa pode ser landlord E buyer/seller. Antes
+  // era um dropdown de escolha única e virava DOIS cadastros pra mesma pessoa.
+  const [roles, setRoles] = useState<Record<string, boolean>>({
+    is_tenant: !!client?.is_tenant,
+    is_landlord: !!client?.is_landlord,
+    is_airbnb_owner: !!client?.is_airbnb_owner,
+    is_buyer_seller: !!client?.is_buyer_seller,
+    is_off_season_tenant: !!client?.is_off_season_tenant,
+  });
   const [side, setSide] = useState<string>(client?.deal_side ?? "");
-  const isBuySell = clientType === "buy_sell_client";
+  const isBuySell = !!roles.is_buyer_seller;
   const stageOptions = side === "seller" ? SELLER_STAGE_LABEL : BUYER_STAGE_LABEL;
 
   return (
@@ -52,20 +61,13 @@ export function ClienteForm({
           <Field label="Name *">
             <input name="name" required defaultValue={client?.name ?? ""} className={inputClass} placeholder="Client name" />
           </Field>
-          <Field label="Client type *" hint="Primary role. Extra roles can be assigned later without losing history.">
-            <select
-              name="client_type"
-              required
-              value={clientType}
-              onChange={(e) => setClientType(e.target.value)}
-              className={inputClass}
-            >
-              <option value="" disabled>Select…</option>
-              {Object.entries(CLIENT_TYPE_LABEL).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
-              ))}
-            </select>
-          </Field>
+          <TypeCheckboxes
+            legend="Client type"
+            note="Pick every role this person has — a landlord selling a house is both, on one record."
+            options={CLIENT_ROLE_FLAGS}
+            defaults={roles}
+            onChange={setRoles}
+          />
           <Field label="Email">
             <input name="email" type="email" defaultValue={client?.email ?? ""} className={inputClass} placeholder="name@email.com" />
           </Field>

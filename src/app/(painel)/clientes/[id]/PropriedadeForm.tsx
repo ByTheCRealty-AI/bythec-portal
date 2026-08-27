@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
-import { PROPERTY_TYPE_LABEL, SEASONAL_COMMISSION_BASE_LABEL, type PropertyType } from "@/lib/types";
+import { PROPERTY_TYPE_FLAGS, SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
+import { TypeCheckboxes } from "@/components/TypeCheckboxes";
 import { createPropriedadeAction } from "../actions";
 import { Plus } from "lucide-react";
 
@@ -17,10 +18,11 @@ export function PropriedadeForm({
   ownerBillingAddress: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<PropertyType | "">("");
+  // Multi-tipo (0042).
+  const [types, setTypes] = useState<Record<string, boolean>>({});
 
   const action = createPropriedadeAction.bind(null, ownerId);
-  const isRental = type === "year_round_rental" || type === "off_season_rental";
+  const isRental = !!types.is_year_round || !!types.is_winter;
 
   if (!open) {
     return (
@@ -56,20 +58,13 @@ export function PropriedadeForm({
         <Field label="Unit / apt">
           <input name="address2" className={inputClass} placeholder="Unit 1" />
         </Field>
-        <Field label="Type *">
-          <select
-            name="property_type"
-            required
-            value={type}
-            onChange={(e) => setType(e.target.value as PropertyType)}
-            className={inputClass}
-          >
-            <option value="" disabled>Select…</option>
-            {Object.entries(PROPERTY_TYPE_LABEL).map(([v, label]) => (
-              <option key={v} value={v}>{label}</option>
-            ))}
-          </select>
-        </Field>
+        <TypeCheckboxes
+          legend="Type"
+          note="Pick every one that applies."
+          options={PROPERTY_TYPE_FLAGS}
+          defaults={types}
+          onChange={setTypes}
+        />
         <Field label="Commission (% / amount per home)" hint="For vacation rentals, the % is confirmed with Andrea.">
           <input name="commission_fee" type="number" step="0.01" className={inputClass} placeholder="12.50" />
         </Field>

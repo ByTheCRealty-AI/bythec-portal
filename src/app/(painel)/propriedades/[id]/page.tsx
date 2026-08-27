@@ -66,7 +66,7 @@ import {
   deleteDepositReceiptAction,
 } from "../../payments/actions";
 import {
-  PROPERTY_TYPE_LABEL,
+  propertyTypeLabels,
   RENT_COLLECTION_LABEL,
   type Property,
   type Note,
@@ -105,7 +105,8 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   if (error || !data) notFound();
   const p = data as unknown as PropertyRow;
   const archived = p.archived_at !== null;
-  const isRental = p.property_type === "year_round_rental" || p.property_type === "off_season_rental";
+  // Flags (0042): uma casa anual que também está à venda continua sendo aluguel.
+  const isRental = p.is_year_round || p.is_winter;
 
   // Owner-only: pode hard-delete (a UI só aparece pra owner; o banco reforça).
   const profile = await getProfile();
@@ -303,7 +304,11 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="h-display text-sm text-ink/70">Details</h3>
-          <Badge tone="orange">{PROPERTY_TYPE_LABEL[p.property_type]}</Badge>
+          {propertyTypeLabels(p).map((label) => (
+            <Badge key={label} tone="orange">
+              {label}
+            </Badge>
+          ))}
         </div>
         <Row label="Address" value={p.address} />
         <Row label="Unit / apt" value={p.address2} />
@@ -383,7 +388,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         </Card>
       )}
 
-      {p.property_type === "for_sale" && (
+      {p.is_for_sale && (
         <Card className="md:col-span-2">
           <h3 className="h-display mb-3 text-sm text-ink/70">Sale</h3>
           <div className="grid grid-cols-2 gap-x-8 sm:grid-cols-3">
@@ -668,7 +673,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const canUploadDocs = canEditProperty || canEditOps;
   // For Sale: sem inquilino. Documentos são só da propriedade — esconde o seletor
   // "Belongs to" (add) e o botão "Tenant" (re-tag) nas rows.
-  const isForSaleProp = p.property_type === "for_sale";
+  const isForSaleProp = p.is_for_sale;
 
   // "Belongs to" grouping: Current tenant -> Past tenant(s) -> Property docs.
   //  - current: tenant_id == current tenant (only when the property is occupied).
@@ -857,7 +862,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       <BackButton />
       <PageHeader
         title={p.address}
-        subtitle={p.address2 ?? PROPERTY_TYPE_LABEL[p.property_type]}
+        subtitle={p.address2 ?? propertyTypeLabels(p).join(" · ")}
         action={
           <div className="flex items-center gap-3">
             {archived && <Badge tone="muted">Archived</Badge>}

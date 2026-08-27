@@ -47,7 +47,7 @@ async function load() {
       // existing property", que preenche endereço/dono/categoria sozinho.
       supabase
         .from("properties")
-        .select("id, address, address2, owner_id, property_type, rent_price, photo_url")
+        .select("id, address, address2, owner_id, is_for_sale, is_year_round, is_vacation, is_winter, rent_price, photo_url")
         .is("archived_at", null)
         .order("address", { ascending: true }),
       // Todas as fotos de uma vez (dezenas de linhas) e agrupadas em memória —

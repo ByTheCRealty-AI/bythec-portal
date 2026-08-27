@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { PropertyType, RequestStatus } from "@/lib/types";
+import { propertyTypeFlagsFromForm, type RequestStatus } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can, canReorderDocuments } from "@/lib/auth/capabilities";
 import { generateMonthlyPaymentsAction } from "../payments/actions";
@@ -39,6 +39,7 @@ export async function createPropriedadeStandaloneAction(fd: FormData) {
   const profile = await getProfile();
   const ownerId = str(fd, "owner_id");
   if (!ownerId) throw new Error("An owner is required to create a property.");
+  const types = propertyTypeFlagsFromForm(fd);
   const address = str(fd, "address");
   const { data, error } = await supabase
     .from("properties")
@@ -48,7 +49,7 @@ export async function createPropriedadeStandaloneAction(fd: FormData) {
       address,
       address2: str(fd, "address2"),
       address_text: address ? address.toLowerCase() : null,
-      property_type: str(fd, "property_type") as PropertyType,
+      ...types, // property_type é derivado por trigger (0042)
       commission_fee: num(fd, "commission_fee"),
       seasonal_commission_rate: seasonalRate(fd),
       seasonal_commission_base: seasonalBase(fd),
@@ -82,7 +83,7 @@ export async function updatePropriedadeAction(id: string, fd: FormData) {
       address,
       address2: str(fd, "address2"),
       address_text: address ? address.toLowerCase() : null,
-      property_type: str(fd, "property_type") as PropertyType, // mudar tipo carrega histórico
+      ...propertyTypeFlagsFromForm(fd), // property_type é derivado por trigger (0042)
       commission_fee: num(fd, "commission_fee"),
       seasonal_commission_rate: seasonalRate(fd),
       seasonal_commission_base: seasonalBase(fd),
@@ -130,12 +131,12 @@ export async function assignTenancyAction(fd: FormData) {
 
   const { data: prop, error: propErr } = await supabase
     .from("properties")
-    .select("id, tenant_id, property_type")
+    .select("id, tenant_id, is_winter, is_year_round")
     .eq("id", propertyId)
     .maybeSingle();
   if (propErr) throw new Error(propErr.message);
   if (!prop) throw new Error("That property could not be found.");
-  const p = prop as { id: string; tenant_id: string | null; property_type: PropertyType };
+  const p = prop as { id: string; tenant_id: string | null; is_winter: boolean; is_year_round: boolean };
   const previousTenantId = p.tenant_id;
 
   // Novo inquilino: existente (tenant_id) OU novo cliente (cria o client).
@@ -143,15 +144,17 @@ export async function assignTenancyAction(fd: FormData) {
   if (str(fd, "tenant_mode") === "new") {
     const name = str(fd, "new_name");
     if (!name) throw new Error("Enter the new tenant's name.");
-    const clientType =
-      p.property_type === "off_season_rental" ? "off_season_tenant" : "tenant";
+    // Só é off-season tenant quando a casa é EXCLUSIVAMENTE de inverno. Casa
+    // que é anual E inverno gera inquilino normal (0042/0043).
+    const offSeasonOnly = p.is_winter && !p.is_year_round;
     const { data: created, error: cErr } = await supabase
       .from("clients")
       .insert({
         name,
         email: str(fd, "new_email"),
         phone: str(fd, "new_phone"),
-        client_type: clientType,
+        is_off_season_tenant: offSeasonOnly,
+        is_tenant: !offSeasonOnly, // client_type é derivado por trigger (0043)
       })
       .select("id")
       .single();

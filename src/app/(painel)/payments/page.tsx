@@ -66,7 +66,9 @@ async function loadEligibleProperties(): Promise<PaymentPropertyOption[]> {
       .from("properties")
       .select("id, address, address2, rent_price")
       .is("archived_at", null)
-      .in("property_type", ["year_round_rental", "off_season_rental"])
+      // Flags, não property_type derivado: uma casa "anual + à venda" deriva pra
+      // for_sale e sumiria do picker de pagamento (0042).
+      .or("is_year_round.eq.true,is_winter.eq.true")
       .order("address", { ascending: true });
     if (error) throw error;
     return (data ?? []) as unknown as PaymentPropertyOption[];

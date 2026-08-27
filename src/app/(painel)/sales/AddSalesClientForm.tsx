@@ -23,7 +23,7 @@ const ADDRESS_NAMES = {
 } as const;
 
 // Inline "Add buyer/seller" form on the Sales screen. Creates a buy/sell client
-// (client_type='buy_sell_client') with side + realtor + stage. The stage options
+// (is_buyer_seller) with side + realtor + stage. The stage options
 // swap based on the chosen side (buyer vs seller; "both" shows the buyer ladder).
 export function AddSalesClientForm({
   realtors,

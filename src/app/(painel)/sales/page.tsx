@@ -21,13 +21,15 @@ async function load() {
       supabase
         .from("clients")
         .select("*")
-        .eq("client_type", "buy_sell_client")
+        // is_buyer_seller, não client_type: um landlord que também vende deriva
+        // pra landlord e sumiria daqui (0043).
+        .eq("is_buyer_seller", true)
         .is("archived_at", null)
         .order("name", { ascending: true }),
       supabase
         .from("properties")
         .select("id, address, address2, sale_price, sale_commission, sale_commission_rate, sale_status, sold_at, realtor_id, owner:owner_id (id, name)")
-        .eq("property_type", "for_sale")
+        .eq("is_for_sale", true)
         .is("archived_at", null)
         .order("address", { ascending: true }),
       supabase

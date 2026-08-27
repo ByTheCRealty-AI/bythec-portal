@@ -57,7 +57,7 @@ export default async function FinancesPage({
       .select(
         "id, address, address2, sale_price, sale_commission, sale_commission_rate, sale_status, sold_at, owner:owner_id (id, name)"
       )
-      .eq("property_type", "for_sale")
+      .eq("is_for_sale", true)
       .is("archived_at", null)
       .or("sale_status.eq.sold,sold_at.not.is.null")
       .order("sold_at", { ascending: false }),
