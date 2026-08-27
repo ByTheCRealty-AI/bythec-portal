@@ -21,7 +21,9 @@ import {
   setListingStatusAction,
   setDealOutcomeAction,
   addForSaleListingAction,
+  setListingSoldDateAction,
 } from "./actions";
+import { InlineDateEditor } from "@/components/InlineDateEditor";
 
 export type ListingRow = {
   id: string;
@@ -34,6 +36,7 @@ export type ListingRow = {
   sale_commission: number | null;
   sale_commission_rate: number | null;
   sale_status: string | null;
+  sold_at: string | null;
   realtor_id: string | null;
   owner: { id: string; name: string } | null;
 };
@@ -541,7 +544,7 @@ function ListingsTable({
   canEdit: boolean;
 }) {
   return (
-    <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
+    <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm">
       <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
         <tr>
           <th className="px-5 py-3 font-bold">Address</th>
@@ -549,6 +552,7 @@ function ListingsTable({
           <th className="px-5 py-3 font-bold">Price</th>
           <th className="px-5 py-3 font-bold">Commission</th>
           <th className="px-5 py-3 font-bold">Sale status</th>
+          <th className="px-5 py-3 font-bold">Closed</th>
           <th className="px-5 py-3 font-bold">Realtor</th>
         </tr>
       </thead>
@@ -597,6 +601,16 @@ function ListingsTable({
                 action={setListingStatusAction}
                 placeholder="Set status"
                 disabled={!canEdit}
+              />
+            </td>
+            {/* Data de fechamento — mesma action já usada na página da propriedade,
+                agora editável direto daqui (a Andrea trabalha nesta tela). */}
+            <td className="px-5 py-3.5">
+              <InlineDateEditor
+                action={setListingSoldDateAction}
+                id={p.id}
+                initial={p.sold_at}
+                canEdit={canEdit}
               />
             </td>
             <td className="px-5 py-3.5">
