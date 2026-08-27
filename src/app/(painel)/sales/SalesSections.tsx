@@ -22,8 +22,10 @@ import {
   setDealOutcomeAction,
   addForSaleListingAction,
   setListingSoldDateAction,
+  setListingSaleMoneyAction,
 } from "./actions";
 import { InlineDateEditor } from "@/components/InlineDateEditor";
+import { InlineSaleMoney } from "./InlineSaleMoney";
 
 export type ListingRow = {
   id: string;
@@ -577,8 +579,15 @@ function ListingsTable({
                 "—"
               )}
             </td>
-            <td className="px-5 py-3.5 text-ink/65">
-              {p.sale_price != null ? money(p.sale_price) : "—"}
+            <td className="px-5 py-3.5">
+              <InlineSaleMoney
+                id={p.id}
+                price={p.sale_price}
+                rate={p.sale_commission_rate}
+                amount={p.sale_commission}
+                canEdit={canEdit}
+                action={setListingSaleMoneyAction}
+              />
             </td>
             <td className="px-5 py-3.5 text-ink/65">
               {p.sale_commission != null ? (

@@ -5,8 +5,8 @@ import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { money } from "@/lib/format";
 import { Home, CalendarDays, Hammer, KeyRound, Receipt, TrendingUp, FileText } from "lucide-react";
-import { SalesCommissionsSection, type ClosedDeal } from "./SalesCommissionsSection";
-import { setSaleCommissionAction } from "./actions";
+import { SalesCommissionsSection, type SoldListing } from "./SalesCommissionsSection";
+import { setSaleCommissionReceivedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,7 @@ export default async function FinancesPage({
   }
 
   const supabase = createClient();
-  const [{ data: pays }, { data: invs }, { data: deals }, { data: exps }] = await Promise.all([
+  const [{ data: pays }, { data: invs }, { data: sold }, { data: exps }] = await Promise.all([
     supabase
       .from("payments")
       .select("commission, status, received_at, month, due_date")
@@ -49,18 +49,26 @@ export default async function FinancesPage({
       .select(
         "kind, bythec_commission, labor_total, material_total, service_commission, commission_collected, commission_collected_at, general_total, paid, paid_date, date"
       ),
+    // Comissão de venda: LIDA da propriedade (sale_commission, 0027), não digitada
+    // de novo. Conta quando a casa está vendida — sale_status='sold' OU sold_at
+    // preenchido (a Andrea pode registrar a data antes de mexer no status).
     supabase
-      .from("clients")
-      .select("id, name, sale_commission, sale_commission_received, deal_closed_at")
-      .eq("client_type", "buy_sell_client")
-      .eq("deal_status", "closed")
-      .order("deal_closed_at", { ascending: false }),
+      .from("properties")
+      .select(
+        "id, address, address2, sale_price, sale_commission, sale_commission_rate, sale_status, sold_at, sale_commission_received, sale_commission_received_at, owner:owner_id (id, name)"
+      )
+      .eq("property_type", "for_sale")
+      .is("archived_at", null)
+      .or("sale_status.eq.sold,sold_at.not.is.null")
+      .order("sold_at", { ascending: false }),
     supabase.from("expenses").select("price, date, paid").is("archived_at", null),
   ]);
 
   const payments = pays ?? [];
   const invoices = invs ?? [];
-  const closedDeals = (deals ?? []) as ClosedDeal[];
+  const soldListings = (sold ?? []) as unknown as SoldListing[];
+  // Data que carimba a venda no tempo: quando a comissão entrou, senão o fechamento.
+  const soldWhen = (l: SoldListing) => l.sale_commission_received_at ?? l.sold_at;
   const expenses = exps ?? [];
 
   // Anos disponíveis a partir dos dados (+ ano corrente).
@@ -73,8 +81,8 @@ export default async function FinancesPage({
     const y = yearOf((iv.paid_date as string) ?? (iv.date as string));
     if (y) yearsSet.add(y);
   }
-  for (const d of closedDeals) {
-    const y = yearOf(d.deal_closed_at);
+  for (const l of soldListings) {
+    const y = yearOf(soldWhen(l));
     if (y) yearsSet.add(y);
   }
   for (const e of expenses) {
@@ -132,11 +140,12 @@ export default async function FinancesPage({
   }
 
   const sales: Stream = { received: 0, pending: 0 };
-  for (const d of closedDeals) {
-    const amt = n(d.sale_commission);
-    if (!amt || !match(d.deal_closed_at)) continue;
-    if (d.sale_commission_received) sales.received += amt;
-    else sales.pending += amt;
+  for (const l of soldListings) {
+    const amt = n(l.sale_commission);
+    if (!amt) continue;
+    if (l.sale_commission_received) {
+      if (match(soldWhen(l))) sales.received += amt;
+    } else if (match(l.sold_at)) sales.pending += amt;
   }
 
   const expensesTotal = expenses.reduce((s, e) => (match(e.date as string) ? s + n(e.price) : s), 0);
@@ -147,7 +156,9 @@ export default async function FinancesPage({
     yearRound.pending + seasonal.pending + service.pending + general.pending + sales.pending;
   const net = totalReceived - expensesTotal;
 
-  const dealsForYear = isAll ? closedDeals : closedDeals.filter((d) => yearOf(d.deal_closed_at) === selYear);
+  const listingsForYear = isAll
+    ? soldListings
+    : soldListings.filter((l) => yearOf(soldWhen(l)) === selYear);
 
   // ---- Monthly earnings (RECEIVED per period) ----
   // For a specific year: 12 months. For "All time": one row per year. Buckets by
@@ -188,8 +199,8 @@ export default async function FinancesPage({
       addTo(bucketKey(when), "general", n(iv.general_total));
     }
   }
-  for (const d of closedDeals) {
-    if (d.sale_commission_received) addTo(bucketKey(d.deal_closed_at), "sales", n(d.sale_commission));
+  for (const l of soldListings) {
+    if (l.sale_commission_received) addTo(bucketKey(soldWhen(l)), "sales", n(l.sale_commission));
   }
   const periodRows = (
     isAll
@@ -331,9 +342,13 @@ export default async function FinancesPage({
       <div className="mt-8">
         <h2 className="h-display mb-1 text-base text-ink">Sales commissions {isAll ? "" : `· ${sel}`}</h2>
         <p className="mb-3 text-sm text-ink/55">
-          Record what By the C earned on each closed sale, and mark it when received.
+          Read straight from each sold listing — set the price and commission once in Sales.
+          Mark it here when the money lands.
         </p>
-        <SalesCommissionsSection deals={dealsForYear} action={setSaleCommissionAction} />
+        <SalesCommissionsSection
+          listings={listingsForYear}
+          action={setSaleCommissionReceivedAction}
+        />
       </div>
     </>
   );

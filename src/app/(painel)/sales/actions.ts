@@ -250,6 +250,33 @@ export async function setDealClosedDateAction(fd: FormData) {
   revalidatePath("/finances");
 }
 
+// ---- Editar preço de venda + % + comissão DIRETO na tabela For sale ---------
+// A Andrea trabalha na tela Sales; antes esses campos só existiam no form de
+// editar a propriedade. Campo vazio = null (limpa), não zero.
+export async function setListingSaleMoneyAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to edit listings.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing property reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("properties")
+    .update({
+      sale_price: numOrNull(fd, "sale_price"),
+      sale_commission_rate: numOrNull(fd, "sale_commission_rate"),
+      sale_commission: numOrNull(fd, "sale_commission"),
+    })
+    .eq("id", id)
+    .eq("property_type", "for_sale");
+  if (error) throw new Error(error.message);
+  revalidatePath("/sales");
+  revalidatePath(`/propriedades/${id}`);
+  revalidatePath("/finances");
+}
+
 // ---- Editar a DATA em que uma listing For Sale foi vendida (properties.sold_at,
 // migration 0034). Registro da listing — não muda a receita do Finances.
 export async function setListingSoldDateAction(fd: FormData) {

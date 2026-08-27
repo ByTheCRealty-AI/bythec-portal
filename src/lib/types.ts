@@ -179,9 +179,13 @@ export interface Property {
   sale_price: number | null;
   sale_commission_rate: number | null;
   sale_commission: number | null;
-  // Data em que a casa foi vendida (editável na página da propriedade, migration
-  // 0034). Registro da listing; a receita do Finances vem do deal do cliente.
+  // Data em que a casa foi vendida (editável na página da propriedade E na aba
+  // Sales, migration 0034). Dirige o mês do stream Sales no Finances.
   sold_at: string | null;
+  // Regime de caixa da venda (0041): a comissão já entrou? Dirige o stream
+  // Sales do Finances, que LÊ o valor daqui em vez de pedir de novo.
+  sale_commission_received: boolean;
+  sale_commission_received_at: string | null;
   // Aparece no formulário público /apply quando true (migration 0029).
   accepting_applications?: boolean;
   accepts_year_round?: boolean;
