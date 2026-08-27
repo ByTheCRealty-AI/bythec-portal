@@ -307,6 +307,11 @@ export async function createPropriedadeAction(ownerId: string, fd: FormData) {
     rent_frequency: str(fd, "rent_frequency"),
     rental_start: str(fd, "rental_start"),
     rental_end: str(fd, "rental_end"),
+    // "Accept rental applications on the website" (mesma semântica do update de property).
+    accepts_year_round: str(fd, "accepts_year_round") === "1",
+    accepts_winter: str(fd, "accepts_winter") === "1",
+    accepting_applications:
+      str(fd, "accepts_year_round") === "1" || str(fd, "accepts_winter") === "1",
     notes: str(fd, "notes"),
   });
   if (error) throw new Error(error.message);
