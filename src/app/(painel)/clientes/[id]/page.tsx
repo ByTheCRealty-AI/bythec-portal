@@ -9,6 +9,7 @@ import { DeleteButton } from "./DeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can } from "@/lib/auth/capabilities";
+import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
@@ -193,8 +194,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     </div>
   );
 
-  // Card de propriedade reutilizado nos grupos "Owns" e "Renting".
-  const propertyCard = (p: Property) => (
+  // Serviço não-facilitador editável na página do cliente também (fonte = property).
+  const canEditProp = can(profile, "properties.edit") || can(profile, "properties.own");
+  // Card de propriedade reutilizado nos grupos "Owns" e "Renting". showService =
+  // mostra o editor de serviço não-facilitador (só no "Owns", tipos elegíveis).
+  const propertyCard = (p: Property, showService = false) => (
     <Card key={p.id} className="glass-hover">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -223,6 +227,18 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           </div>
         )}
       </div>
+      {showService && (p.is_for_sale || p.is_year_round || p.is_winter) && (
+        <div className="mt-4">
+          <NonFacilitatorEditor
+            propertyId={p.id}
+            canEdit={canEditProp}
+            initialOn={p.non_facilitator}
+            initialType={p.nf_fee_type}
+            initialValue={p.nf_fee_value}
+            landlord={!!(p.is_year_round || p.is_winter)}
+          />
+        </div>
+      )}
       <div className="mt-4">
         <Link href={`/propriedades/${p.id}`} className="text-xs font-semibold text-primary hover:underline">
           View property →
@@ -252,7 +268,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
             <div className="space-y-3">
               <h3 className="h-display text-xs uppercase tracking-wider text-ink/45">Owns</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {properties.map((p) => propertyCard(p))}
+                {properties.map((p) => propertyCard(p, true))}
               </div>
             </div>
           )}

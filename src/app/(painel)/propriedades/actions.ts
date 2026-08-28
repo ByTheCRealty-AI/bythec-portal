@@ -205,6 +205,37 @@ export async function assignTenancyAction(fd: FormData) {
   revalidatePath("/payments");
 }
 
+// Serviço NÃO-facilitador: taxa única em vez da comissão padrão. Fonte única na
+// property; editável na página da propriedade E na do cliente (mesma ação).
+export async function setNonFacilitatorAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit") && !can(profile, "properties.own")) {
+    throw new Error("You do not have permission to edit this property.");
+  }
+  const id = str(fd, "property_id");
+  if (!id) throw new Error("A property is required.");
+  const on = str(fd, "non_facilitator") === "1";
+  const rawType = str(fd, "nf_fee_type");
+  const feeType =
+    rawType === "percent" || rawType === "flat" || rawType === "one_month_rent" ? rawType : null;
+  const patch = {
+    non_facilitator: on,
+    nf_fee_type: on ? feeType : null,
+    nf_fee_value: on && feeType && feeType !== "one_month_rent" ? num(fd, "nf_fee_value") : null,
+  };
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("properties")
+    .update(patch)
+    .eq("id", id)
+    .select("owner_id")
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${id}`);
+  revalidatePath("/propriedades");
+  if (data?.owner_id) revalidatePath(`/clientes/${data.owner_id}`);
+}
+
 // Deixa a propriedade vaga (remove o inquilino). Não mexe no histórico.
 export async function clearPropertyTenantAction(propertyId: string) {
   const profile = await getProfile();

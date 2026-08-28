@@ -196,6 +196,10 @@ export interface Property {
   // Sales, migration 0034). Casa vendida = comissão ganha: dirige o mês do stream
   // Sales no Finances, que não tem etapa de "owed" (0041).
   sold_at: string | null;
+  // Serviço NÃO-facilitador: taxa única em vez da comissão padrão (migration 0044).
+  non_facilitator: boolean;
+  nf_fee_type: "percent" | "flat" | "one_month_rent" | null;
+  nf_fee_value: number | null;
   // Aparece no formulário público /apply quando true (migration 0029).
   accepting_applications?: boolean;
   accepts_year_round?: boolean;

@@ -10,6 +10,7 @@ import { getProfile } from "@/lib/auth/session";
 import { canDelete, can, canReorderDocuments } from "@/lib/auth/capabilities";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
+import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
@@ -415,6 +416,21 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               }
             />
           </div>
+        </Card>
+      )}
+
+      {/* Serviço não-facilitador — buy/sell (for sale) + landlords YR/winter. */}
+      {(p.is_for_sale || p.is_year_round || p.is_winter) && (
+        <Card className="md:col-span-2">
+          <h3 className="h-display mb-3 text-sm text-ink/70">Service model</h3>
+          <NonFacilitatorEditor
+            propertyId={p.id}
+            canEdit={canEditProperty}
+            initialOn={p.non_facilitator}
+            initialType={p.nf_fee_type}
+            initialValue={p.nf_fee_value}
+            landlord={!!(p.is_year_round || p.is_winter)}
+          />
         </Card>
       )}
 
