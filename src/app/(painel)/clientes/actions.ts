@@ -41,6 +41,21 @@ function seasonalBase(fd: FormData): "host_payout" | "paid_by_guest" {
 // ---- Clientes --------------------------------------------------------------
 
 
+// Non-Client Facilitator vindo do form de cliente. Só relevante pra landlord /
+// buy-sell; pra outros tipos zera. Espelha setClientNonFacilitatorAction.
+function nfFieldsFromForm(fd: FormData, eligible: boolean) {
+  const on = eligible && str(fd, "non_facilitator") === "1";
+  const rawType = str(fd, "nf_fee_type");
+  const type =
+    rawType === "percent" || rawType === "flat" || rawType === "one_month_rent" ? rawType : null;
+  const value = num(fd, "nf_fee_value");
+  return {
+    non_facilitator: on,
+    nf_fee_type: on ? type : null,
+    nf_fee_value: on && type !== "one_month_rent" ? value : null,
+  };
+}
+
 export async function createClienteAction(fd: FormData) {
   const supabase = createClient();
   const profile = await getProfile();
@@ -52,6 +67,7 @@ export async function createClienteAction(fd: FormData) {
       name: str(fd, "name"),
       created_by: profile?.id ?? null, // proveniência (realtor scope, migration 0021)
       ...roles, // client_type é derivado por trigger (0043)
+      ...nfFieldsFromForm(fd, roles.is_landlord || roles.is_buyer_seller),
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       // Sales fields only stored for buy/sell clients.
       realtor_id: isBuySell ? str(fd, "realtor_id") : null,
@@ -87,6 +103,7 @@ export async function updateClienteAction(id: string, fd: FormData) {
     .update({
       name: str(fd, "name"),
       ...roles, // client_type é derivado por trigger (0043)
+      ...nfFieldsFromForm(fd, roles.is_landlord || roles.is_buyer_seller),
       deal_side: (str(fd, "deal_side") as DealSide) ?? null,
       // Buy/sell: persist the sales fields from the form. Other types: clear them
       // (a client that stops being buy/sell shouldn't keep a stale realtor/stage).

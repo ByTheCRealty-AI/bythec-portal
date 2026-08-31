@@ -52,6 +52,13 @@ export function ClienteForm({
   const isBuySell = !!roles.is_buyer_seller;
   const stageOptions = side === "seller" ? SELLER_STAGE_LABEL : BUYER_STAGE_LABEL;
 
+  // Non-Client Facilitator (sub-tipo): serviço único por taxa única, dono
+  // auto-gerencia. Aparece pra landlord / buy-sell, aqui no fluxo de criação.
+  const [nfOn, setNfOn] = useState(!!client?.non_facilitator);
+  const [nfType, setNfType] = useState<string>(client?.nf_fee_type ?? "flat");
+  const [nfValue, setNfValue] = useState(client?.nf_fee_value != null ? String(client.nf_fee_value) : "");
+  const nfEligible = !!roles.is_landlord || !!roles.is_buyer_seller;
+
   return (
     <form action={action} className="space-y-8">
       {/* Identificação */}
@@ -76,6 +83,53 @@ export function ClienteForm({
           </Field>
         </div>
       </section>
+
+      {/* Service model — Non-Client Facilitator. Aparece pra Landlord / Buyer-Seller. */}
+      {nfEligible && (
+        <section className="glass p-6">
+          <h2 className="h-display mb-2 text-base text-ink">Service model</h2>
+          <p className="mb-4 text-xs text-ink/45">
+            If By the C only did a one-time service (find a tenant / facilitate the sale) and the owner
+            manages the property and tenant themselves, mark them Non-Client Facilitator and set the one-time fee.
+          </p>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              name="non_facilitator"
+              value="1"
+              checked={nfOn}
+              onChange={(e) => setNfOn(e.target.checked)}
+              className="h-4 w-4 accent-[#198577]"
+            />
+            <span className="text-sm font-semibold text-ink">Non-Client Facilitator</span>
+          </label>
+          {nfOn && (
+            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Fee type">
+                <select name="nf_fee_type" value={nfType} onChange={(e) => setNfType(e.target.value)} className={inputClass}>
+                  <option value="flat">Flat amount ($)</option>
+                  <option value="percent">Percent (%)</option>
+                  {roles.is_landlord && <option value="one_month_rent">One month&rsquo;s rent</option>}
+                </select>
+              </Field>
+              {nfType !== "one_month_rent" && (
+                <Field label={nfType === "percent" ? "Percent · one-time" : "Amount ($) · one-time"}>
+                  <input
+                    name="nf_fee_value"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={nfValue}
+                    onChange={(e) => setNfValue(e.target.value)}
+                    className={inputClass}
+                    placeholder={nfType === "percent" ? "3" : "2500"}
+                  />
+                </Field>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Sales (brokerage) — só aparece pra Buyer/Seller. Aparece em Sales. */}
       {isBuySell && (

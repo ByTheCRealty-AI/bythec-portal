@@ -9,7 +9,7 @@ import { DeleteButton } from "./DeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can } from "@/lib/auth/capabilities";
-import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
+import { NonFacilitatorEditor, nonFacilitatorSummary } from "@/components/NonFacilitatorEditor";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
@@ -163,18 +163,13 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           ].filter(Boolean).join(" · ") || "None"}
         />
       </Card>
-      {(client.is_landlord || client.is_buyer_seller) && (
+      {client.non_facilitator && (
         <Card>
           <h3 className="h-display mb-3 text-sm text-ink/70">Service model</h3>
-          <NonFacilitatorEditor
-            entity="client"
-            id={client.id}
-            canEdit={canEditClient}
-            initialOn={client.non_facilitator}
-            initialType={client.nf_fee_type}
-            initialValue={client.nf_fee_value}
-            landlord={client.is_landlord}
-          />
+          <p className="text-sm text-ink/80">
+            {nonFacilitatorSummary(client.non_facilitator, client.nf_fee_type, client.nf_fee_value)}
+          </p>
+          <p className="mt-1 text-xs text-ink/45">Change it with the Edit button above.</p>
         </Card>
       )}
       {client.is_buyer_seller && (
