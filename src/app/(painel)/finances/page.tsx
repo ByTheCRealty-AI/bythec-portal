@@ -69,6 +69,26 @@ export default async function FinancesPage({
   const soldListings = (sold ?? []) as unknown as SoldListing[];
   const expenses = exps ?? [];
 
+  // Non-facilitator: taxa ÚNICA na property (0044). Vira receita sem etapa de
+  // cobrança (como venda). Valor: flat=$ | one_month_rent=aluguel mensal |
+  // percent=% do preço de venda. Reconhecida em sold_at ?? rental_start ?? updated_at.
+  const { data: nfData } = await supabase
+    .from("properties")
+    .select("nf_fee_type, nf_fee_value, sale_price, rent_price, sold_at, rental_start, updated_at")
+    .eq("non_facilitator", true)
+    .is("archived_at", null);
+  const nfProps = (nfData ?? []) as Array<Record<string, unknown>>;
+  const nfAmount = (p: Record<string, unknown>): number => {
+    const t = p.nf_fee_type as string | null;
+    const v = n(p.nf_fee_value as number | null);
+    if (t === "flat") return v;
+    if (t === "one_month_rent") return n(p.rent_price as number | null);
+    if (t === "percent") return Math.round(n(p.sale_price as number | null) * v) / 100;
+    return 0;
+  };
+  const nfWhen = (p: Record<string, unknown>): string | null =>
+    ((p.sold_at as string) ?? (p.rental_start as string) ?? (p.updated_at as string) ?? null);
+
   // Anos disponíveis a partir dos dados (+ ano corrente).
   const yearsSet = new Set<number>([new Date().getFullYear()]);
   for (const p of payments) {
@@ -81,6 +101,10 @@ export default async function FinancesPage({
   }
   for (const l of soldListings) {
     const y = yearOf(l.sold_at);
+    if (y) yearsSet.add(y);
+  }
+  for (const p of nfProps) {
+    const y = yearOf(nfWhen(p));
     if (y) yearsSet.add(y);
   }
   for (const e of expenses) {
@@ -146,10 +170,17 @@ export default async function FinancesPage({
     sales.received += amt;
   }
 
+  // Non-facilitator: taxa única, sem "owed" (como venda).
+  const nonFac: Stream = { received: 0, pending: 0 };
+  for (const p of nfProps) {
+    const amt = nfAmount(p);
+    if (amt && match(nfWhen(p))) nonFac.received += amt;
+  }
+
   const expensesTotal = expenses.reduce((s, e) => (match(e.date as string) ? s + n(e.price) : s), 0);
 
   const totalReceived =
-    yearRound.received + seasonal.received + service.received + general.received + sales.received;
+    yearRound.received + seasonal.received + service.received + general.received + sales.received + nonFac.received;
   const totalPending =
     yearRound.pending + seasonal.pending + service.pending + general.pending + sales.pending;
   const net = totalReceived - expensesTotal;
@@ -162,7 +193,7 @@ export default async function FinancesPage({
   // For a specific year: 12 months. For "All time": one row per year. Buckets by
   // when the money came in (received/paid/closed date).
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  type Row = { yr: number; seasonal: number; service: number; general: number; sales: number };
+  type Row = { yr: number; seasonal: number; service: number; general: number; sales: number; nonfac: number };
   const buckets = new Map<string, Row>();
   const bucketKey = (s: string | null): string | null => {
     const y = yearOf(s);
@@ -174,7 +205,7 @@ export default async function FinancesPage({
   };
   const addTo = (key: string | null, field: keyof Row, amt: number) => {
     if (key == null || !amt) return;
-    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, general: 0, sales: 0 };
+    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, general: 0, sales: 0, nonfac: 0 };
     b[field] += amt;
     buckets.set(key, b);
   };
@@ -200,13 +231,16 @@ export default async function FinancesPage({
   for (const l of soldListings) {
     addTo(bucketKey(l.sold_at), "sales", n(l.sale_commission));
   }
+  for (const p of nfProps) {
+    addTo(bucketKey(nfWhen(p)), "nonfac", nfAmount(p));
+  }
   const periodRows = (
     isAll
       ? years.map((y) => ({ label: String(y), key: String(y) }))
       : MONTHS.map((m, i) => ({ label: m, key: String(i + 1) }))
   ).map(({ label, key }) => {
-    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, general: 0, sales: 0 };
-    return { label, ...b, total: b.yr + b.seasonal + b.service + b.general + b.sales };
+    const b = buckets.get(key) ?? { yr: 0, seasonal: 0, service: 0, general: 0, sales: 0, nonfac: 0 };
+    return { label, ...b, total: b.yr + b.seasonal + b.service + b.general + b.sales + b.nonfac };
   });
   const maxPeriod = Math.max(1, ...periodRows.map((r) => r.total));
   const periodsTotal = periodRows.reduce((s, r) => s + r.total, 0);
@@ -219,6 +253,7 @@ export default async function FinancesPage({
     { key: "service", label: "Service commission (10%)", icon: Hammer, s: service, owed: true },
     { key: "general", label: "General invoices", icon: FileText, s: general, owed: true },
     { key: "sales", label: "Sales commission", icon: KeyRound, s: sales, owed: false },
+    { key: "nonfac", label: "Non-facilitator fees", icon: TrendingUp, s: nonFac, owed: false },
   ];
 
   return (
@@ -303,6 +338,7 @@ export default async function FinancesPage({
                 <th className="px-4 py-3 text-right font-bold">Service</th>
                 <th className="px-4 py-3 text-right font-bold">General</th>
                 <th className="px-4 py-3 text-right font-bold">Sales</th>
+                <th className="px-4 py-3 text-right font-bold">Non-fac</th>
                 <th className="px-4 py-3 text-right font-bold">Received</th>
               </tr>
             </thead>
@@ -315,6 +351,7 @@ export default async function FinancesPage({
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.service ? money(r.service) : "—"}</td>
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.general ? money(r.general) : "—"}</td>
                   <td className="px-4 py-2.5 text-right text-ink/60">{r.sales ? money(r.sales) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right text-ink/60">{r.nonfac ? money(r.nonfac) : "—"}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <span
@@ -332,7 +369,7 @@ export default async function FinancesPage({
             <tfoot>
               <tr className="border-t border-black/[0.08] bg-black/[0.02]">
                 <td className="px-4 py-3 font-bold text-ink">Total</td>
-                <td colSpan={5} />
+                <td colSpan={6} />
                 <td className="px-4 py-3 text-right font-bold text-primary">{money(periodsTotal)}</td>
               </tr>
             </tfoot>
