@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, EmptyState, NoAccess, Card } from "@/components/ui";
+import { PageHeader, EmptyState, NoAccess, Card, buttonClass } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
-import { can } from "@/lib/auth/capabilities";
-import { Wallet } from "lucide-react";
+import { can, canDelete } from "@/lib/auth/capabilities";
+import { Wallet, ShieldAlert } from "lucide-react";
+import Link from "next/link";
 import type { Payment } from "@/lib/types";
 import { PaymentsClient } from "./PaymentsClient";
 import { PaymentAddForm, type PaymentPropertyOption } from "./PaymentAddForm";
@@ -77,9 +78,24 @@ async function loadEligibleProperties(): Promise<PaymentPropertyOption[]> {
   }
 }
 
+// Quantos recibos ainda moram no CDN do Bubble (file_url começa com http).
+async function countOffsiteReceipts(): Promise<number> {
+  try {
+    const supabase = createClient();
+    const { count } = await supabase
+      .from("payment_attachments")
+      .select("id", { count: "exact", head: true })
+      .like("file_url", "http%");
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export default async function PaymentsPage() {
   const profile = await getProfile();
   const canManage = can(profile, "payments.annual") || can(profile, "financials.full");
+  const isOwner = canDelete(profile); // só o owner roda o resgate dos recibos
   if (!canManage) {
     return (
       <>
@@ -89,9 +105,10 @@ export default async function PaymentsPage() {
     );
   }
 
-  const [{ ok, payments }, properties] = await Promise.all([
+  const [{ ok, payments }, properties, offsiteReceipts] = await Promise.all([
     loadPayments(),
     loadEligibleProperties(),
+    countOffsiteReceipts(),
   ]);
 
   return (
@@ -106,6 +123,30 @@ export default async function PaymentsPage() {
           Database not connected. Check the environment variables{" "}
           <code className="text-primary">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
           <code className="text-primary">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+        </Card>
+      )}
+
+      {/* Aviso só pro owner: recibos ainda hospedados no Bubble somem se ela
+          cancelar a conta. Some sozinho quando chegar a zero. */}
+      {isOwner && offsiteReceipts > 0 && (
+        <Card className="mb-6 border-amber-300 bg-amber-50">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex gap-3">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div className="text-sm">
+                <p className="font-semibold text-ink">
+                  {offsiteReceipts} receipts are still stored on Bubble, not here
+                </p>
+                <p className="mt-0.5 text-ink/70">
+                  The portal only keeps a link to them. If Bubble is cancelled, those images are
+                  lost — the payments stay, the proof does not.
+                </p>
+              </div>
+            </div>
+            <Link href="/payments/receipts" className={buttonClass("primary")}>
+              Bring them over
+            </Link>
+          </div>
         </Card>
       )}
 
