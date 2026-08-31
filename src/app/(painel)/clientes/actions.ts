@@ -318,3 +318,34 @@ export async function createPropriedadeAction(ownerId: string, fd: FormData) {
   revalidatePath(`/clientes/${ownerId}`);
   revalidatePath("/propriedades");
 }
+
+// ---- Non-Client Facilitator (tag no CLIENTE: landlord + buy/sell) ----------
+// Serviço único (taxa única), dono auto-gerencia. Espelha setNonFacilitatorAction
+// da property, mas grava no cliente. Gate clients.edit (RLS reforça no banco).
+export async function setClientNonFacilitatorAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to edit this client.");
+  }
+  const id = str(fd, "client_id");
+  if (!id) throw new Error("Missing client reference.");
+  const on = str(fd, "non_facilitator") === "1";
+  const rawType = str(fd, "nf_fee_type");
+  const type =
+    rawType === "percent" || rawType === "flat" || rawType === "one_month_rent" ? rawType : null;
+  const value = num(fd, "nf_fee_value");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      non_facilitator: on,
+      nf_fee_type: on ? type : null,
+      nf_fee_value: on && type !== "one_month_rent" ? value : null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/clientes/${id}`);
+  revalidatePath("/clientes");
+  revalidatePath("/finances");
+}

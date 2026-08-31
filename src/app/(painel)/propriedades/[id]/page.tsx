@@ -424,7 +424,8 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         <Card className="md:col-span-2">
           <h3 className="h-display mb-3 text-sm text-ink/70">Service model</h3>
           <NonFacilitatorEditor
-            propertyId={p.id}
+            entity="property"
+            id={p.id}
             canEdit={canEditProperty}
             initialOn={p.non_facilitator}
             initialType={p.nf_fee_type}

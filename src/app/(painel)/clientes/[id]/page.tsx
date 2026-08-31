@@ -143,6 +143,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         <h3 className="h-display mb-3 text-sm text-ink/70">Identification</h3>
         <Row label="Name" value={client.name} />
         <Row label="Type" value={clientRoleLabels(client).join(" · ")} />
+        {client.non_facilitator && (
+          <div className="mb-2 -mt-1">
+            <Badge tone="gold">Non-Client Facilitator</Badge>
+          </div>
+        )}
         <Row label="Email" value={client.email} />
         <Row label="Phone" value={client.phone} />
       </Card>
@@ -158,6 +163,20 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           ].filter(Boolean).join(" · ") || "None"}
         />
       </Card>
+      {(client.is_landlord || client.is_buyer_seller) && (
+        <Card>
+          <h3 className="h-display mb-3 text-sm text-ink/70">Service model</h3>
+          <NonFacilitatorEditor
+            entity="client"
+            id={client.id}
+            canEdit={canEditClient}
+            initialOn={client.non_facilitator}
+            initialType={client.nf_fee_type}
+            initialValue={client.nf_fee_value}
+            landlord={client.is_landlord}
+          />
+        </Card>
+      )}
       {client.is_buyer_seller && (
         <Card>
           <h3 className="h-display mb-3 text-sm text-ink/70">Deal</h3>
@@ -230,7 +249,8 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       {showService && (p.is_for_sale || p.is_year_round || p.is_winter) && (
         <div className="mt-4">
           <NonFacilitatorEditor
-            propertyId={p.id}
+            entity="property"
+            id={p.id}
             canEdit={canEditProp}
             initialOn={p.non_facilitator}
             initialType={p.nf_fee_type}

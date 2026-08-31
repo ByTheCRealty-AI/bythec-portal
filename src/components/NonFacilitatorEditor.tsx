@@ -1,38 +1,43 @@
 "use client";
 
 // =============================================================================
-// NonFacilitatorEditor — serviço NÃO-facilitador: taxa ÚNICA em vez da comissão
-// padrão. Fonte única na property; este MESMO componente é usado na página da
-// propriedade E na do cliente (edita a mesma property → "either place, in sync").
-// fee_type: percent (% do preço/venda) | flat ($ fixo) | one_month_rent.
+// NonFacilitatorEditor — "Non-Client Facilitator": SUB-TIPO (tag em cima do tipo)
+// pra cliente/property onde a By the C fez um serviço ÚNICO (achar inquilino /
+// facilitar venda) por uma taxa única, e o dono gerencia o resto sozinho.
+// Mesmo componente serve na página do CLIENTE e da PROPERTY (entity define qual
+// action grava). fee_type: percent (%) | flat ($) | one_month_rent (só landlord).
 // =============================================================================
 
 import { useState, useTransition } from "react";
 import { setNonFacilitatorAction } from "@/app/(painel)/propriedades/actions";
+import { setClientNonFacilitatorAction } from "@/app/(painel)/clientes/actions";
 
 type FeeType = "percent" | "flat" | "one_month_rent";
 
+// Texto curto do estado atual (usado em badges/leitura).
 export function nonFacilitatorSummary(
   on: boolean,
   type: FeeType | null,
   value: number | null
 ): string {
-  if (!on) return "Facilitator (standard commission)";
-  if (type === "one_month_rent") return "Non-facilitator · one month's rent (one-time)";
-  if (type === "percent") return `Non-facilitator · ${value ?? 0}% one-time`;
-  if (type === "flat") return `Non-facilitator · $${(value ?? 0).toLocaleString("en-US")} one-time`;
-  return "Non-facilitator (one-time fee)";
+  if (!on) return "Standard (By the C manages)";
+  if (type === "one_month_rent") return "Non-Client Facilitator · one month's rent (one-time)";
+  if (type === "percent") return `Non-Client Facilitator · ${value ?? 0}% one-time`;
+  if (type === "flat") return `Non-Client Facilitator · $${(value ?? 0).toLocaleString("en-US")} one-time`;
+  return "Non-Client Facilitator (one-time fee)";
 }
 
 export function NonFacilitatorEditor({
-  propertyId,
+  entity,
+  id,
   canEdit,
   initialOn,
   initialType,
   initialValue,
   landlord = false,
 }: {
-  propertyId: string;
+  entity: "property" | "client";
+  id: string;
   canEdit: boolean;
   initialOn: boolean;
   initialType: FeeType | null;
@@ -63,13 +68,14 @@ export function NonFacilitatorEditor({
     setErr(null);
     setSaved(false);
     const fd = new FormData();
-    fd.set("property_id", propertyId);
+    fd.set(entity === "client" ? "client_id" : "property_id", id);
     fd.set("non_facilitator", on ? "1" : "0");
     fd.set("nf_fee_type", type);
     fd.set("nf_fee_value", value);
     start(async () => {
       try {
-        await setNonFacilitatorAction(fd);
+        if (entity === "client") await setClientNonFacilitatorAction(fd);
+        else await setNonFacilitatorAction(fd);
         setSaved(true);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Could not save. Try again.");
@@ -86,10 +92,11 @@ export function NonFacilitatorEditor({
           onChange={(e) => { setOn(e.target.checked); setSaved(false); }}
           className="h-4 w-4 accent-[#198577]"
         />
-        <span className="text-sm font-semibold text-ink">Non-facilitator service (one-time fee)</span>
+        <span className="text-sm font-semibold text-ink">Non-Client Facilitator</span>
       </label>
       <p className="mt-1 text-xs text-ink/55">
-        A single set fee instead of the standard commission. For buy/sell and landlords of year-round / winter rentals.
+        One-time service only (find a tenant / facilitate the sale) for a single set fee — the owner manages the
+        property and tenant themselves. Not a full managed client. Tag it on top of their type (landlord or buy/sell).
       </p>
 
       {on && (

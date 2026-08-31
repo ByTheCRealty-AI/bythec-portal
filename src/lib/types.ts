@@ -146,6 +146,11 @@ export interface Client {
   // quebrar linhas antigas; nenhum deal chegou a ter valor. Ver migration 0041.
   sale_commission: number | null;
   sale_commission_received: boolean;
+  // Non-Client Facilitator: tag em cima do tipo (landlord/buy-sell) — serviço
+  // único por taxa única, dono auto-gerencia (migration 0045).
+  non_facilitator: boolean;
+  nf_fee_type: "percent" | "flat" | "one_month_rent" | null;
+  nf_fee_value: number | null;
 }
 
 export interface Property {

@@ -253,7 +253,7 @@ export default async function FinancesPage({
     { key: "service", label: "Service commission (10%)", icon: Hammer, s: service, owed: true },
     { key: "general", label: "General invoices", icon: FileText, s: general, owed: true },
     { key: "sales", label: "Sales commission", icon: KeyRound, s: sales, owed: false },
-    { key: "nonfac", label: "Non-facilitator fees", icon: TrendingUp, s: nonFac, owed: false },
+    { key: "nonfac", label: "Non-Client Facilitator fees", icon: TrendingUp, s: nonFac, owed: false },
   ];
 
   return (
