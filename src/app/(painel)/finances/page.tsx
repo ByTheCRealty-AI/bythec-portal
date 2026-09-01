@@ -69,13 +69,16 @@ export default async function FinancesPage({
   const soldListings = (sold ?? []) as unknown as SoldListing[];
   const expenses = exps ?? [];
 
-  // Non-facilitator: taxa ÚNICA na property (0044). Vira receita sem etapa de
-  // cobrança (como venda). Valor: flat=$ | one_month_rent=aluguel mensal |
-  // percent=% do preço de venda. Reconhecida em sold_at ?? rental_start ?? updated_at.
+  // Non-facilitator fee (taxa única, sem etapa de cobrança). Duas fontes, SEM
+  // sobreposição pra não duplicar:
+  //  • ALUGUEL → fee no IMÓVEL (year-round/winter). one_month_rent usa o rent.
+  //  • VENDA/COMPRA → fee no CLIENTE buy/sell (o comprador não tem imóvel).
+  // Por isso o imóvel aqui é SÓ rental (exclui for-sale — a venda vem do cliente).
   const { data: nfData } = await supabase
     .from("properties")
-    .select("nf_fee_type, nf_fee_value, sale_price, rent_price, sold_at, rental_start, updated_at")
+    .select("nf_fee_type, nf_fee_value, rent_price, sold_at, rental_start, updated_at")
     .eq("non_facilitator", true)
+    .or("is_year_round.eq.true,is_winter.eq.true")
     .is("archived_at", null);
   const nfProps = (nfData ?? []) as Array<Record<string, unknown>>;
   const nfAmount = (p: Record<string, unknown>): number => {
@@ -83,11 +86,24 @@ export default async function FinancesPage({
     const v = n(p.nf_fee_value as number | null);
     if (t === "flat") return v;
     if (t === "one_month_rent") return n(p.rent_price as number | null);
-    if (t === "percent") return Math.round(n(p.sale_price as number | null) * v) / 100;
-    return 0;
+    return 0; // percent num aluguel não tem base — não soma
   };
   const nfWhen = (p: Record<string, unknown>): string | null =>
-    ((p.sold_at as string) ?? (p.rental_start as string) ?? (p.updated_at as string) ?? null);
+    ((p.rental_start as string) ?? (p.sold_at as string) ?? (p.updated_at as string) ?? null);
+
+  // Fee no CLIENTE buy/sell (comprador sem imóvel). Flat conta exato; percent num
+  // cliente não tem base de preço guardada → não soma (usar flat pra entrar aqui).
+  const { data: nfCliData } = await supabase
+    .from("clients")
+    .select("nf_fee_type, nf_fee_value, deal_closed_at, updated_at")
+    .eq("non_facilitator", true)
+    .eq("is_buyer_seller", true)
+    .is("archived_at", null);
+  const nfClients = (nfCliData ?? []) as Array<Record<string, unknown>>;
+  const nfCliAmount = (c: Record<string, unknown>): number =>
+    (c.nf_fee_type as string) === "flat" ? n(c.nf_fee_value as number | null) : 0;
+  const nfCliWhen = (c: Record<string, unknown>): string | null =>
+    ((c.deal_closed_at as string) ?? (c.updated_at as string) ?? null);
 
   // Anos disponíveis a partir dos dados (+ ano corrente).
   const yearsSet = new Set<number>([new Date().getFullYear()]);
@@ -105,6 +121,10 @@ export default async function FinancesPage({
   }
   for (const p of nfProps) {
     const y = yearOf(nfWhen(p));
+    if (y) yearsSet.add(y);
+  }
+  for (const c of nfClients) {
+    const y = yearOf(nfCliWhen(c));
     if (y) yearsSet.add(y);
   }
   for (const e of expenses) {
@@ -176,6 +196,10 @@ export default async function FinancesPage({
     const amt = nfAmount(p);
     if (amt && match(nfWhen(p))) nonFac.received += amt;
   }
+  for (const c of nfClients) {
+    const amt = nfCliAmount(c);
+    if (amt && match(nfCliWhen(c))) nonFac.received += amt;
+  }
 
   const expensesTotal = expenses.reduce((s, e) => (match(e.date as string) ? s + n(e.price) : s), 0);
 
@@ -233,6 +257,9 @@ export default async function FinancesPage({
   }
   for (const p of nfProps) {
     addTo(bucketKey(nfWhen(p)), "nonfac", nfAmount(p));
+  }
+  for (const c of nfClients) {
+    addTo(bucketKey(nfCliWhen(c)), "nonfac", nfCliAmount(c));
   }
   const periodRows = (
     isAll
