@@ -41,11 +41,25 @@ export type ClientOption = { id: string; name: string };
 
 // Rótulo curto do preço, por categoria. Temporada varia (noite/semana), então
 // nunca inventamos a unidade — o anúncio externo é quem manda.
+// Andrea 2026-08-27: "vacation rates change nightly so they have to look on the
+// website aka airbnb". Numa listing de temporada sem preço, "—" parecia campo
+// esquecido; o certo é dizer que a diária vive no Airbnb.
 function priceLabel(l: Listing): string {
-  if (l.price == null) return "—";
+  if (l.price == null) return l.is_vacation ? "Rates on Airbnb" : "—";
   const p = money(l.price);
   if (l.is_year_round) return `${p}/mo`;
   return p;
+}
+
+// Qual link ESTA listing deveria ter. Temporada → Airbnb (é lá que a diária
+// mora). Inverno e venda → CCIAOR. Uma casa temporada + inverno quer os dois.
+function expectedLinks(l: Listing): { field: "airbnb_link" | "mls_link"; label: string }[] {
+  const out: { field: "airbnb_link" | "mls_link"; label: string }[] = [];
+  if (l.is_vacation) out.push({ field: "airbnb_link", label: "Airbnb" });
+  if (l.is_winter || l.is_for_sale || l.is_year_round) {
+    out.push({ field: "mls_link", label: "CCIAOR" });
+  }
+  return out;
 }
 
 function specLine(l: Listing): string {
@@ -67,6 +81,131 @@ function externalLinks(l: Listing): { label: string; href: string }[] {
   if (l.airbnb_link) out.push({ label: "Airbnb", href: l.airbnb_link });
   if (l.mls_link) out.push({ label: "CCIAOR / MLS", href: l.mls_link });
   return out;
+}
+
+// Célula da coluna Link: o que já tem vira botão clicável; o que FALTA vira um
+// campo de colar, ali mesmo. Sem abrir o form inteiro — são 16 links pra entrar.
+function LinkCell({
+  l, action, canManage,
+}: {
+  l: Listing;
+  action: Action;
+  canManage: boolean;
+}) {
+  const [editing, setEditing] = useState<"airbnb_link" | "mls_link" | null>(null);
+  const [value, setValue] = useState("");
+  const [pending, start] = useTransition();
+  const [error, setError] = useState(false);
+
+  const present = externalLinks(l);
+  const missing = canManage
+    ? expectedLinks(l).filter((e) => !l[e.field])
+    : [];
+
+  function open(field: "airbnb_link" | "mls_link", e: React.MouseEvent) {
+    e.stopPropagation();
+    setError(false);
+    setValue((l[field] as string | null) ?? "");
+    setEditing(field);
+  }
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!editing) return;
+    const fd = new FormData();
+    fd.set("id", l.id);
+    fd.set("field", editing);
+    fd.set("url", value);
+    setError(false);
+    start(async () => {
+      try {
+        await action(fd);
+        setEditing(null);
+      } catch {
+        setError(true);
+      }
+    });
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          value={value}
+          onChange={(ev) => setValue(ev.target.value)}
+          onKeyDown={(ev) => {
+            if (ev.key === "Escape") setEditing(null);
+          }}
+          placeholder={editing === "airbnb_link" ? "airbnb.com/rooms/…" : "cciaor.com/listing/…"}
+          className="w-48 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-ink outline-none focus:border-primary/40"
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="grid h-6 w-6 place-items-center rounded-md border border-primary/30 bg-primary/[0.06] text-primary disabled:opacity-60"
+          aria-label="Save link"
+        >
+          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(null)}
+          className="grid h-6 w-6 place-items-center rounded-md border border-black/10 text-ink/50"
+          aria-label="Cancel"
+        >
+          <X className="h-3 w-3" />
+        </button>
+        {error && <span className="text-[11px] text-red-600">try again</span>}
+      </form>
+    );
+  }
+
+  if (present.length === 0 && missing.length === 0) {
+    return <span className="text-ink/35">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {present.map((x) => {
+        const field = x.label === "Airbnb" ? "airbnb_link" : "mls_link";
+        return (
+          <span key={x.href} className="inline-flex items-center">
+            <a
+              href={x.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-black/10 bg-white px-2 py-1 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.06]"
+            >
+              {x.label} <ExternalLink className="h-3 w-3" />
+            </a>
+            {canManage && (
+              <button
+                type="button"
+                onClick={(e) => open(field as "airbnb_link" | "mls_link", e)}
+                className="grid h-[26px] w-6 place-items-center rounded-r-lg border border-black/10 bg-white text-ink/40 transition hover:border-primary/40 hover:text-primary"
+                aria-label={`Edit ${x.label} link`}
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+          </span>
+        );
+      })}
+      {missing.map((m) => (
+        <button
+          key={m.field}
+          type="button"
+          onClick={(e) => open(m.field, e)}
+          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-black/15 px-2 py-1 text-xs font-semibold text-ink/45 transition hover:border-primary/40 hover:text-primary"
+        >
+          <Plus className="h-3 w-3" /> {m.label} link
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function Modal({ onClose, children, z = 50, wide }: { onClose: () => void; children: React.ReactNode; z?: number; wide?: boolean }) {
@@ -466,7 +605,7 @@ function FeaturedToggle({ l, action, canManage, size = "sm" }: { l: Listing; act
 export function ListingsTable({
   listings, deleted, clients, properties, photosByListing, canManage, canPurge,
   createAction, updateAction, deleteAction, restoreAction, purgeAction,
-  toggleActiveAction, toggleFeaturedAction,
+  toggleActiveAction, toggleFeaturedAction, setLinkAction,
   addPhotoAction, deletePhotoAction, reorderPhotosAction,
 }: {
   listings: Listing[];
@@ -483,6 +622,8 @@ export function ListingsTable({
   purgeAction: Action;
   toggleActiveAction: Action;
   toggleFeaturedAction: Action;
+  // Cola um link (Airbnb / CCIAOR) direto na linha, sem abrir o form.
+  setLinkAction: Action;
   addPhotoAction: Action;
   deletePhotoAction: Action;
   reorderPhotosAction: Action;
@@ -689,24 +830,7 @@ export function ListingsTable({
                   </td>
                   <td className="px-5 py-3.5 text-ink/75">{priceLabel(l)}</td>
                   <td className="px-5 py-3.5">
-                    {externalLinks(l).length === 0 ? (
-                      <span className="text-ink/35">—</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {externalLinks(l).map((x) => (
-                          <a
-                            key={x.href}
-                            href={x.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.06]"
-                          >
-                            {x.label} <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    <LinkCell l={l} action={setLinkAction} canManage={canManage && !showingDeleted} />
                   </td>
                   <td className="px-5 py-3.5">
                     {showingDeleted ? (

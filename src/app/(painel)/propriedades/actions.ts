@@ -221,6 +221,7 @@ export async function setNonFacilitatorAction(fd: FormData) {
   const patch = {
     non_facilitator: on,
     nf_fee_type: on ? feeType : null,
+    // one_month_rent não tem valor numérico; senão guarda o número (ou null).
     nf_fee_value: on && feeType && feeType !== "one_month_rent" ? num(fd, "nf_fee_value") : null,
   };
   const supabase = createClient();

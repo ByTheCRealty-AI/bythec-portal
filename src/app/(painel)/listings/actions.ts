@@ -139,6 +139,27 @@ export async function updateListingAction(fd: FormData) {
   revalidatePath("/listings");
 }
 
+// Grava UM link externo sem abrir o form inteiro. A Andrea cola 16 links de uma
+// sentada (Airbnb nas de temporada, CCIAOR nas de inverno e venda) — abrir o
+// modal, rolar e salvar 16 vezes é o caminho lento. Aceita string vazia pra
+// limpar. Reusa o mesmo normalizador de esquema do form.
+export async function setListingLinkAction(fd: FormData) {
+  await assertCanManage();
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing listing reference.");
+  const field = str(fd, "field");
+  if (field !== "airbnb_link" && field !== "mls_link") {
+    throw new Error("Unknown link field.");
+  }
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("listings")
+    .update({ [field]: link(fd, "url"), updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/listings");
+}
+
 // Liga/desliga o anúncio no site sem abrir o form inteiro. active=false → some
 // do site na hora (o site filtra active=true), mas o registro fica intacto.
 export async function toggleListingActiveAction(fd: FormData) {
