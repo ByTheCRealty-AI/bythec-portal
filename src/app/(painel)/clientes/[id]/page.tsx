@@ -9,7 +9,19 @@ import { DeleteButton } from "./DeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
 import { canDelete, can } from "@/lib/auth/capabilities";
-import { NonFacilitatorEditor, nonFacilitatorSummary } from "@/components/NonFacilitatorEditor";
+import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
+
+// Resumo server-safe (NÃO importar do módulo "use client" — chamar a função dele
+// no server quebra: vira client-reference. Bug do digest 770562313, corrigido).
+function nfSummary(
+  type: "percent" | "flat" | "one_month_rent" | null,
+  value: number | null
+): string {
+  if (type === "one_month_rent") return "Non-Client Facilitator · one month's rent (one-time)";
+  if (type === "percent") return `Non-Client Facilitator · ${value ?? 0}% one-time`;
+  if (type === "flat") return `Non-Client Facilitator · $${(value ?? 0).toLocaleString("en-US")} one-time`;
+  return "Non-Client Facilitator (one-time fee)";
+}
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
@@ -166,9 +178,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       {client.non_facilitator && (
         <Card>
           <h3 className="h-display mb-3 text-sm text-ink/70">Service model</h3>
-          <p className="text-sm text-ink/80">
-            {nonFacilitatorSummary(client.non_facilitator, client.nf_fee_type, client.nf_fee_value)}
-          </p>
+          <p className="text-sm text-ink/80">{nfSummary(client.nf_fee_type, client.nf_fee_value)}</p>
           <p className="mt-1 text-xs text-ink/45">Change it with the Edit button above.</p>
         </Card>
       )}
