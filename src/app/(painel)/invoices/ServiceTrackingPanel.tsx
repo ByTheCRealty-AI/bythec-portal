@@ -12,7 +12,7 @@
 
 import { useState, useTransition } from "react";
 import { ClipboardCheck, Check } from "lucide-react";
-import { money } from "@/lib/format";
+import { money, cx } from "@/lib/format";
 import {
   setPaid,
   setSentToOwner,
@@ -166,7 +166,13 @@ export function ServiceTrackingPanel({
   }
 
   const allSettled = sent && ownerPaid && laborPaid && materialPaid && commissionCollected;
-  const workerCost = (laborCost ?? 0) + (materialCost ?? 0);
+  // "Owed to worker" = o custo do worker que AINDA não foi pago. Cai quando a
+  // Andrea marca Labor/Material pago; zera = worker quitado. (Server-driven: os
+  // toggles gravam e revalidam, então este valor recomputa dos props atualizados.)
+  const lc = laborCost ?? 0;
+  const mc = materialCost ?? 0;
+  const owedToWorker = (laborPaid ? 0 : lc) + (materialPaid ? 0 : mc);
+  const workerFullyPaid = owedToWorker === 0 && lc + mc > 0;
 
   const inputClass =
     "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15 disabled:opacity-60";
@@ -189,7 +195,30 @@ export function ServiceTrackingPanel({
 
       {/* Breakdown interno: custo do worker, sua comissão, total ao owner. */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Worker cost" value={money(workerCost)} />
+        <div
+          className={cx(
+            "rounded-xl border px-3 py-2",
+            workerFullyPaid
+              ? "border-primary/30 bg-primary/[0.08]"
+              : owedToWorker > 0
+              ? "border-amber-400/40 bg-amber-50"
+              : "border-black/[0.06] bg-black/[0.015]"
+          )}
+        >
+          <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink/40">
+            {workerFullyPaid ? "Worker fully paid" : "Owed to worker"}
+          </span>
+          <span className={cx("h-display text-base", workerFullyPaid ? "text-primary" : "text-amber-700")}>
+            {money(owedToWorker)}
+          </span>
+          {lc + mc > 0 && (
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-ink/55">
+              <span className={laborPaid ? "text-ink/30 line-through" : ""}>Labor {money(lc)}</span>
+              {" · "}
+              <span className={materialPaid ? "text-ink/30 line-through" : ""}>Material {money(mc)}</span>
+            </span>
+          )}
+        </div>
         <Stat label="Your commission" value={money(commission)} accent="secondary" />
         <Stat label="Owner pays" value={money(ownerTotal)} accent="primary" />
         <div>
