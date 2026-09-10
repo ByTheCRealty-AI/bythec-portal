@@ -117,7 +117,7 @@ async function loadLeaseRenewals() {
       .order("rental_end", { ascending: true });
 
     const todayUTC = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z").getTime();
-    const rows = ((data ?? []) as Array<{
+    const rows = ((data ?? []) as unknown as Array<{
       id: string;
       address: string;
       address2: string | null;
