@@ -10,6 +10,7 @@ import {
   type ReminderEscalation,
 } from "@/lib/reminders";
 import type { ReminderStatus } from "@/lib/types";
+import { LeaseRenewalsCard, type RenewalItem } from "./LeaseRenewalsCard";
 import {
   Users,
   Home,
@@ -97,6 +98,54 @@ async function loadRemindersSummary(viewerId: string, role: AppRole) {
   }
 }
 
+// Lease renewals pro Overview: leases (year-round/off-season) terminando nos
+// próximos 90 dias, mais próximos no topo. Split entre ativos e descartados
+// (renewal_dismissed_for = rental_end). Falha silenciosa se algo faltar.
+async function loadLeaseRenewals() {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("properties")
+      .select(
+        "id, address, address2, rental_end, renewal_dismissed_for, tenant:tenant_id(name)"
+      )
+      .or("is_year_round.eq.true,is_winter.eq.true")
+      .is("archived_at", null)
+      .not("rental_end", "is", null)
+      .lte("rental_end", new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10))
+      .gte("rental_end", new Date().toISOString().slice(0, 10))
+      .order("rental_end", { ascending: true });
+
+    const todayUTC = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z").getTime();
+    const rows = ((data ?? []) as Array<{
+      id: string;
+      address: string;
+      address2: string | null;
+      rental_end: string;
+      renewal_dismissed_for: string | null;
+      tenant: { name: string } | null;
+    }>).map((r) => {
+      const endT = new Date(r.rental_end + "T00:00:00Z");
+      const item: RenewalItem = {
+        id: r.id,
+        label: r.address.split(",")[0].trim(), // só a rua
+        unit: r.address2,
+        tenant: r.tenant?.name ?? null,
+        days: Math.max(0, Math.round((endT.getTime() - todayUTC) / 864e5)),
+        endLabel: endT.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+      };
+      return { item, dismissed: r.renewal_dismissed_for === r.rental_end };
+    });
+
+    return {
+      active: rows.filter((r) => !r.dismissed).map((r) => r.item),
+      dismissed: rows.filter((r) => r.dismissed).map((r) => r.item),
+    };
+  } catch {
+    return { active: [] as RenewalItem[], dismissed: [] as RenewalItem[] };
+  }
+}
+
 async function getCounts() {
   try {
     const supabase = createClient();
@@ -129,6 +178,10 @@ export default async function OverviewPage({
   const reminders = showReminders
     ? await loadRemindersSummary(profile!.id, profile!.role)
     : null;
+
+  // Lease renewals: só pra internos (owner/manager/secretary — têm properties.edit).
+  const canManageLeases = can(profile, "properties.edit");
+  const renewals = canManageLeases ? await loadLeaseRenewals() : null;
 
   // Counts vêm via RLS → pro realtor, clients/properties já são só os DELE ("her
   // things"). O card de Invoices só faz sentido pra quem tem acesso a invoices.
@@ -266,6 +319,14 @@ export default async function OverviewPage({
             <p className="mt-4 text-sm text-ink/50">Nothing open assigned to you. Nice.</p>
           )}
         </Card>
+      )}
+
+      {renewals && (renewals.active.length > 0 || renewals.dismissed.length > 0) && (
+        <LeaseRenewalsCard
+          active={renewals.active}
+          dismissed={renewals.dismissed}
+          canManage={canManageLeases}
+        />
       )}
 
       <Card className="mt-6">
