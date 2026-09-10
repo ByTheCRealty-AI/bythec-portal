@@ -45,7 +45,7 @@ type Item = {
 
 // Ordem dos módulos do painel. Só Clientes e Propriedades são funcionais agora.
 const NAV: Item[] = [
-  { href: "/", label: "Overview", icon: LayoutDashboard, ready: false },
+  { href: "/", label: "Overview", icon: LayoutDashboard, ready: true },
   { href: "/reminders", label: "Reminders", icon: BellRing, ready: true, cap: "reminders.view" },
   // clients.own / properties.own são visíveis a internos E realtor (o RLS escopa
   // o realtor pros próprios registros). Sales segue clients.own.
