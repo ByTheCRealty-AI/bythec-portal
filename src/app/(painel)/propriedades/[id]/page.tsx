@@ -163,11 +163,9 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .eq("parent_type", "property")
       .eq("parent_id", p.id)
       .is("archived_at", null)
-      // Manual order first where an owner/manager set it (sort_order asc), otherwise
-      // newest → oldest by date (every doc has one). A group nobody reordered stays
-      // pure newest→oldest; a reordered group follows the manual arrangement.
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("doc_date", { ascending: false, nullsFirst: false })
+      // Final order is applied in JS (sortDocuments, bottom of this file): the rule
+      // needs "document date, or upload date when there is none", which PostgREST
+      // can't express as an ORDER BY.
       .order("created_at", { ascending: false }),
     // Pagamentos desta propriedade (não-arquivados). Mês desc nulls last, depois
     // criação desc — mesmo critério da tela /payments.
@@ -201,7 +199,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const services = withCreatorNames((servicesData ?? []) as unknown as Service[], creatorNames);
   const requests = withCreatorNames((requestsData ?? []) as unknown as TenantRequest[], creatorNames);
   const providers = (providersData ?? []) as { id: string; name: string }[];
-  const documents = (documentsData ?? []) as Document[];
+  const documents = sortDocuments((documentsData ?? []) as Document[]);
   const payments = (paymentsData ?? []) as unknown as Payment[];
   const invoices = (invoicesData ?? []) as {
     id: string;
@@ -907,4 +905,30 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       />
     </>
   );
+}
+
+// ---- Document order ---------------------------------------------------------
+// Newest first. Andrea, 2026-09-10: "when uploading new documents, the new ones
+// are going to the bottom of the page. make sure that they're going to the top."
+//
+// Why it broke: only the OneDrive import sets doc_date — a document uploaded by
+// hand has none. The old SQL order was doc_date DESC NULLS LAST, so every manual
+// upload sank under ~1,200 dated imports. DocumentRow already SHOWS "Added
+// <upload date>" for those rows; this makes the ORDER use that same date.
+//
+//  1. Documents nobody placed by hand (sort_order null) come first, newest →
+//     oldest by document date, or by upload date when there is no document date.
+//  2. Then documents an owner/manager arranged manually, in that order.
+// A fresh upload therefore lands on top even in a section someone reordered.
+function sortDocuments(docs: Document[]): Document[] {
+  // Noon UTC for a bare date, the codebase convention that avoids day drift.
+  const when = (d: Document) =>
+    Date.parse(d.doc_date ? `${d.doc_date}T12:00:00Z` : d.created_at) || 0;
+  return [...docs].sort((a, b) => {
+    const aManual = a.sort_order != null;
+    const bManual = b.sort_order != null;
+    if (aManual !== bManual) return aManual ? 1 : -1;
+    if (aManual) return (a.sort_order as number) - (b.sort_order as number);
+    return when(b) - when(a) || Date.parse(b.created_at) - Date.parse(a.created_at);
+  });
 }
