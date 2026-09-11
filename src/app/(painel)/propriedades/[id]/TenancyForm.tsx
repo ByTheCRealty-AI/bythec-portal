@@ -58,7 +58,7 @@ export function TenancyForm({
   }
 
   function makeVacant() {
-    if (!confirm("Make this property vacant (remove the current tenant)? Payment history is kept.")) return;
+    if (!confirm("Make this property vacant? This removes the current tenant and clears the lease start and end dates. Payment history is kept.")) return;
     setError(null);
     start(async () => {
       try {

@@ -238,6 +238,12 @@ export async function setNonFacilitatorAction(fd: FormData) {
 }
 
 // Deixa a propriedade vaga (remove o inquilino). Não mexe no histórico.
+// Andrea 2026-09-11: "when a tenant is removed, then the lease dates need to be
+// blank." Início/fim do contrato pertencem ao inquilino que saiu — ficar com eles
+// numa casa vaga dispara o aviso de renovação do Overview e o gerador de
+// pagamentos mensais pra ninguém. O aluguel (rent_price) FICA: é o preço pedido
+// da casa, usado pelas listings. renewal_dismissed_for é o "dispensado" daquele
+// rental_end específico, então sai junto.
 export async function clearPropertyTenantAction(propertyId: string) {
   const profile = await getProfile();
   if (!can(profile, "properties.edit")) {
@@ -247,7 +253,7 @@ export async function clearPropertyTenantAction(propertyId: string) {
   const supabase = createClient();
   const { error } = await supabase
     .from("properties")
-    .update({ tenant_id: null })
+    .update({ tenant_id: null, rental_start: null, rental_end: null, renewal_dismissed_for: null })
     .eq("id", propertyId);
   if (error) throw new Error(error.message);
   revalidatePath(`/propriedades/${propertyId}`);
