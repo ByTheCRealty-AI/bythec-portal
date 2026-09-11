@@ -5,6 +5,7 @@
 // NUNCA seleciona ssn_encrypted — o SSN só é decifrado sob demanda via action.
 // =============================================================================
 
+import { attachmentsNewestFirst } from "@/lib/order";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, NoAccess, EmptyState } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
@@ -27,7 +28,7 @@ async function load() {
       .is("archived_at", null)
       .order("submitted_at", { ascending: false });
     if (error) throw error;
-    return { ok: true as const, applications: (data ?? []) as unknown as RentalApplication[] };
+    return { ok: true as const, applications: attachmentsNewestFirst((data ?? []) as unknown as RentalApplication[]) };
   } catch {
     return { ok: false as const, applications: [] as RentalApplication[] };
   }

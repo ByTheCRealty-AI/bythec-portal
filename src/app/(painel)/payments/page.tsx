@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { attachmentsNewestFirst } from "@/lib/order";
 import { PageHeader, EmptyState, NoAccess, Card, buttonClass } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can, canDelete } from "@/lib/auth/capabilities";
@@ -45,14 +46,15 @@ async function loadPayments() {
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, owner_paid, owner_paid_at, owner_payment_method, owner_check_number, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection, owner:owner_id (id, name)), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category))"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, owner_paid, owner_paid_at, owner_payment_method, owner_check_number, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection, owner:owner_id (id, name)), tenant:tenant_id (id, name), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category, created_at), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category, created_at))"
       )
       .is("archived_at", null)
       .in("kind", ["monthly", "first_month", "last_month", "security_deposit"])
       .order("month", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return { ok: true as const, payments: (data ?? []) as unknown as Payment[] };
+    // Recibos do mais novo pro mais antigo (regra da Andrea) — no pagamento e em cada parcela.
+    return { ok: true as const, payments: attachmentsNewestFirst((data ?? []) as unknown as Payment[]) };
   } catch {
     return { ok: false as const, payments: [] as Payment[] };
   }

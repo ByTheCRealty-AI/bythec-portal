@@ -1,3 +1,4 @@
+import { newestFirst } from "@/lib/order";
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui";
@@ -84,7 +85,8 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
 
   // Recibos: só guest_receipt entram na seção de recibos/PDF combinado; os de
   // repasse (owner/cleaner) vão pro painel interno de Payouts.
-  const allAttachments = invoice.attachments ?? [];
+  // Newest → oldest on screen (regra da Andrea).
+  const allAttachments = newestFirst([...(invoice.attachments ?? [])]);
   const guestReceipts = allAttachments.filter(
     (a) => (a.category ?? "guest_receipt") === "guest_receipt"
   );

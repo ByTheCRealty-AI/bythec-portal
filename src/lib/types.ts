@@ -710,6 +710,8 @@ export interface PaymentAttachment {
   // rent_receipt = tenant proof (Receipt column); owner_payout = owner-payout proof.
   // Optional in the type because some older selects may not request it.
   category?: PaymentAttachmentCategory | null;
+  // Upload time — drives newest-first ordering of receipts (lib/order.ts).
+  created_at?: string | null;
 }
 
 // One partial payment a tenant made toward a rent charge. A rent payment can be

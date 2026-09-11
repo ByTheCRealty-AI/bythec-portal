@@ -1,3 +1,4 @@
+import { attachmentsNewestFirst } from "@/lib/order";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, NoAccess, Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
@@ -49,7 +50,8 @@ export default async function ExpensesPage() {
       .order("name", { ascending: true }),
   ]);
 
-  const expenses = (expData ?? []) as Expense[];
+  // Recibos de cada expense do mais novo pro mais antigo (regra da Andrea).
+  const expenses = attachmentsNewestFirst((expData ?? []) as Expense[]);
   const properties = (propData ?? []) as { id: string; address: string; address2: string | null }[];
   const clients = (cliData ?? []) as { id: string; name: string }[];
 

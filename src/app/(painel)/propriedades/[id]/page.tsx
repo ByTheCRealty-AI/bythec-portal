@@ -7,7 +7,8 @@ import { PropriedadeArchiveButton } from "../PropriedadeArchiveButton";
 import { PropriedadeDeleteButton } from "../PropriedadeDeleteButton";
 import { BackButton } from "./BackButton";
 import { getProfile } from "@/lib/auth/session";
-import { canDelete, can, canReorderDocuments } from "@/lib/auth/capabilities";
+import { canDelete, can } from "@/lib/auth/capabilities";
+import { attachmentsNewestFirst } from "@/lib/order";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
@@ -17,7 +18,6 @@ import { DocumentRow } from "@/components/inline-forms/DocumentRow";
 import { BulkDocumentImport } from "@/components/inline-forms/BulkDocumentImport";
 import { InlineDateEditor } from "@/components/InlineDateEditor";
 import { setListingSoldDateAction } from "@/app/(painel)/sales/actions";
-import { SortableDocumentList } from "@/components/inline-forms/SortableDocumentList";
 import { NoteRow } from "@/components/inline-forms/NoteRow";
 import { ServiceRow } from "@/components/inline-forms/ServiceRow";
 import { RequestRow } from "@/components/inline-forms/RequestRow";
@@ -36,7 +36,6 @@ import {
   updateDocumentTenancyAction,
   importPropertyDocumentsAction,
   renameDocumentAction,
-  reorderDocumentsAction,
 } from "../actions";
 import { PaymentAddForm } from "../../payments/PaymentAddForm";
 import { GeneratePaymentsButton } from "../../payments/GeneratePaymentsButton";
@@ -172,7 +171,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     supabase
       .from("payments")
       .select(
-        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, owner_paid, owner_paid_at, owner_payment_method, owner_check_number, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection, owner:owner_id (id, name)), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category))"
+        "id, property_id, tenant_id, kind, month, due_date, rent_amount, commission, commission_paid, commission_paid_at, owner_paid, owner_paid_at, owner_payment_method, owner_check_number, status, received_at, amount_paid, notes, installment_no, installment_total, installment_group, archived_at, created_at, property:property_id (id, address, address2, property_type, rent_collection, owner:owner_id (id, name)), attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category, created_at), parts:payment_parts (id, payment_id, amount, paid_at, method, notes, created_at, attachments:payment_attachments (id, file_url, file_name, content_type, payment_part_id, category, created_at))"
       )
       .eq("property_id", p.id)
       .is("archived_at", null)
@@ -200,7 +199,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const requests = withCreatorNames((requestsData ?? []) as unknown as TenantRequest[], creatorNames);
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = sortDocuments((documentsData ?? []) as Document[]);
-  const payments = (paymentsData ?? []) as unknown as Payment[];
+  const payments = attachmentsNewestFirst((paymentsData ?? []) as unknown as Payment[]);
   const invoices = (invoicesData ?? []) as {
     id: string;
     invoice_number: string | null;
@@ -726,10 +725,6 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     a.name.localeCompare(b.name)
   );
 
-  // Reorder LIGADO pra owner + manager (a Andrea pediu que a manager reordene os
-  // documentos). Default segue newest→oldest por data; quem tiver a cap arrasta pra
-  // sobrepor a ordem de um grupo (sort_order). A secretária NÃO reordena.
-  const canReorderDocs = canReorderDocuments(profile);
   const docRowProps = {
     canDelete: canUploadDocs,
     deleteAction: deletePropertyDocumentAction,
@@ -740,14 +735,14 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     canRename: canUploadDocs,
     renameAction: renameDocumentAction,
   };
+  // Sempre do mais novo pro mais antigo (sortDocuments). O "Reorder" manual foi
+  // REMOVIDO a pedido da Andrea (2026-09-10): nenhuma ordem manual sobrepõe essa.
   const docList = (docs: Document[]) => (
-    <SortableDocumentList
-      docs={docs}
-      propertyId={p.id}
-      canReorder={canReorderDocs}
-      reorderAction={reorderDocumentsAction}
-      rowProps={docRowProps}
-    />
+    <ul className="space-y-3">
+      {docs.map((d) => (
+        <DocumentRow key={d.id} doc={d} {...docRowProps} />
+      ))}
+    </ul>
   );
 
   const documentsTab = (
@@ -814,9 +809,6 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               updateTenancyAction={updateDocumentTenancyAction}
               canRename={canUploadDocs}
               renameAction={renameDocumentAction}
-              canReorder={canReorderDocs}
-              propertyId={p.id}
-              reorderAction={reorderDocumentsAction}
             />
           )}
         </div>
@@ -916,19 +908,14 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
 // upload sank under ~1,200 dated imports. DocumentRow already SHOWS "Added
 // <upload date>" for those rows; this makes the ORDER use that same date.
 //
-//  1. Documents nobody placed by hand (sort_order null) come first, newest →
-//     oldest by document date, or by upload date when there is no document date.
-//  2. Then documents an owner/manager arranged manually, in that order.
-// A fresh upload therefore lands on top even in a section someone reordered.
+// Strictly newest → oldest by document date, or by upload date when there is no
+// document date. No manual override: the owner/manager "Reorder" was removed at
+// Andrea's request (2026-09-10), so sort_order is ignored.
 function sortDocuments(docs: Document[]): Document[] {
   // Noon UTC for a bare date, the codebase convention that avoids day drift.
   const when = (d: Document) =>
     Date.parse(d.doc_date ? `${d.doc_date}T12:00:00Z` : d.created_at) || 0;
-  return [...docs].sort((a, b) => {
-    const aManual = a.sort_order != null;
-    const bManual = b.sort_order != null;
-    if (aManual !== bManual) return aManual ? 1 : -1;
-    if (aManual) return (a.sort_order as number) - (b.sort_order as number);
-    return when(b) - when(a) || Date.parse(b.created_at) - Date.parse(a.created_at);
-  });
+  return [...docs].sort(
+    (a, b) => when(b) - when(a) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
 }

@@ -7,7 +7,7 @@
 // re-tag e download continuam funcionando).
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
-import { SortableDocumentList } from "@/components/inline-forms/SortableDocumentList";
+import { DocumentRow } from "@/components/inline-forms/DocumentRow";
 import type { Document } from "@/lib/types";
 
 type TenantOption = { id: string; name: string; archived: boolean };
@@ -23,9 +23,6 @@ export function PastTenantDocumentsSection({
   updateTenancyAction,
   canRename,
   renameAction,
-  canReorder,
-  propertyId,
-  reorderAction,
 }: {
   groups: Group[];
   canDelete: boolean;
@@ -36,9 +33,6 @@ export function PastTenantDocumentsSection({
   updateTenancyAction: (fd: FormData) => void | Promise<void>;
   canRename: boolean;
   renameAction: (fd: FormData) => void | Promise<void>;
-  canReorder: boolean;
-  propertyId: string;
-  reorderAction: (propertyId: string, orderedIds: string[]) => Promise<void>;
 }) {
   const rowProps = {
     canDelete,
@@ -101,13 +95,12 @@ export function PastTenantDocumentsSection({
                 </button>
                 {isOpen && (
                   <div className="px-3 pb-3">
-                    <SortableDocumentList
-                      docs={g.docs}
-                      propertyId={propertyId}
-                      canReorder={canReorder}
-                      reorderAction={reorderAction}
-                      rowProps={rowProps}
-                    />
+                    {/* Newest → oldest, as sorted by the property page. */}
+                    <ul className="space-y-3">
+                      {g.docs.map((d) => (
+                        <DocumentRow key={d.id} doc={d} {...rowProps} />
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
