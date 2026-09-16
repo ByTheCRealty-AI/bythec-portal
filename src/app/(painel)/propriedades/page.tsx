@@ -16,7 +16,7 @@ type PropertyRow = Property & {
 
 // archivedView=true (owner only): mostra arquivadas em vez de ativas, pra owner
 // alcançar o registro e poder hard-deletar. Default permanece intocado (ativas).
-async function load(typeFilter?: string, archivedView = false) {
+async function load(typeFilter?: string, archivedView = false, vacantKind = "") {
   try {
     const supabase = createClient();
     let q = supabase
@@ -32,7 +32,13 @@ async function load(typeFilter?: string, archivedView = false) {
     if (flag) q = q.eq(flag, true);
     // "Vacant rentals": sem inquilino E anual ou inverno. Casa vendida sai no JS
     // (neq no PostgREST também jogaria fora sale_status NULL).
-    if (typeFilter === VACANT) q = q.is("tenant_id", null).or("is_year_round.eq.true,is_winter.eq.true");
+    if (typeFilter === VACANT) {
+      q = q.is("tenant_id", null);
+      // Sub-filtro por flag (casa anual E inverno aparece nos dois).
+      if (vacantKind === "year_round") q = q.eq("is_year_round", true);
+      else if (vacantKind === "winter") q = q.eq("is_winter", true);
+      else q = q.or("is_year_round.eq.true,is_winter.eq.true");
+    }
     const { data, error } = await q;
     if (error) throw error;
     let rows = (data ?? []) as unknown as PropertyRow[];
@@ -51,15 +57,28 @@ async function countVacant() {
     const supabase = createClient();
     const { data } = await supabase
       .from("properties")
-      .select("sale_status")
+      .select("sale_status, is_year_round, is_winter")
       .is("archived_at", null)
       .is("tenant_id", null)
       .or("is_year_round.eq.true,is_winter.eq.true");
-    return (data ?? []).filter((p: { sale_status: string | null }) => p.sale_status !== "sold").length;
+    const rows = ((data ?? []) as { sale_status: string | null; is_year_round: boolean; is_winter: boolean }[]).filter(
+      (p) => p.sale_status !== "sold"
+    );
+    return {
+      all: rows.length,
+      year_round: rows.filter((p) => p.is_year_round).length,
+      winter: rows.filter((p) => p.is_winter).length,
+    };
   } catch {
     return null;
   }
 }
+
+const VACANT_KINDS = [
+  { value: "", label: "All vacant", key: "all" },
+  { value: "year_round", label: "Year-round only", key: "year_round" },
+  { value: "winter", label: "Winter only", key: "winter" },
+] as const;
 
 const FILTERS = [
   { value: "", label: "All" },
@@ -69,7 +88,7 @@ const FILTERS = [
 export default async function PropriedadesPage({
   searchParams,
 }: {
-  searchParams: { tipo?: string; q?: string; archived?: string };
+  searchParams: { tipo?: string; q?: string; archived?: string; v?: string };
 }) {
   const profile = await getProfile();
   // properties.edit = full (internos); properties.own = escopo do realtor (RLS).
@@ -88,8 +107,10 @@ export default async function PropriedadesPage({
   const canArchived = can(profile, "properties.edit");
   const active = searchParams.tipo ?? "";
   const archivedView = canArchived && searchParams.archived === "1";
+  // Só aceita valor conhecido vindo da URL.
+  const vacantKind = VACANT_KINDS.find((k) => k.value && k.value === searchParams.v)?.value ?? "";
   const [{ ok, properties }, vacantCount] = await Promise.all([
-    load(active || undefined, archivedView),
+    load(active || undefined, archivedView, vacantKind),
     countVacant(),
   ]);
 
@@ -178,7 +199,7 @@ export default async function PropriedadesPage({
               <DoorOpen className="h-3.5 w-3.5" /> Vacant rentals
               {vacantCount != null && (
                 <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
-                  {vacantCount}
+                  {vacantCount.all}
                 </span>
               )}
             </Link>
@@ -187,9 +208,38 @@ export default async function PropriedadesPage({
       </div>
 
       {active === VACANT && !archivedView && (
-        <p className="-mt-3 mb-5 text-xs text-ink/50">
-          Year-round and off-season (winter) rentals with no tenant right now. Sold houses are left out.
-        </p>
+        <div className="-mt-3 mb-5">
+          <div className="mb-2 flex flex-wrap gap-2">
+            {VACANT_KINDS.map((k) => {
+              const on = vacantKind === k.value;
+              const color =
+                k.value === "year_round"
+                  ? on
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-blue-200 bg-white text-blue-700/80 hover:border-blue-300"
+                  : k.value === "winter"
+                    ? on
+                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                      : "border-orange-200 bg-white text-orange-700/80 hover:border-orange-300"
+                    : on
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-black/10 bg-white text-ink/60 hover:text-ink hover:border-black/20";
+              return (
+                <Link
+                  key={k.key}
+                  href={`/propriedades?tipo=${VACANT}${k.value ? `&v=${k.value}` : ""}`}
+                  className={"inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition " + color}
+                >
+                  {k.label}
+                  {vacantCount != null && <span className="text-[10px] font-bold opacity-70">{vacantCount[k.key]}</span>}
+                </Link>
+              );
+            })}
+          </div>
+          <p className="text-xs text-ink/50">
+            Year-round and off-season (winter) rentals with no tenant right now. Sold houses are left out.
+          </p>
+        </div>
       )}
 
       {!ok && (

@@ -67,6 +67,7 @@ import {
 } from "../../payments/actions";
 import {
   propertyTypeLabels,
+  propertyTypeTone,
   RENT_COLLECTION_LABEL,
   type Property,
   type Note,
@@ -303,7 +304,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         <div className="mb-3 flex items-center justify-between">
           <h3 className="h-display text-sm text-ink/70">Details</h3>
           {propertyTypeLabels(p).map((label) => (
-            <Badge key={label} tone="orange">
+            <Badge key={label} tone={propertyTypeTone(label)}>
               {label}
             </Badge>
           ))}

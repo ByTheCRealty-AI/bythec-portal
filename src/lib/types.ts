@@ -303,6 +303,17 @@ export function propertyTypeLabels(p: {
   return out;
 }
 
+// Cor do selo por tipo (Andrea 2026-09-16: anual e inverno com cores diferentes).
+// Nomes de tone mentem: "orange" = verde secundário, "gold" = verde primário,
+// "tangerine" = laranja de verdade. Year-Round azul × Off-Season laranja.
+export function propertyTypeTone(label: string): "gold" | "orange" | "tangerine" | "blue" | "neutral" {
+  if (label === "Year-Round Rental") return "blue";
+  if (label === "Off-Season Rental") return "tangerine";
+  if (label === "Vacation Rental") return "orange";
+  if (label === "For Sale") return "gold";
+  return "neutral";
+}
+
 export function clientRoleLabels(c: {
   is_tenant?: boolean | null;
   is_landlord?: boolean | null;

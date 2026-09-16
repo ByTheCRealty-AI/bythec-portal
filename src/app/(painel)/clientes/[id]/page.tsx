@@ -36,6 +36,7 @@ import {
 import {
   clientRoleLabels,
   propertyTypeLabels,
+  propertyTypeTone,
   DEAL_SIDE_LABEL,
   DEAL_STATUS_LABEL,
   type Client,
@@ -230,7 +231,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           {p.address2 && <p className="text-xs text-ink/45">{p.address2}</p>}
         </div>
         {propertyTypeLabels(p).map((label) => (
-          <Badge key={label} tone="orange">
+          <Badge key={label} tone={propertyTypeTone(label)}>
             {label}
           </Badge>
         ))}
