@@ -3,7 +3,7 @@ import { PageHeader, EmptyState, buttonClass, Card, NoAccess } from "@/component
 import { PROPERTY_TYPE_FLAGS, type Property } from "@/lib/types";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { Home, Plus, Archive, FolderUp } from "lucide-react";
+import { Home, Plus, Archive, FolderUp, DoorOpen } from "lucide-react";
 import Link from "next/link";
 import { PropertiesTable } from "./PropertiesTable";
 
@@ -30,11 +30,34 @@ async function load(typeFilter?: string, archivedView = false) {
     // string arbitrária como nome de coluna.
     const flag = PROPERTY_TYPE_FLAGS.find((f) => f.flag === typeFilter)?.flag;
     if (flag) q = q.eq(flag, true);
+    // "Vacant rentals": sem inquilino E anual ou inverno. Casa vendida sai no JS
+    // (neq no PostgREST também jogaria fora sale_status NULL).
+    if (typeFilter === VACANT) q = q.is("tenant_id", null).or("is_year_round.eq.true,is_winter.eq.true");
     const { data, error } = await q;
     if (error) throw error;
-    return { ok: true as const, properties: (data ?? []) as unknown as PropertyRow[] };
+    let rows = (data ?? []) as unknown as PropertyRow[];
+    if (typeFilter === VACANT) rows = rows.filter((p) => p.sale_status !== "sold");
+    return { ok: true as const, properties: rows };
   } catch {
     return { ok: false as const, properties: [] as PropertyRow[] };
+  }
+}
+
+// Filtro especial (não é flag): casas anuais/inverno sem inquilino.
+const VACANT = "vacant";
+
+async function countVacant() {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("properties")
+      .select("sale_status")
+      .is("archived_at", null)
+      .is("tenant_id", null)
+      .or("is_year_round.eq.true,is_winter.eq.true");
+    return (data ?? []).filter((p: { sale_status: string | null }) => p.sale_status !== "sold").length;
+  } catch {
+    return null;
   }
 }
 
@@ -65,7 +88,10 @@ export default async function PropriedadesPage({
   const canArchived = can(profile, "properties.edit");
   const active = searchParams.tipo ?? "";
   const archivedView = canArchived && searchParams.archived === "1";
-  const { ok, properties } = await load(active || undefined, archivedView);
+  const [{ ok, properties }, vacantCount] = await Promise.all([
+    load(active || undefined, archivedView),
+    countVacant(),
+  ]);
 
   // Preserva tipo + busca ao alternar entre Active/Archived.
   const tipoQs = active ? `tipo=${active}&` : "";
@@ -136,7 +162,35 @@ export default async function PropriedadesPage({
             </Link>
           );
         })}
+        {!archivedView && (
+          <>
+            <span className="mx-1 w-px self-stretch bg-black/10" aria-hidden />
+            <Link
+              href={`/propriedades?tipo=${VACANT}`}
+              title="No tenant · Year-Round or Off-Season (winter) rental · not sold"
+              className={
+                "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition " +
+                (active === VACANT
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-primary/25 bg-white text-primary/80 hover:border-primary/40 hover:text-primary")
+              }
+            >
+              <DoorOpen className="h-3.5 w-3.5" /> Vacant rentals
+              {vacantCount != null && (
+                <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
+                  {vacantCount}
+                </span>
+              )}
+            </Link>
+          </>
+        )}
       </div>
+
+      {active === VACANT && !archivedView && (
+        <p className="-mt-3 mb-5 text-xs text-ink/50">
+          Year-round and off-season (winter) rentals with no tenant right now. Sold houses are left out.
+        </p>
+      )}
 
       {!ok && (
         <Card className="mb-6 border-secondary/30 bg-secondary/[0.06] text-sm text-ink/70">

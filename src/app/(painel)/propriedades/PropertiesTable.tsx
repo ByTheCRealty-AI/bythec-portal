@@ -43,7 +43,8 @@ export function PropertiesTable({
   // colunas de venda (Sale price / My commission / Status).
   activeType?: string;
 }) {
-  const forSaleView = activeType === "for_sale";
+  // Desde a 0042 o chip manda a FLAG (?tipo=is_for_sale); "for_sale" era o valor antigo.
+  const forSaleView = activeType === "is_for_sale" || activeType === "for_sale";
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
 
