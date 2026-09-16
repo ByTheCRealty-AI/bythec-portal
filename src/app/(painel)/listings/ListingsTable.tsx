@@ -15,6 +15,7 @@
 //
 // Delete é recuperável pra todo mundo (vai pra aba "Deleted", dá pra restaurar).
 // "Delete permanently" só aparece pra owner, e só dentro da aba Deleted.
+import { AddressFields } from "@/components/AddressFields";
 import { useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -319,16 +320,16 @@ function ListingFields({
       </div>
 
       <div className="sm:col-span-2">
-        <Field label="Property address *" hint="Street, town, state — this is the title shown on the website.">
-          <input
-            name="address"
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <AddressFields
+            key={`addr-${propertyId}`}
+            defaultValue={address}
             required
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className={inputClass}
-            placeholder="123 Main St, Falmouth, MA 02540"
+            streetLabel="Street address"
+            streetHint="The full address is the title shown on the website."
+            onChange={setAddress}
           />
-        </Field>
+        </div>
       </div>
 
       <Field label="Unit / apt">

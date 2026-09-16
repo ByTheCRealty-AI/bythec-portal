@@ -6,6 +6,7 @@
 // (Description + Amount) with a LIVE Total. NO worker cost, NO commission,
 // NO labor/material split. Number assigned by the DB trigger.
 // =============================================================================
+import { AddressFields } from "@/components/AddressFields";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Field, inputClass, selectClass, buttonClass } from "@/components/ui";
@@ -121,9 +122,9 @@ export function GeneralInvoiceForm({
         )}
 
         <div className="mt-4">
-          <Field label="Address (if not a saved property)">
-            <input name="service_address" defaultValue={invoice?.service_address ?? ""} className={inputClass} placeholder="123 Ocean St, Hyannis MA 02601" />
-          </Field>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <AddressFields name="service_address" defaultValue={invoice?.service_address} streetLabel="Address (if not a saved property)" />
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">

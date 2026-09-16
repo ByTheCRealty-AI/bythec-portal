@@ -6,6 +6,7 @@
 // Espelha o PropriedadeNovoForm, mas com defaults do registro existente.
 import { useState } from "react";
 import Link from "next/link";
+import { AddressFields } from "@/components/AddressFields";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import {
   PROPERTY_TYPE_FLAGS,
@@ -49,9 +50,7 @@ export function PropriedadeEditForm({
       <section className="glass p-6">
         <h2 className="h-display mb-5 text-base text-ink">Property</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="Address *" hint="From our records, with unit number — never from Google.">
-            <input name="address" required defaultValue={p.address} className={inputClass} />
-          </Field>
+          <AddressFields defaultValue={p.address} required streetHint="From our records — never from Google." />
           <Field label="Unit / apt">
             <input name="address2" defaultValue={p.address2 ?? ""} className={inputClass} />
           </Field>

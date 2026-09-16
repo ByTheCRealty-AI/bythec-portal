@@ -3,6 +3,7 @@
 // Inline "Add property for sale" form on the Sales · For sale tab. Creates a
 // properties row (is_for_sale, sale_status='active') — shows up here
 // AND in the main Properties list. owner_id = the seller (a client).
+import { AddressFields } from "@/components/AddressFields";
 import { useState } from "react";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import { Plus } from "lucide-react";
@@ -78,9 +79,7 @@ export function AddForSaleListingForm({
             ))}
           </select>
         </Field>
-        <Field label="Address *">
-          <input name="address" required className={inputClass} placeholder="123 Main St" />
-        </Field>
+        <AddressFields required />
         <Field label="Unit / address line 2">
           <input name="address2" className={inputClass} placeholder="Apt, unit, etc. (optional)" />
         </Field>

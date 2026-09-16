@@ -11,6 +11,7 @@
 // Live panel shows Worker cost (labor/material), Your commission (10%), and the
 // Owner total (what the owner pays). The math is the locked `serviceBilled`.
 // =============================================================================
+import { AddressFields } from "@/components/AddressFields";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Field, inputClass, selectClass, buttonClass } from "@/components/ui";
@@ -165,9 +166,9 @@ export function ServiceInvoiceForm({
         )}
 
         <div className="mt-4">
-          <Field label="Service address (if not a saved property)">
-            <input name="service_address" defaultValue={invoice?.service_address ?? ""} className={inputClass} placeholder="123 Ocean St, Hyannis MA 02601" />
-          </Field>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <AddressFields name="service_address" defaultValue={invoice?.service_address} streetLabel="Service address (if not a saved property)" />
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">

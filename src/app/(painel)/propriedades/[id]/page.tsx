@@ -1,3 +1,4 @@
+import { parseAddress } from "@/lib/address";
 import { serviceOwnerTotal } from "@/lib/invoice-formula";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
@@ -311,8 +312,18 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             </Badge>
           ))}
         </div>
-        <Row label="Address" value={p.address} />
-        <Row label="Unit / apt" value={p.address2} />
+        {(() => {
+          const a = parseAddress(p.address);
+          return (
+            <>
+              <Row label="Street" value={a.street} />
+              <Row label="Unit / apt" value={p.address2} />
+              <Row label="City / town" value={a.city} />
+              <Row label="State" value={a.state} />
+              <Row label="ZIP" value={a.zip} />
+            </>
+          );
+        })()}
         <Row label="Commission" value={p.commission_fee} />
       </Card>
 
