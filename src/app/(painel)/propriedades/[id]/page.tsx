@@ -13,7 +13,7 @@ import { canDelete, can } from "@/lib/auth/capabilities";
 import { attachmentsNewestFirst } from "@/lib/order";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
-import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
+import { AcceptApplicationsEditor } from "@/components/AcceptApplicationsEditor";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
@@ -430,18 +430,17 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         </Card>
       )}
 
-      {/* Serviço não-facilitador — buy/sell (for sale) + landlords YR/winter. */}
-      {(p.is_for_sale || p.is_year_round || p.is_winter) && (
+      {/* Andrea 2026-09-16: Non-Client Facilitator só no Edit property. Aqui entra
+          "Accept rental applications on the website", e SÓ quando não há inquilino
+          (com inquilino, inclusive saindo, fica só no Edit). */}
+      {!p.tenant_id && (
         <Card className="md:col-span-2">
-          <h3 className="h-display mb-3 text-sm text-ink/70">Service model</h3>
-          <NonFacilitatorEditor
-            entity="property"
+          <h3 className="h-display mb-3 text-sm text-ink/70">Accept rental applications on the website</h3>
+          <AcceptApplicationsEditor
             id={p.id}
-            canEdit={canEditProperty}
-            initialOn={p.non_facilitator}
-            initialType={p.nf_fee_type}
-            initialValue={p.nf_fee_value}
-            landlord={!!(p.is_year_round || p.is_winter)}
+            canEdit={can(profile, "properties.edit")}
+            initialYearRound={p.accepts_year_round ?? false}
+            initialWinter={p.accepts_winter ?? false}
           />
         </Card>
       )}

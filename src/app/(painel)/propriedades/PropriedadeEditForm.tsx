@@ -7,6 +7,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AddressFields } from "@/components/AddressFields";
+import { NonFacilitatorEditor } from "@/components/NonFacilitatorEditor";
 import { Field, inputClass, buttonClass } from "@/components/ui";
 import {
   PROPERTY_TYPE_FLAGS,
@@ -162,6 +163,21 @@ export function PropriedadeEditForm({
               </select>
             </Field>
           </div>
+        </section>
+      )}
+
+      {(types.is_for_sale || types.is_year_round || types.is_winter) && (
+        <section className="glass p-6">
+          <h2 className="h-display mb-5 text-base text-ink">Service model</h2>
+          <NonFacilitatorEditor
+            entity="property"
+            id={p.id}
+            canEdit
+            initialOn={p.non_facilitator}
+            initialType={p.nf_fee_type}
+            initialValue={p.nf_fee_value}
+            landlord={!!(types.is_year_round || types.is_winter)}
+          />
         </section>
       )}
 

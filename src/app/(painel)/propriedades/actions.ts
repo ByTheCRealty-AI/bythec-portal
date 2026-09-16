@@ -205,6 +205,23 @@ export async function assignTenancyAction(fd: FormData) {
   revalidatePath("/payments");
 }
 
+// "Accept rental applications on the website" salvo direto da página da propriedade
+// (casa sem inquilino). Mesma semântica do update: accepting_applications = aceita algum.
+export async function setAcceptsApplicationsAction(id: string, yearRound: boolean, winter: boolean) {
+  const profile = await getProfile();
+  if (!can(profile, "properties.edit")) {
+    throw new Error("You do not have permission to edit this property.");
+  }
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("properties")
+    .update({ accepts_year_round: yearRound, accepts_winter: winter, accepting_applications: yearRound || winter })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/propriedades/${id}`);
+  revalidatePath("/propriedades");
+}
+
 // Serviço NÃO-facilitador: taxa única em vez da comissão padrão. Fonte única na
 // property; editável na página da propriedade E na do cliente (mesma ação).
 export async function setNonFacilitatorAction(fd: FormData) {
