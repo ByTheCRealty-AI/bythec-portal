@@ -16,7 +16,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Field, inputClass, selectClass, buttonClass } from "@/components/ui";
 import { money } from "@/lib/format";
-import { round2, serviceBilled } from "@/lib/invoice-formula";
+import { round2, serviceLineTotals } from "@/lib/invoice-formula";
 import { INVOICE_ITEM_CATEGORY_LABEL, type Client, type Property, type Invoice, type InvoiceItemCategory } from "@/lib/types";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -61,20 +61,25 @@ export function ServiceInvoiceForm({
   const clientProps = clientId ? properties.filter((p) => p.owner_id === clientId) : properties;
 
   // Totais: custo do worker (labor/material), comissão (10%) e total ao owner.
+  // Preço ao owner por linha (material a custo real; comissão do material no labor).
+  const lineTotals = useMemo(
+    () => serviceLineTotals(items.map((it) => ({ category: it.category, cost: Number(it.amount) || 0 }))),
+    [items]
+  );
   const totals = useMemo(() => {
     let laborCost = 0;
     let materialCost = 0;
     let laborBilled = 0;
     let materialBilled = 0;
     let received = 0;
-    for (const it of items) {
+    for (const [idx, it] of items.entries()) {
       const cost = Number(it.amount) || 0;
       // "Payment received": dinheiro que o owner já pagou. Desconta o valor exato, SEM 10%.
       if (it.category === "credit") {
         received += Math.abs(cost);
         continue;
       }
-      const billed = serviceBilled(cost);
+      const billed = lineTotals[idx];
       if (it.category === "labor") {
         laborCost += cost;
         laborBilled += billed;
@@ -93,7 +98,7 @@ export function ServiceInvoiceForm({
       received: round2(received),
       ownerTotal: round2(billed - received),
     };
-  }, [items]);
+  }, [items, lineTotals]);
 
   function updateItem(i: number, patch: Partial<LineItem>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -205,7 +210,7 @@ export function ServiceInvoiceForm({
         </div>
         <p className="mb-5 text-xs text-ink/55">
           Enter the <span className="font-semibold text-ink/70">worker&rsquo;s cost</span>. Your 10% commission is added
-          automatically and included in the price the owner sees. Money the owner already paid you? Add a line with type{" "}
+          automatically: materials show at their real cost, and the 10% on materials is added to the labor lines. Money the owner already paid you? Add a line with type{" "}
           <span className="font-semibold text-ink/70">Payment received</span>: it comes off the total exactly, with no 10%.
         </p>
 
@@ -214,7 +219,7 @@ export function ServiceInvoiceForm({
           <span>Description</span>
           <span>Worker cost / amount</span>
           <span>Type</span>
-          <span className="text-right">Owner price (+10%)</span>
+          <span className="text-right">Owner price</span>
           <span />
         </div>
 
@@ -222,7 +227,7 @@ export function ServiceInvoiceForm({
           {items.map((it, i) => {
             const cost = Number(it.amount) || 0;
             const isCredit = it.category === "credit";
-            const billed = it.amount.trim() === "" ? null : isCredit ? -Math.abs(cost) : serviceBilled(cost);
+            const billed = it.amount.trim() === "" ? null : isCredit ? -Math.abs(cost) : lineTotals[i];
             return (
               <div key={i} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_8rem_9rem_7rem_auto] sm:items-center">
                 <input

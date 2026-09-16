@@ -19,7 +19,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { computeSeasonal, round2, serviceBilled } from "@/lib/invoice-formula";
+import { computeSeasonal, round2, serviceBilled, serviceLineTotals } from "@/lib/invoice-formula";
 import type { CleaningDestination, InvoiceItemCategory, SeasonalCommissionBase } from "@/lib/types";
 
 // ---- Helpers de FormData ---------------------------------------------------
@@ -126,7 +126,9 @@ function readServiceItems(fd: FormData): ServiceItem[] {
     }
     items.push({ description: description ?? "(no description)", cost: amount, total: serviceBilled(amount), category });
   }
-  return items;
+  // Material a custo real; comissão do material vai pro labor (serviceLineTotals).
+  const totals = serviceLineTotals(items.map((it) => ({ category: it.category, cost: it.category === "credit" ? Math.abs(it.total) : it.cost ?? 0 })));
+  return items.map((it, i) => ({ ...it, total: totals[i] }));
 }
 
 function serviceTotals(items: ServiceItem[]) {

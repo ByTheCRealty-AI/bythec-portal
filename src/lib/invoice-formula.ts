@@ -30,6 +30,41 @@ export function serviceBilled(cost: number): number {
   return round2((Number.isFinite(cost) ? cost : 0) * (1 + SERVICE_COMMISSION_RATE));
 }
 
+// Preço ao owner POR LINHA de um service invoice (Andrea 2026-09-16):
+// MATERIAL mostra o custo real (sem comissão); a comissão de 10% do material é
+// SOMADA nas linhas de LABOR, dividida na proporção do custo de cada uma (sobra
+// de centavos na maior). Total e comissão ficam IGUAIS ao modelo antigo.
+// Sem labor no invoice: material leva os 10% na própria linha (fallback).
+// Payment received (credit): −valor, sem 10%.
+export function serviceLineTotals(
+  items: { category?: string | null; cost: number }[]
+): number[] {
+  const laborIdx = items.map((it, i) => (it.category === "labor" && it.cost > 0 ? i : -1)).filter((i) => i >= 0);
+  const laborCost = laborIdx.reduce((a, i) => a + items[i].cost, 0);
+  const materialComm = round2(
+    items.filter((it) => it.category === "material").reduce((a, it) => a + (serviceBilled(it.cost) - it.cost), 0)
+  );
+  const out = items.map((it) => {
+    if (it.category === "credit") return -Math.abs(it.cost);
+    if (it.category === "material") return laborCost > 0 ? round2(it.cost) : serviceBilled(it.cost);
+    return serviceBilled(it.cost);
+  });
+  if (laborCost > 0 && materialComm !== 0) {
+    let given = 0;
+    for (const i of laborIdx) {
+      const share = round2((materialComm * items[i].cost) / laborCost);
+      out[i] = round2(out[i] + share);
+      given = round2(given + share);
+    }
+    const rest = round2(materialComm - given);
+    if (rest !== 0) {
+      const big = laborIdx.reduce((b, i) => (items[i].cost > items[b].cost ? i : b), laborIdx[0]);
+      out[big] = round2(out[big] + rest);
+    }
+  }
+  return out;
+}
+
 // "Payment received" (service): itens category='credit', total negativo, SEM 10%.
 // Derivado dos itens (sem coluna própria) — soma positiva.
 export function servicePaymentsReceived(items?: { category?: string | null; total: number }[] | null): number {
