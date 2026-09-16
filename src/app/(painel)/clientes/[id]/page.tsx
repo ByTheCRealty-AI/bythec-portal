@@ -1,3 +1,4 @@
+import { serviceOwnerTotal } from "@/lib/invoice-formula";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -112,11 +113,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   // Invoices geradas pra este cliente (mais recentes primeiro).
   const { data: invoicesData } = await supabase
     .from("invoices")
-    .select("id, invoice_number, kind, date, paid, total_received_by_owner, labor_total, material_total")
+    .select("id, invoice_number, kind, date, paid, total_received_by_owner, labor_total, material_total, items:invoice_items(category,total)")
     .eq("client_id", client.id)
     .order("date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
-  const invoices = (invoicesData ?? []) as {
+  const invoices = (invoicesData ?? []) as unknown as {
     id: string;
     invoice_number: string | null;
     kind: string;
@@ -125,6 +126,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     total_received_by_owner: number | null;
     labor_total: number | null;
     material_total: number | null;
+    items: { category: string | null; total: number }[] | null;
   }[];
 
   const archived = client.archived_at !== null;
@@ -376,7 +378,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   const invoiceTotal = (inv: (typeof invoices)[number]) =>
     inv.kind === "seasonal"
       ? inv.total_received_by_owner ?? 0
-      : (inv.labor_total ?? 0) + (inv.material_total ?? 0);
+      : serviceOwnerTotal(inv);
 
   const invoicesTab =
     invoices.length === 0 ? (

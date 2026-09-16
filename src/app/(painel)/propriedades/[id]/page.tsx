@@ -1,3 +1,4 @@
+import { serviceOwnerTotal } from "@/lib/invoice-formula";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -187,7 +188,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     // Invoices geradas pra esta propriedade (mais recentes primeiro).
     supabase
       .from("invoices")
-      .select("id, invoice_number, kind, date, paid, total_received_by_owner, labor_total, material_total")
+      .select("id, invoice_number, kind, date, paid, total_received_by_owner, labor_total, material_total, items:invoice_items(category,total)")
       .eq("property_id", p.id)
       .order("date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
@@ -201,7 +202,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const providers = (providersData ?? []) as { id: string; name: string }[];
   const documents = sortDocuments((documentsData ?? []) as Document[]);
   const payments = attachmentsNewestFirst((paymentsData ?? []) as unknown as Payment[]);
-  const invoices = (invoicesData ?? []) as {
+  const invoices = (invoicesData ?? []) as unknown as {
     id: string;
     invoice_number: string | null;
     kind: string;
@@ -210,6 +211,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     total_received_by_owner: number | null;
     labor_total: number | null;
     material_total: number | null;
+    items: { category: string | null; total: number }[] | null;
   }[];
   const allClients = (clientsData ?? []) as { id: string; name: string; archived_at: string | null }[];
   // TenancyForm picker stays active-only (you assign a live client as tenant).
@@ -823,7 +825,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const invoiceTotal = (inv: (typeof invoices)[number]) =>
     inv.kind === "seasonal"
       ? inv.total_received_by_owner ?? 0
-      : (inv.labor_total ?? 0) + (inv.material_total ?? 0);
+      : serviceOwnerTotal(inv);
 
   const invoicesTab =
     invoices.length === 0 ? (

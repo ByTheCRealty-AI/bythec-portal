@@ -106,8 +106,8 @@ export async function createServiceInvoice(fd: FormData) {
 // são o que o OWNER paga; labor_cost/material_cost são o custo do worker (interno).
 type ServiceItem = {
   description: string;
-  cost: number; // custo do worker
-  total: number; // preço ao owner (comissão embutida)
+  cost: number | null; // custo do worker (NULL em "Payment received")
+  total: number; // preço ao owner (comissão embutida); negativo em "Payment received"
   category: InvoiceItemCategory;
 };
 
@@ -118,8 +118,13 @@ function readServiceItems(fd: FormData): ServiceItem[] {
     const amountRaw = str(fd, `item_${i}_amount`);
     const category = (str(fd, `item_${i}_category`) as InvoiceItemCategory | null) ?? "labor";
     if (!description && !amountRaw) continue;
-    const cost = round2(Number(amountRaw ?? 0) || 0);
-    items.push({ description: description ?? "(no description)", cost, total: serviceBilled(cost), category });
+    const amount = round2(Number(amountRaw ?? 0) || 0);
+    if (category === "credit") {
+      // Pagamento já recebido do owner: desconta o valor EXATO, sem os 10%.
+      items.push({ description: description ?? "Payment received", cost: null, total: -Math.abs(amount), category });
+      continue;
+    }
+    items.push({ description: description ?? "(no description)", cost: amount, total: serviceBilled(amount), category });
   }
   return items;
 }
@@ -129,8 +134,9 @@ function serviceTotals(items: ServiceItem[]) {
   const material = items.filter((it) => it.category === "material");
   const labor_total = round2(labor.reduce((a, it) => a + it.total, 0));
   const material_total = round2(material.reduce((a, it) => a + it.total, 0));
-  const labor_cost = round2(labor.reduce((a, it) => a + it.cost, 0));
-  const material_cost = round2(material.reduce((a, it) => a + it.cost, 0));
+  const labor_cost = round2(labor.reduce((a, it) => a + (it.cost ?? 0), 0));
+  const material_cost = round2(material.reduce((a, it) => a + (it.cost ?? 0), 0));
+  // Comissão só sobre o trabalho; pagamento recebido não mexe nela.
   const commission = round2(labor_total + material_total - labor_cost - material_cost);
   return { labor_total, material_total, labor_cost, material_cost, commission };
 }

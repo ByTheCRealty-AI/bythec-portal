@@ -1,3 +1,4 @@
+import { serviceOwnerTotal } from "@/lib/invoice-formula";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState, NoAccess, Card, buttonClass } from "@/components/ui";
@@ -33,7 +34,7 @@ async function load() {
     const { data, error } = await supabase
       .from("invoices")
       .select(
-        "id, invoice_number, kind, platform, date, paid, cleaner_paid, cleaning_goes_to, total_paid_by_guest, labor_total, material_total, general_total, sent_to_owner, labor_paid, material_paid, commission_collected, client:client_id(id,name), property:property_id(id,address,address2)"
+        "id, invoice_number, kind, platform, date, paid, cleaner_paid, cleaning_goes_to, total_paid_by_guest, labor_total, material_total, general_total, items:invoice_items(category,total), sent_to_owner, labor_paid, material_paid, commission_collected, client:client_id(id,name), property:property_id(id,address,address2)"
       )
       .is("archived_at", null)
       .order("invoice_number", { ascending: false });
@@ -106,7 +107,7 @@ export async function InvoicesIndex({
         ? i.total_paid_by_guest ?? 0
         : i.kind === "general"
         ? i.general_total ?? 0
-        : (i.labor_total ?? 0) + (i.material_total ?? 0),
+        : serviceOwnerTotal(i),
     client_name: i.client?.name ?? null,
     property_address: i.property
       ? i.property.address + (i.property.address2 ? ` · ${i.property.address2}` : "")

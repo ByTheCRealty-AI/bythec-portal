@@ -342,7 +342,8 @@ export const DEAL_SIDE_LABEL: Record<DealSide, string> = {
 export type InvoiceKind = "seasonal" | "service" | "general";
 export type InvoiceItemType = "charge" | "discount" | "fee";
 export type CleaningDestination = "owner" | "bythec";
-export type InvoiceItemCategory = "labor" | "material";
+// credit = "Payment received" (service): dinheiro que o owner já pagou, SEM os 10%.
+export type InvoiceItemCategory = "labor" | "material" | "credit";
 
 export interface Invoice {
   id: string;
@@ -458,7 +459,7 @@ export interface InvoiceItem {
   type: InvoiceItemType;
   guest: boolean; // aparece no overview do guest (seasonal)
   owner: boolean; // aparece no overview do owner (seasonal)
-  category: InvoiceItemCategory | null; // 'labor' | 'material' (service)
+  category: InvoiceItemCategory | null; // 'labor' | 'material' | 'credit' (service)
   cost: number | null; // SERVICE: custo do worker. total = round(cost*1.10,2). NULL em seasonal.
   created_at: string;
 }
@@ -472,6 +473,7 @@ export const INVOICE_KIND_LABEL: Record<InvoiceKind, string> = {
 export const INVOICE_ITEM_CATEGORY_LABEL: Record<InvoiceItemCategory, string> = {
   labor: "Labor",
   material: "Material",
+  credit: "Payment received",
 };
 
 export const CLEANING_DESTINATION_LABEL: Record<CleaningDestination, string> = {

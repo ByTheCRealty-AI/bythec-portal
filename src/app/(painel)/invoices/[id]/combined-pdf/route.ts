@@ -23,9 +23,10 @@ const GREEN = rgb(0.098, 0.522, 0.466); // #198577
 
 function money(n: number | null | undefined): string {
   const v = Number(n ?? 0);
+  // Negativo sai "-$1,000.00" (antes "$-1,000.00"), igual à tela.
   return (
-    "$" +
-    v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    (v < 0 ? "-$" : "$") +
+    Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
 }
 
@@ -287,13 +288,23 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     hline(y + 6);
     const labor = inv.labor_total ?? 0;
     const material = inv.material_total ?? 0;
+    // Pagamento já recebido do owner (sem 10%) desconta do total.
+    const received = inv.items
+      .filter((it) => it.category === "credit")
+      .reduce((a, it) => a + Math.abs(it.total), 0);
+    const extra = received > 0 ? 16 : 0;
+    ensure(70 + extra);
     T("Total Labor", PAGE_W - MARGIN - 180, y - 8, 10, font, MUTED);
     TR(money(labor), PAGE_W - MARGIN, y - 8, 10);
     T("Total Material", PAGE_W - MARGIN - 180, y - 24, 10, font, MUTED);
     TR(money(material), PAGE_W - MARGIN, y - 24, 10);
-    T("Total", PAGE_W - MARGIN - 180, y - 44, 11, bold);
-    TR(money(labor + material), PAGE_W - MARGIN, y - 44, 12, bold, GREEN);
-    y -= 60;
+    if (received > 0) {
+      T("Payment received", PAGE_W - MARGIN - 180, y - 40, 10, font, MUTED);
+      TR("-" + money(received), PAGE_W - MARGIN, y - 40, 10);
+    }
+    T("Total", PAGE_W - MARGIN - 180, y - 44 - extra, 11, bold);
+    TR(money(labor + material - received), PAGE_W - MARGIN, y - 44 - extra, 12, bold, GREEN);
+    y -= 60 + extra;
   }
 
   // ---- Notes ----

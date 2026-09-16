@@ -30,6 +30,22 @@ export function serviceBilled(cost: number): number {
   return round2((Number.isFinite(cost) ? cost : 0) * (1 + SERVICE_COMMISSION_RATE));
 }
 
+// "Payment received" (service): itens category='credit', total negativo, SEM 10%.
+// Derivado dos itens (sem coluna própria) — soma positiva.
+export function servicePaymentsReceived(items?: { category?: string | null; total: number }[] | null): number {
+  return round2((items ?? []).filter((i) => i.category === "credit").reduce((a, i) => a + Math.abs(i.total), 0));
+}
+
+// Total devido pelo owner num SERVICE invoice: labor + material (com 10%)
+// menos os pagamentos já recebidos (sem 10%). Fonte única pras telas/PDF.
+export function serviceOwnerTotal(inv: {
+  labor_total?: number | null;
+  material_total?: number | null;
+  items?: { category?: string | null; total: number }[] | null;
+}): number {
+  return round2((inv.labor_total ?? 0) + (inv.material_total ?? 0) - servicePaymentsReceived(inv.items));
+}
+
 // Base de cálculo da comissão By the C, POR PROPERTY (default 'host_payout').
 // MAIORIA das casas: % sobre o Host Payout. EXCEÇÃO (ex.: Rainbow #335): % sobre o
 // Total Paid by Guest. A base vem da property, mas é confirmável/editável por invoice.

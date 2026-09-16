@@ -65,8 +65,14 @@ export function ServiceInvoiceForm({
     let materialCost = 0;
     let laborBilled = 0;
     let materialBilled = 0;
+    let received = 0;
     for (const it of items) {
       const cost = Number(it.amount) || 0;
+      // "Payment received": dinheiro que o owner já pagou. Desconta o valor exato, SEM 10%.
+      if (it.category === "credit") {
+        received += Math.abs(cost);
+        continue;
+      }
       const billed = serviceBilled(cost);
       if (it.category === "labor") {
         laborCost += cost;
@@ -76,14 +82,15 @@ export function ServiceInvoiceForm({
         materialBilled += billed;
       }
     }
-    const ownerTotal = round2(laborBilled + materialBilled);
+    const billed = round2(laborBilled + materialBilled);
     const workerCost = round2(laborCost + materialCost);
     return {
       laborCost: round2(laborCost),
       materialCost: round2(materialCost),
       workerCost,
-      commission: round2(ownerTotal - workerCost),
-      ownerTotal,
+      commission: round2(billed - workerCost),
+      received: round2(received),
+      ownerTotal: round2(billed - received),
     };
   }, [items]);
 
@@ -197,13 +204,14 @@ export function ServiceInvoiceForm({
         </div>
         <p className="mb-5 text-xs text-ink/55">
           Enter the <span className="font-semibold text-ink/70">worker&rsquo;s cost</span>. Your 10% commission is added
-          automatically and included in the price the owner sees.
+          automatically and included in the price the owner sees. Money the owner already paid you? Add a line with type{" "}
+          <span className="font-semibold text-ink/70">Payment received</span>: it comes off the total exactly, with no 10%.
         </p>
 
         {/* Column header */}
         <div className="hidden gap-3 px-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-ink/40 sm:grid sm:grid-cols-[1fr_8rem_9rem_7rem_auto]">
           <span>Description</span>
-          <span>Worker cost</span>
+          <span>Worker cost / amount</span>
           <span>Type</span>
           <span className="text-right">Owner price (+10%)</span>
           <span />
@@ -212,7 +220,8 @@ export function ServiceInvoiceForm({
         <div className="space-y-3">
           {items.map((it, i) => {
             const cost = Number(it.amount) || 0;
-            const billed = it.amount.trim() === "" ? null : serviceBilled(cost);
+            const isCredit = it.category === "credit";
+            const billed = it.amount.trim() === "" ? null : isCredit ? -Math.abs(cost) : serviceBilled(cost);
             return (
               <div key={i} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_8rem_9rem_7rem_auto] sm:items-center">
                 <input
@@ -241,7 +250,7 @@ export function ServiceInvoiceForm({
                     <option key={v} value={v}>{label}</option>
                   ))}
                 </select>
-                <span className="text-right text-sm font-semibold text-ink/70 tabular-nums">
+                <span className={"text-right text-sm font-semibold tabular-nums " + (isCredit ? "text-secondary" : "text-ink/70")}>
                   {billed == null ? "—" : money(billed)}
                 </span>
                 <button
@@ -271,6 +280,12 @@ export function ServiceInvoiceForm({
             <span>Your commission (10%)</span>
             <span className="font-semibold text-secondary">{money(totals.commission)}</span>
           </div>
+          {totals.received > 0 && (
+            <div className="flex justify-between text-ink/65">
+              <span>Payment received (no 10%)</span>
+              <span className="font-semibold text-ink">−{money(totals.received)}</span>
+            </div>
+          )}
           <div className="flex justify-between border-t border-black/[0.08] pt-2 text-base">
             <span className="font-semibold text-ink">Owner pays (Total)</span>
             <span className="h-display text-primary">{money(totals.ownerTotal)}</span>

@@ -132,7 +132,8 @@ export default async function EditInvoicePage({ params }: { params: { id: string
   // legados sem cost (não existem hoje — 0 service invoices na base).
   const initialItems = items.map((it) => ({
     description: it.description,
-    amount: it.cost != null ? String(it.cost) : String(it.total),
+    // "Payment received" guarda total negativo e cost NULL: o form mostra o valor positivo.
+    amount: it.category === "credit" ? String(Math.abs(it.total)) : it.cost != null ? String(it.cost) : String(it.total),
     category: (it.category ?? "labor") as InvoiceItemCategory,
   }));
 

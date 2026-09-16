@@ -1,3 +1,4 @@
+import { serviceOwnerTotal, servicePaymentsReceived } from "@/lib/invoice-formula";
 import { newestFirst } from "@/lib/order";
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
@@ -164,7 +165,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
             laborCost={invoice.labor_cost}
             materialCost={invoice.material_cost}
             commission={invoice.service_commission}
-            ownerTotal={(invoice.labor_total ?? 0) + (invoice.material_total ?? 0)}
+            ownerTotal={serviceOwnerTotal(invoice)}
             sent={invoice.sent_to_owner}
             sentAt={invoice.sent_at}
             ownerPaid={invoice.paid}
@@ -340,7 +341,9 @@ function ServiceBody({
   const material = invoice.items.filter((i) => i.category === "material");
   const laborTotal = invoice.labor_total ?? labor.reduce((a, i) => a + i.total, 0);
   const materialTotal = invoice.material_total ?? material.reduce((a, i) => a + i.total, 0);
-  const total = laborTotal + materialTotal;
+  // Pagamentos já recebidos do owner (sem 10%) descontam do total.
+  const received = servicePaymentsReceived(invoice.items);
+  const total = laborTotal + materialTotal - received;
 
   return (
     <>
@@ -363,7 +366,7 @@ function ServiceBody({
               <td className="py-2.5 pr-3 text-ink/85">{it.description}</td>
               <td className="py-2.5 pr-3">
                 <span className="text-xs font-medium text-ink/55">
-                  {it.category === "material" ? "Material" : "Labor"}
+                  {it.category === "material" ? "Material" : it.category === "credit" ? "Payment received" : "Labor"}
                 </span>
               </td>
               <td className="py-2.5 text-right text-ink/85">{money(it.total)}</td>
@@ -386,6 +389,12 @@ function ServiceBody({
           <span>Total Material</span>
           <span className="font-semibold text-ink">{money(materialTotal)}</span>
         </div>
+        {received > 0 && (
+          <div className="flex justify-between text-ink/65">
+            <span>Payment received</span>
+            <span className="font-semibold text-ink">−{money(received)}</span>
+          </div>
+        )}
         <div className="flex justify-between border-t border-black/[0.1] pt-2 text-base">
           <span className="font-semibold text-ink">Total</span>
           <span className="h-display text-primary">{money(total)}</span>
