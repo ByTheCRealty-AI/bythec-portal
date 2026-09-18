@@ -16,6 +16,7 @@ import {
   toggleListingActiveAction,
   toggleListingFeaturedAction,
   setListingLinkAction,
+  setListingPriceAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -123,6 +124,7 @@ export default async function ListingsPage() {
         toggleActiveAction={toggleListingActiveAction}
         toggleFeaturedAction={toggleListingFeaturedAction}
         setLinkAction={setListingLinkAction}
+        setPriceAction={setListingPriceAction}
         addPhotoAction={addListingPhotoAction}
         deletePhotoAction={deleteListingPhotoAction}
         reorderPhotosAction={reorderListingPhotosAction}

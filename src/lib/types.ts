@@ -1031,6 +1031,17 @@ export interface Listing {
   mls_link: string | null;
   listing_id: string | null; // nº do anúncio no MLS/Airbnb
   price: number | null;
+  // Preço e link POR TIPO (0048). A casa pode ser venda + temporada + inverno e
+  // cada um tem o seu número e o seu anúncio. `price`, `airbnb_link` e
+  // `mls_link` acima viraram DERIVADOS por trigger (ponte pro site público).
+  price_for_sale: number | null;
+  price_year_round: number | null;
+  price_vacation: number | null;
+  price_winter: number | null;
+  link_for_sale: string | null;
+  link_year_round: string | null;
+  link_vacation: string | null;
+  link_winter: string | null;
   listing_type: ListingType;
   listing_status: ListingStatus;
   active: boolean;
@@ -1061,7 +1072,7 @@ export interface Listing {
 // Colunas que a tela de Listings lê. Mantido junto do tipo pra não sair de
 // sincronia com o select da página.
 export const LISTING_COLUMNS =
-  "id, property_id, client_id, is_for_sale, is_year_round, is_vacation, is_winter, address, address2, description, available_date, airbnb_link, mls_link, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
+  "id, property_id, client_id, is_for_sale, is_year_round, is_vacation, is_winter, address, address2, description, available_date, airbnb_link, mls_link, price_for_sale, price_year_round, price_vacation, price_winter, link_for_sale, link_year_round, link_vacation, link_winter, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
 
 // Propriedade oferecida no picker "pull from an existing property" do form de
 // listing. Só os campos que o form usa pra preencher sozinho.
@@ -1110,6 +1121,49 @@ export const LISTING_TYPE_FLAG_LABEL: Record<ListingTypeFlag, string> = {
   is_year_round: "Year-Round Rental",
   is_vacation: "Vacation Rental",
   is_winter: "Winter / Off-Season",
+};
+
+// Campo de preço e de link de CADA tipo (0048).
+export type ListingPriceField =
+  | "price_for_sale" | "price_year_round" | "price_vacation" | "price_winter";
+export type ListingLinkField =
+  | "link_for_sale" | "link_year_round" | "link_vacation" | "link_winter";
+
+export const LISTING_TYPE_PRICE_FIELD: Record<ListingTypeFlag, ListingPriceField> = {
+  is_for_sale: "price_for_sale",
+  is_year_round: "price_year_round",
+  is_vacation: "price_vacation",
+  is_winter: "price_winter",
+};
+
+export const LISTING_TYPE_LINK_FIELD: Record<ListingTypeFlag, ListingLinkField> = {
+  is_for_sale: "link_for_sale",
+  is_year_round: "link_year_round",
+  is_vacation: "link_vacation",
+  is_winter: "link_winter",
+};
+
+// Onde o anúncio daquele tipo vive. Temporada = Airbnb; o resto = CCIAOR/MLS.
+export const LISTING_TYPE_LINK_LABEL: Record<ListingTypeFlag, string> = {
+  is_for_sale: "MLS / CCIAOR",
+  is_year_round: "CCIAOR",
+  is_vacation: "Airbnb",
+  is_winter: "CCIAOR",
+};
+
+export const LISTING_TYPE_LINK_PLACEHOLDER: Record<ListingTypeFlag, string> = {
+  is_for_sale: "cciaor.com/listing/22401234",
+  is_year_round: "cciaor.com/listing/22401234",
+  is_vacation: "airbnb.com/rooms/12345678",
+  is_winter: "cciaor.com/listing/22401234",
+};
+
+// Unidade do preço daquele tipo. Venda é valor cheio; aluguel é por mês.
+export const LISTING_TYPE_PRICE_HINT: Record<ListingTypeFlag, string> = {
+  is_for_sale: "Sale price, e.g. 900,000.",
+  is_year_round: "Monthly rent.",
+  is_vacation: "Leave empty to show \u201cRates on Airbnb\u201d \u2014 nightly rates change.",
+  is_winter: "Monthly rent for the season.",
 };
 
 export const LISTING_TYPE_FLAG_HINT: Record<ListingTypeFlag, string> = {

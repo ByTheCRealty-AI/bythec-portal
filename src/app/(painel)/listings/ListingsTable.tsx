@@ -30,6 +30,11 @@ import {
   LISTING_TYPE_FLAGS,
   LISTING_TYPE_FLAG_LABEL,
   LISTING_TYPE_FLAG_HINT,
+  LISTING_TYPE_PRICE_FIELD,
+  LISTING_TYPE_LINK_FIELD,
+  LISTING_TYPE_LINK_LABEL,
+  LISTING_TYPE_LINK_PLACEHOLDER,
+  LISTING_TYPE_PRICE_HINT,
   listingTypeFlags,
   type ListingTypeFlag,
   type Listing,
@@ -52,28 +57,29 @@ const LISTING_TYPE_TONE: Record<ListingTypeFlag, BadgeTone> = {
 };
 export type ClientOption = { id: string; name: string };
 
-// Rótulo curto do preço, por categoria. Temporada varia (noite/semana), então
-// nunca inventamos a unidade — o anúncio externo é quem manda.
-// Andrea 2026-08-27: "vacation rates change nightly so they have to look on the
-// website aka airbnb". Numa listing de temporada sem preço, "—" parecia campo
-// esquecido; o certo é dizer que a diária vive no Airbnb.
-function priceLabel(l: Listing): string {
-  if (l.price == null) return l.is_vacation ? "Rates on Airbnb" : "—";
-  const p = money(l.price);
-  if (l.is_year_round) return `${p}/mo`;
-  return p;
+// ---- Preço e link POR TIPO (0048) -----------------------------------------
+// Andrea 2026-09-18: "if its vacation, then its an airbnb, if its for sale its
+// mls... 28 seminole, its 3 types so it needs 3 different links and the rate or
+// price needs to correspond to that type." Antes era UM preço e DOIS links pra
+// listing inteira, então a casa de venda + temporada + inverno mostrava o preço
+// de venda como se fosse o aluguel.
+
+// Unidade por tipo: venda é valor cheio, aluguel é por mês. Temporada em branco
+// diz onde a diária mora, em vez de um travessão que parece campo esquecido.
+function priceTextFor(l: Listing, f: ListingTypeFlag): string {
+  const v = l[LISTING_TYPE_PRICE_FIELD[f]];
+  if (v == null) return f === "is_vacation" ? "Rates on Airbnb" : "—";
+  const p = money(v);
+  return f === "is_year_round" || f === "is_winter" ? `${p}/mo` : p;
 }
 
-// Qual link ESTA listing deveria ter. Temporada → Airbnb (é lá que a diária
-// mora). Inverno e venda → CCIAOR. Uma casa temporada + inverno quer os dois.
-function expectedLinks(l: Listing): { field: "airbnb_link" | "mls_link"; label: string }[] {
-  const out: { field: "airbnb_link" | "mls_link"; label: string }[] = [];
-  if (l.is_vacation) out.push({ field: "airbnb_link", label: "Airbnb" });
-  if (l.is_winter || l.is_for_sale || l.is_year_round) {
-    out.push({ field: "mls_link", label: "CCIAOR" });
-  }
-  return out;
-}
+// Rótulo curto pra não repetir o nome inteiro do tipo ao lado de cada número.
+const SHORT_LABEL: Record<ListingTypeFlag, string> = {
+  is_for_sale: "Sale",
+  is_year_round: "Year-round",
+  is_vacation: "Vacation",
+  is_winter: "Winter",
+};
 
 function specLine(l: Listing): string {
   const bits: string[] = [];
@@ -87,39 +93,21 @@ function specLine(l: Listing): string {
   return bits.join(" · ");
 }
 
-// Link externo do anúncio. Airbnb pra temporada, CCIAOR/MLS pra venda e
-// long-term. Se a listing tiver os dois, mostramos os dois.
-function externalLinks(l: Listing): { label: string; href: string }[] {
-  const out: { label: string; href: string }[] = [];
-  if (l.airbnb_link) out.push({ label: "Airbnb", href: l.airbnb_link });
-  if (l.mls_link) out.push({ label: "CCIAOR / MLS", href: l.mls_link });
-  return out;
-}
-
-// Célula da coluna Link: o que já tem vira botão clicável; o que FALTA vira um
-// campo de colar, ali mesmo. Sem abrir o form inteiro — são 16 links pra entrar.
-function LinkCell({
-  l, action, canManage,
-}: {
-  l: Listing;
-  action: Action;
-  canManage: boolean;
-}) {
-  const [editing, setEditing] = useState<"airbnb_link" | "mls_link" | null>(null);
+// Célula de preço: uma linha por tipo, cada uma editável ali mesmo.
+function PriceCell({ l, action, canManage }: { l: Listing; action: Action; canManage: boolean }) {
+  const flags = listingTypeFlags(l);
+  const [editing, setEditing] = useState<ListingTypeFlag | null>(null);
   const [value, setValue] = useState("");
   const [pending, start] = useTransition();
   const [error, setError] = useState(false);
+  const many = flags.length > 1;
 
-  const present = externalLinks(l);
-  const missing = canManage
-    ? expectedLinks(l).filter((e) => !l[e.field])
-    : [];
-
-  function open(field: "airbnb_link" | "mls_link", e: React.MouseEvent) {
+  function open(f: ListingTypeFlag, e: React.MouseEvent) {
     e.stopPropagation();
     setError(false);
-    setValue((l[field] as string | null) ?? "");
-    setEditing(field);
+    const v = l[LISTING_TYPE_PRICE_FIELD[f]];
+    setValue(v != null ? String(v) : "");
+    setEditing(f);
   }
 
   function save(e: React.FormEvent) {
@@ -128,7 +116,81 @@ function LinkCell({
     if (!editing) return;
     const fd = new FormData();
     fd.set("id", l.id);
-    fd.set("field", editing);
+    fd.set("field", LISTING_TYPE_PRICE_FIELD[editing]);
+    fd.set("value", value);
+    setError(false);
+    start(async () => {
+      try {
+        await action(fd);
+        setEditing(null);
+      } catch {
+        setError(true);
+      }
+    });
+  }
+
+  if (flags.length === 0) return <span className="text-ink/35">—</span>;
+
+  return (
+    <div className="space-y-1">
+      {flags.map((f) =>
+        editing === f ? (
+          <form key={f} onSubmit={save} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={value}
+              onChange={(ev) => setValue(ev.target.value)}
+              onKeyDown={(ev) => { if (ev.key === "Escape") setEditing(null); }}
+              placeholder={f === "is_for_sale" ? "900,000" : "3,500"}
+              className="w-28 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-ink outline-none focus:border-primary/40"
+            />
+            <button type="submit" disabled={pending} className="grid h-6 w-6 place-items-center rounded-md border border-primary/30 bg-primary/[0.06] text-primary disabled:opacity-60" aria-label="Save price">
+              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            </button>
+            <button type="button" onClick={() => setEditing(null)} className="grid h-6 w-6 place-items-center rounded-md border border-black/10 text-ink/50" aria-label="Cancel">
+              <X className="h-3 w-3" />
+            </button>
+            {error && <span className="text-[11px] text-red-600">try again</span>}
+          </form>
+        ) : (
+          <div key={f} className="flex items-baseline gap-1.5">
+            {many && <span className="w-16 shrink-0 text-[11px] text-ink/40">{SHORT_LABEL[f]}</span>}
+            <span className="text-ink/80">{priceTextFor(l, f)}</span>
+            {canManage && (
+              <button type="button" onClick={(e) => open(f, e)} className="text-ink/30 transition hover:text-primary" aria-label={`Edit ${SHORT_LABEL[f]} price`}>
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// Célula de link: UM link por tipo. O que falta vira botão tracejado, que serve
+// de checklist do que ainda não foi preenchido.
+function LinkCell({ l, action, canManage }: { l: Listing; action: Action; canManage: boolean }) {
+  const flags = listingTypeFlags(l);
+  const [editing, setEditing] = useState<ListingTypeFlag | null>(null);
+  const [value, setValue] = useState("");
+  const [pending, start] = useTransition();
+  const [error, setError] = useState(false);
+
+  function open(f: ListingTypeFlag, e: React.MouseEvent) {
+    e.stopPropagation();
+    setError(false);
+    setValue((l[LISTING_TYPE_LINK_FIELD[f]] as string | null) ?? "");
+    setEditing(f);
+  }
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!editing) return;
+    const fd = new FormData();
+    fd.set("id", l.id);
+    fd.set("field", LISTING_TYPE_LINK_FIELD[editing]);
     fd.set("url", value);
     setError(false);
     start(async () => {
@@ -141,82 +203,65 @@ function LinkCell({
     });
   }
 
-  if (editing) {
-    return (
-      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
-        <input
-          autoFocus
-          value={value}
-          onChange={(ev) => setValue(ev.target.value)}
-          onKeyDown={(ev) => {
-            if (ev.key === "Escape") setEditing(null);
-          }}
-          placeholder={editing === "airbnb_link" ? "airbnb.com/rooms/…" : "cciaor.com/listing/…"}
-          className="w-48 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-ink outline-none focus:border-primary/40"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="grid h-6 w-6 place-items-center rounded-md border border-primary/30 bg-primary/[0.06] text-primary disabled:opacity-60"
-          aria-label="Save link"
-        >
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-        </button>
-        <button
-          type="button"
-          onClick={() => setEditing(null)}
-          className="grid h-6 w-6 place-items-center rounded-md border border-black/10 text-ink/50"
-          aria-label="Cancel"
-        >
-          <X className="h-3 w-3" />
-        </button>
-        {error && <span className="text-[11px] text-red-600">try again</span>}
-      </form>
-    );
-  }
-
-  if (present.length === 0 && missing.length === 0) {
-    return <span className="text-ink/35">—</span>;
-  }
+  if (flags.length === 0) return <span className="text-ink/35">—</span>;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {present.map((x) => {
-        const field = x.label === "Airbnb" ? "airbnb_link" : "mls_link";
-        return (
-          <span key={x.href} className="inline-flex items-center">
-            <a
-              href={x.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-black/10 bg-white px-2 py-1 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.06]"
-            >
-              {x.label} <ExternalLink className="h-3 w-3" />
-            </a>
-            {canManage && (
-              <button
-                type="button"
-                onClick={(e) => open(field as "airbnb_link" | "mls_link", e)}
-                className="grid h-[26px] w-6 place-items-center rounded-r-lg border border-black/10 bg-white text-ink/40 transition hover:border-primary/40 hover:text-primary"
-                aria-label={`Edit ${x.label} link`}
-              >
-                <Pencil className="h-3 w-3" />
+    <div className="space-y-1.5">
+      {flags.map((f) => {
+        const href = l[LISTING_TYPE_LINK_FIELD[f]] as string | null;
+        if (editing === f) {
+          return (
+            <form key={f} onSubmit={save} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                value={value}
+                onChange={(ev) => setValue(ev.target.value)}
+                onKeyDown={(ev) => { if (ev.key === "Escape") setEditing(null); }}
+                placeholder={LISTING_TYPE_LINK_PLACEHOLDER[f]}
+                className="w-48 rounded-lg border border-black/10 bg-white px-2 py-1 text-xs text-ink outline-none focus:border-primary/40"
+              />
+              <button type="submit" disabled={pending} className="grid h-6 w-6 place-items-center rounded-md border border-primary/30 bg-primary/[0.06] text-primary disabled:opacity-60" aria-label="Save link">
+                {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               </button>
-            )}
-          </span>
+              <button type="button" onClick={() => setEditing(null)} className="grid h-6 w-6 place-items-center rounded-md border border-black/10 text-ink/50" aria-label="Cancel">
+                <X className="h-3 w-3" />
+              </button>
+              {error && <span className="text-[11px] text-red-600">try again</span>}
+            </form>
+          );
+        }
+        if (href) {
+          return (
+            <span key={f} className="inline-flex items-center">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-l-lg border border-r-0 border-black/10 bg-white px-2 py-1 text-xs font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.06]"
+              >
+                {LISTING_TYPE_LINK_LABEL[f]} <ExternalLink className="h-3 w-3" />
+              </a>
+              {canManage && (
+                <button type="button" onClick={(e) => open(f, e)} className="grid h-[26px] w-6 place-items-center rounded-r-lg border border-black/10 bg-white text-ink/40 transition hover:border-primary/40 hover:text-primary" aria-label={`Edit ${LISTING_TYPE_LINK_LABEL[f]} link`}>
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </span>
+          );
+        }
+        if (!canManage) return null;
+        return (
+          <button
+            key={f}
+            type="button"
+            onClick={(e) => open(f, e)}
+            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-black/15 px-2 py-1 text-xs font-semibold text-ink/45 transition hover:border-primary/40 hover:text-primary"
+          >
+            <Plus className="h-3 w-3" /> {LISTING_TYPE_LINK_LABEL[f]} link
+          </button>
         );
       })}
-      {missing.map((m) => (
-        <button
-          key={m.field}
-          type="button"
-          onClick={(e) => open(m.field, e)}
-          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-black/15 px-2 py-1 text-xs font-semibold text-ink/45 transition hover:border-primary/40 hover:text-primary"
-        >
-          <Plus className="h-3 w-3" /> {m.label} link
-        </button>
-      ))}
     </div>
   );
 }
@@ -274,7 +319,20 @@ function ListingFields({
   const [address, setAddress] = useState<string>(l?.address ?? "");
   const [address2, setAddress2] = useState<string>(l?.address2 ?? "");
   const [clientId, setClientId] = useState<string>(l?.client_id ?? "");
-  const [price, setPrice] = useState<string>(l?.price != null ? String(l.price) : "");
+  // Um preço e um link POR TIPO (0048). Controlados pra o "pull from property"
+  // conseguir preencher o aluguel no tipo certo.
+  const [prices, setPrices] = useState<Record<ListingTypeFlag, string>>({
+    is_for_sale: l?.price_for_sale != null ? String(l.price_for_sale) : "",
+    is_year_round: l?.price_year_round != null ? String(l.price_year_round) : "",
+    is_vacation: l?.price_vacation != null ? String(l.price_vacation) : "",
+    is_winter: l?.price_winter != null ? String(l.price_winter) : "",
+  });
+  const [links, setLinks] = useState<Record<ListingTypeFlag, string>>({
+    is_for_sale: l?.link_for_sale ?? "",
+    is_year_round: l?.link_year_round ?? "",
+    is_vacation: l?.link_vacation ?? "",
+    is_winter: l?.link_winter ?? "",
+  });
 
   // Escolher uma property puxa o que ela já sabe. Só preenche campo VAZIO,
   // exceto endereço/dono, que são o motivo de existir do picker. Assim ninguém
@@ -295,7 +353,16 @@ function ListingFields({
       for (const f of LISTING_TYPE_FLAGS) if (p[f]) copied[f] = true;
       if (Object.keys(copied).length) setTypes((t) => ({ ...t, ...copied }));
     }
-    if (p.rent_price != null && !price) setPrice(String(p.rent_price));
+    // O aluguel da property é MENSAL, então só faz sentido nos tipos de aluguel.
+    if (p.rent_price != null) {
+      setPrices((cur) => {
+        const next = { ...cur };
+        for (const f of ["is_year_round", "is_winter"] as ListingTypeFlag[]) {
+          if (p[f] && !next[f]) next[f] = String(p.rent_price);
+        }
+        return next;
+      });
+    }
   }
 
   const picked = properties.find((x) => x.id === propertyId);
@@ -406,31 +473,42 @@ function ListingFields({
         </select>
       </Field>
 
-      <Field label="Price" hint={types.is_year_round ? "Monthly rent." : "Sale price, or nightly/weekly rate."}>
-        <input name="price" value={price} onChange={(e) => setPrice(e.target.value)} className={inputClass} placeholder="$2,400" />
-      </Field>
-
       <Field label="Available from">
         <input name="available_date" type="date" defaultValue={l?.available_date ?? ""} className={inputClass} />
       </Field>
 
-      {/* ---- Links externos (o pedido da Andrea) ---- */}
-      <div className="sm:col-span-2 mt-1 rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">
-          Link to the live listing
-        </p>
-        <p className="mb-3 text-xs text-ink/55">
-          Paste the Airbnb or CCIAOR/MLS address. It becomes a clickable button here and on the
-          website, so people can open the real listing. You can fill in one or both.
-        </p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Airbnb link">
-            <input name="airbnb_link" defaultValue={l?.airbnb_link ?? ""} className={inputClass} placeholder="airbnb.com/rooms/12345678" />
-          </Field>
-          <Field label="CCIAOR / MLS link">
-            <input name="mls_link" defaultValue={l?.mls_link ?? ""} className={inputClass} placeholder="cciaor.com/listing/22401234" />
-          </Field>
-        </div>
+      {/* ---- Preço e link POR TIPO ---- */}
+      <div className="sm:col-span-2 mt-1 space-y-3">
+        {LISTING_TYPE_FLAGS.filter((f) => types[f]).map((f) => (
+          <div key={f} className="rounded-xl border border-primary/20 bg-primary/[0.04] p-4">
+            <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+              <Badge tone={LISTING_TYPE_TONE[f]}>{LISTING_TYPE_FLAG_LABEL[f]}</Badge>
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Price" hint={LISTING_TYPE_PRICE_HINT[f]}>
+                <input
+                  name={LISTING_TYPE_PRICE_FIELD[f]}
+                  value={prices[f]}
+                  onChange={(e) => setPrices((cur) => ({ ...cur, [f]: e.target.value }))}
+                  className={inputClass}
+                  placeholder={f === "is_for_sale" ? "900,000" : "3,500"}
+                />
+              </Field>
+              <Field label={`${LISTING_TYPE_LINK_LABEL[f]} link`} hint="Opens the real listing from the portal and the website.">
+                <input
+                  name={LISTING_TYPE_LINK_FIELD[f]}
+                  value={links[f]}
+                  onChange={(e) => setLinks((cur) => ({ ...cur, [f]: e.target.value }))}
+                  className={inputClass}
+                  placeholder={LISTING_TYPE_LINK_PLACEHOLDER[f]}
+                />
+              </Field>
+            </div>
+          </div>
+        ))}
+        {!anyType && (
+          <p className="text-xs text-ink/45">Tick a type above to set its price and link.</p>
+        )}
       </div>
 
       {/* ---- Specs ---- */}
@@ -618,7 +696,7 @@ function FeaturedToggle({ l, action, canManage, size = "sm" }: { l: Listing; act
 export function ListingsTable({
   listings, deleted, clients, properties, photosByListing, canManage, canPurge,
   createAction, updateAction, deleteAction, restoreAction, purgeAction,
-  toggleActiveAction, toggleFeaturedAction, setLinkAction,
+  toggleActiveAction, toggleFeaturedAction, setLinkAction, setPriceAction,
   addPhotoAction, deletePhotoAction, reorderPhotosAction,
 }: {
   listings: Listing[];
@@ -637,6 +715,8 @@ export function ListingsTable({
   toggleFeaturedAction: Action;
   // Cola um link (Airbnb / CCIAOR) direto na linha, sem abrir o form.
   setLinkAction: Action;
+  // Corrige um preço por tipo direto na linha.
+  setPriceAction: Action;
   addPhotoAction: Action;
   deletePhotoAction: Action;
   reorderPhotosAction: Action;
@@ -841,7 +921,7 @@ export function ListingsTable({
                       </div>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-ink/75">{priceLabel(l)}</td>
+                  <td className="px-5 py-3.5 text-sm"><PriceCell l={l} action={setPriceAction} canManage={canManage && !showingDeleted} /></td>
                   <td className="px-5 py-3.5">
                     <LinkCell l={l} action={setLinkAction} canManage={canManage && !showingDeleted} />
                   </td>
@@ -910,19 +990,21 @@ export function ListingsTable({
             ) : open.listing ? (
               <>
                 {/* Links externos em destaque — é o que a Andrea vai clicar. */}
-                {externalLinks(open.listing).length > 0 && (
+                {listingTypeFlags(open.listing).some((f) => open.listing![LISTING_TYPE_LINK_FIELD[f]]) && (
                   <div className="mb-5 flex flex-wrap gap-2">
-                    {externalLinks(open.listing).map((x) => (
-                      <a
-                        key={x.href}
-                        href={x.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={buttonClass("ghost")}
-                      >
-                        <ExternalLink className="h-4 w-4" /> View on {x.label}
-                      </a>
-                    ))}
+                    {listingTypeFlags(open.listing)
+                      .filter((f) => open.listing![LISTING_TYPE_LINK_FIELD[f]])
+                      .map((f) => (
+                        <a
+                          key={f}
+                          href={open.listing![LISTING_TYPE_LINK_FIELD[f]] as string}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={buttonClass("ghost")}
+                        >
+                          <ExternalLink className="h-4 w-4" /> {SHORT_LABEL[f]} on {LISTING_TYPE_LINK_LABEL[f]}
+                        </a>
+                      ))}
                   </div>
                 )}
 
@@ -942,7 +1024,14 @@ export function ListingsTable({
 
                 <div className="mb-5">
                   <DetailRow label="Unit / apt" value={open.listing.address2} />
-                  <DetailRow label="Price" value={priceLabel(open.listing)} accent />
+                  {listingTypeFlags(open.listing).map((f) => (
+                    <DetailRow
+                      key={f}
+                      label={listingTypeFlags(open.listing!).length > 1 ? `${SHORT_LABEL[f]} price` : "Price"}
+                      value={priceTextFor(open.listing!, f)}
+                      accent
+                    />
+                  ))}
                   <DetailRow label="Specs" value={specLine(open.listing)} />
                   <DetailRow
                     label="Available from"

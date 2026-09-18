@@ -84,9 +84,17 @@ function payload(fd: FormData) {
     client_id: str(fd, "client_id"),
     description: str(fd, "description"),
     available_date: str(fd, "available_date"),
-    airbnb_link: link(fd, "airbnb_link"),
-    mls_link: link(fd, "mls_link"),
-    price: num(fd, "price"),
+    // Preço e link POR TIPO (0048). price/airbnb_link/mls_link NÃO são mandados:
+    // o trigger sync_listing_legacy_price_links deriva os três destes campos, e
+    // mandar os dois lados faria a tela brigar com o banco.
+    price_for_sale: num(fd, "price_for_sale"),
+    price_year_round: num(fd, "price_year_round"),
+    price_vacation: num(fd, "price_vacation"),
+    price_winter: num(fd, "price_winter"),
+    link_for_sale: link(fd, "link_for_sale"),
+    link_year_round: link(fd, "link_year_round"),
+    link_vacation: link(fd, "link_vacation"),
+    link_winter: link(fd, "link_winter"),
     listing_status: listingStatus(fd),
     active: str(fd, "active") === "1",
     featured: str(fd, "featured") === "1",
@@ -148,13 +156,34 @@ export async function setListingLinkAction(fd: FormData) {
   const id = str(fd, "id");
   if (!id) throw new Error("Missing listing reference.");
   const field = str(fd, "field");
-  if (field !== "airbnb_link" && field !== "mls_link") {
+  const LINK_FIELDS = ["link_for_sale", "link_year_round", "link_vacation", "link_winter"];
+  if (!field || !LINK_FIELDS.includes(field)) {
     throw new Error("Unknown link field.");
   }
   const supabase = createClient();
   const { error } = await supabase
     .from("listings")
     .update({ [field]: link(fd, "url"), updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/listings");
+}
+
+// Grava UM preço por tipo sem abrir o form inteiro — mesma ideia do link: a
+// Andrea corrige um valor na linha, não abre modal. String vazia limpa.
+export async function setListingPriceAction(fd: FormData) {
+  await assertCanManage();
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing listing reference.");
+  const field = str(fd, "field");
+  const PRICE_FIELDS = ["price_for_sale", "price_year_round", "price_vacation", "price_winter"];
+  if (!field || !PRICE_FIELDS.includes(field)) {
+    throw new Error("Unknown price field.");
+  }
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("listings")
+    .update({ [field]: num(fd, "value"), updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/listings");
