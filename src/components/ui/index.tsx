@@ -13,7 +13,7 @@ export function Card({ className, children }: { className?: string; children: Re
 // NOTE: "orange" is historically wired to `secondary` (a green accent) and is used
 // widely across the app — don't repaint it. "tangerine" is a TRUE orange for cases
 // that need real orange (e.g. the Last month payment tag).
-type BadgeTone = "gold" | "orange" | "tangerine" | "neutral" | "muted" | "blue";
+export type BadgeTone = "gold" | "orange" | "tangerine" | "neutral" | "muted" | "blue" | "violet";
 const TONE: Record<BadgeTone, string> = {
   gold: "bg-primary/10 text-primary border-primary/25",
   orange: "bg-secondary/10 text-secondary border-secondary/25",
@@ -21,6 +21,7 @@ const TONE: Record<BadgeTone, string> = {
   neutral: "bg-black/[0.04] text-ink/70 border-black/10",
   muted: "bg-black/[0.03] text-ink/45 border-black/[0.07]",
   blue: "bg-blue-50 text-blue-700 border-blue-200",
+  violet: "bg-violet-50 text-violet-700 border-violet-200",
 };
 
 export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {

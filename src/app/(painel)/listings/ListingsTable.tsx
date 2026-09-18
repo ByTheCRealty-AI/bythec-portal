@@ -22,7 +22,7 @@ import {
   Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink,
   Home, Eye, EyeOff, RotateCcw, AlertTriangle, Link2, Lock,
 } from "lucide-react";
-import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass } from "@/components/ui";
+import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass, type BadgeTone } from "@/components/ui";
 import { cx, money } from "@/lib/format";
 import { ListingPhotos } from "./ListingPhotos";
 import {
@@ -38,6 +38,18 @@ import {
 } from "@/lib/types";
 
 type Action = (fd: FormData) => void | Promise<void>;
+
+// Uma COR por tipo. Andrea 2026-09-18: "the colors of the type need to be
+// different." Antes só venda se destacava (gold) e os TRÊS tipos de aluguel
+// saíam iguais (orange), então numa casa temporada + inverno + venda os selos
+// não diziam nada. Venda fica no verde da marca; aluguel anual azul (contrato
+// longo), temporada laranja quente (verão), inverno violeta (frio).
+const LISTING_TYPE_TONE: Record<ListingTypeFlag, BadgeTone> = {
+  is_for_sale: "gold",
+  is_year_round: "blue",
+  is_vacation: "tangerine",
+  is_winter: "violet",
+};
 export type ClientOption = { id: string; name: string };
 
 // Rótulo curto do preço, por categoria. Temporada varia (noite/semana), então
@@ -822,7 +834,7 @@ export function ListingsTable({
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {listingTypeFlags(l).map((f) => (
-                          <Badge key={f} tone={f === "is_for_sale" ? "gold" : "orange"}>
+                          <Badge key={f} tone={LISTING_TYPE_TONE[f]}>
                             {LISTING_TYPE_FLAG_LABEL[f]}
                           </Badge>
                         ))}
@@ -864,7 +876,7 @@ export function ListingsTable({
                 {open.listing && !open.editing && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     {listingTypeFlags(open.listing).map((f) => (
-                      <Badge key={f} tone={f === "is_for_sale" ? "gold" : "orange"}>
+                      <Badge key={f} tone={LISTING_TYPE_TONE[f]}>
                         {LISTING_TYPE_FLAG_LABEL[f]}
                       </Badge>
                     ))}
