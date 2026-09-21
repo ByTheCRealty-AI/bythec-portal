@@ -278,25 +278,68 @@ export async function clearPropertyTenantAction(propertyId: string) {
 }
 
 // TRAVADO: arquivar, nunca deletar.
+// Arquivar a casa arquiva junto o que sobrou dela. Andrea 2026-09-21: "when a
+// house has been archived, then the rest of the payments plus any unpaid
+// security deposit needs to be archived as well... BUT the past payments still
+// need to appear in past payments part."
+//   • Some: TUDO que não foi recebido (mensais futuras, parcelas de depósito em
+//     aberto) + o depósito INTEIRO, recebido ou não — ela pediu explícito:
+//     "for the SD hide it with the archiving of the house, i don't want it visible".
+//   • FICA: aluguel já RECEBIDO (monthly / first / last). É o histórico da aba
+//     Past payments, e some dali se for arquivado (a tela filtra archived_at).
+// O carimbo é o MESMO da propriedade, então o unarchive devolve exatamente estas
+// linhas e não ressuscita nada que tenha sido arquivado à mão antes.
 export async function archivePropriedadeAction(id: string) {
   const supabase = createClient();
+  const stamp = new Date().toISOString();
   const { error } = await supabase
     .from("properties")
-    .update({ archived_at: new Date().toISOString() })
+    .update({ archived_at: stamp })
     .eq("id", id);
   if (error) throw new Error(error.message);
+
+  const { error: payErr } = await supabase
+    .from("payments")
+    .update({ archived_at: stamp })
+    .eq("property_id", id)
+    .is("archived_at", null)
+    .or("status.neq.received,kind.eq.security_deposit");
+  if (payErr) throw new Error(payErr.message);
+
   revalidatePath("/propriedades");
+  revalidatePath("/payments");
   redirect("/propriedades");
 }
 
 export async function unarchivePropriedadeAction(id: string) {
   const supabase = createClient();
+  // Lê o carimbo ANTES de limpar: é ele que identifica as linhas arquivadas
+  // junto com a casa.
+  const { data: prop, error: readErr } = await supabase
+    .from("properties")
+    .select("archived_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  const stamp = (prop as { archived_at: string | null } | null)?.archived_at ?? null;
+
   const { error } = await supabase
     .from("properties")
     .update({ archived_at: null })
     .eq("id", id);
   if (error) throw new Error(error.message);
+
+  if (stamp) {
+    const { error: payErr } = await supabase
+      .from("payments")
+      .update({ archived_at: null })
+      .eq("property_id", id)
+      .eq("archived_at", stamp);
+    if (payErr) throw new Error(payErr.message);
+  }
+
   revalidatePath(`/propriedades/${id}`);
+  revalidatePath("/payments");
 }
 
 // HARD DELETE (permanente, irreversível) — OWNER ONLY. Delega TODA a regra
