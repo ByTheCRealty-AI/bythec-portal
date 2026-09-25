@@ -70,6 +70,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   };
 
   const isSeasonal = inv.kind === "seasonal";
+
+  // Pagamentos do owner (migration 0050): vão NO PDF — quando ela reenvia a
+  // invoice, o owner vê o que já pagou e o saldo que falta.
+  const { data: payRows } = await supabase
+    .from("invoice_payments")
+    .select("id, amount, paid_at")
+    .eq("invoice_id", params.id)
+    .order("paid_at", { ascending: true });
+  const ownerPayments = (payRows ?? []) as { id: string; amount: number; paid_at: string }[];
+  let ownerTotalForPdf = 0;
   const isGeneral = inv.kind === "general";
   const access =
     can(profile, "financials.full") ||
@@ -259,6 +269,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     y -= 3;
     hline(y + 6);
     const generalTotal = inv.general_total ?? inv.items.reduce((a, it) => a + it.total, 0);
+    ownerTotalForPdf = generalTotal;
     T("Total", PAGE_W - MARGIN - 180, y - 8, 11, bold);
     TR(money(generalTotal), PAGE_W - MARGIN, y - 8, 12, bold, GREEN);
     y -= 26;
@@ -302,9 +313,26 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       T("Payment received", PAGE_W - MARGIN - 180, y - 40, 10, font, MUTED);
       TR("-" + money(received), PAGE_W - MARGIN, y - 40, 10);
     }
+    ownerTotalForPdf = labor + material - received;
     T("Total", PAGE_W - MARGIN - 180, y - 44 - extra, 11, bold);
-    TR(money(labor + material - received), PAGE_W - MARGIN, y - 44 - extra, 12, bold, GREEN);
+    TR(money(ownerTotalForPdf), PAGE_W - MARGIN, y - 44 - extra, 12, bold, GREEN);
     y -= 60 + extra;
+  }
+
+  // ---- Pagamentos do owner + Balance Due (service/general) -------------------
+  if (!isSeasonal && ownerPayments.length > 0) {
+    const paidToDate = ownerPayments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+    const balanceDue = Math.max(0, Math.round((ownerTotalForPdf - paidToDate) * 100) / 100);
+    ensure(40 + ownerPayments.length * 16);
+    for (const p of ownerPayments) {
+      T(`Payment received · ${fmtDate(p.paid_at)}`, PAGE_W - MARGIN - 250, y, 10, font, MUTED);
+      TR("-" + money(Number(p.amount)), PAGE_W - MARGIN, y, 10);
+      y -= 16;
+    }
+    hline(y + 10);
+    T("Balance Due", PAGE_W - MARGIN - 180, y - 6, 11, bold);
+    TR(money(balanceDue), PAGE_W - MARGIN, y - 6, 12, bold, GREEN);
+    y -= 28;
   }
 
   // ---- Notes ----

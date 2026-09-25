@@ -33,7 +33,12 @@ import type { PaymentPropertyOption } from "./PaymentAddForm";
 import { PaymentAddForm } from "./PaymentAddForm";
 import { PaymentRow, CommissionStatusBadge } from "./PaymentsTable";
 import { PaymentWindow } from "./PaymentEntryButton";
-import { OwnerPayoutControl, ownerOwed, type OwnerPayoutActions } from "./OwnerPayoutControl";
+import {
+  OwnerPayoutControl,
+  ownerOwed,
+  type OwnerPayoutActions,
+  type PayoutDeductible,
+} from "./OwnerPayoutControl";
 import { type CommissionActions } from "./CommissionCollectedControl";
 import { DepositReceivedControl, type DepositActions } from "./DepositReceivedControl";
 import { RentInstallmentsPanel } from "./RentInstallmentsPanel";
@@ -408,6 +413,7 @@ export function PaymentsClient({
   commissionActions,
   ownerActions,
   depositActions,
+  deductibles,
 }: {
   payments: Payment[];
   properties: PaymentPropertyOption[];
@@ -425,6 +431,8 @@ export function PaymentsClient({
   commissionActions: CommissionActions;
   ownerActions: OwnerPayoutActions;
   depositActions: DepositActions;
+  // Invoices de serviço em aberto, por property_id — descontadas do repasse.
+  deductibles?: Record<string, PayoutDeductible[]>;
 }) {
   const [tab, setTab] = useState<TabKey>("due");
 
@@ -615,14 +623,14 @@ export function PaymentsClient({
   const ownerPayoutTabActions: OwnerPayoutActions = useMemo(
     () => ({
       ...ownerActions,
-      setOwnerPaid: async (id: string, paid: boolean) => {
+      setOwnerPaid: async (id: string, paid: boolean, deductInvoiceIds?: string[]) => {
         setRecordingIds((prev) => {
           const next = new Set(prev);
           if (paid) next.add(id);
           else next.delete(id);
           return next;
         });
-        await ownerActions.setOwnerPaid(id, paid);
+        await ownerActions.setOwnerPaid(id, paid, deductInvoiceIds);
       },
     }),
     [ownerActions]
@@ -1072,7 +1080,12 @@ export function PaymentsClient({
                             <span className="text-ink/40">·</span>
                             <span className="text-ink/55">received {date(p.received_at)}</span>
                           </div>
-                          <OwnerPayoutControl payment={p} canManage={canManage} actions={ownerPayoutTabActions} />
+                          <OwnerPayoutControl
+                            payment={p}
+                            canManage={canManage}
+                            actions={ownerPayoutTabActions}
+                            deductibles={p.property_id ? deductibles?.[p.property_id] ?? [] : []}
+                          />
                         </div>
                       );
                     })}

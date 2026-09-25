@@ -114,7 +114,8 @@ function ReceiptRow({
 }
 
 export type OwnerPayoutActions = {
-  setOwnerPaid: (id: string, paid: boolean) => Promise<void>;
+  // deductInvoiceIds: invoices de serviço a descontar deste repasse (auto-marcadas).
+  setOwnerPaid: (id: string, paid: boolean, deductInvoiceIds?: string[]) => Promise<void>;
   setOwnerMethod: (id: string, method: string | null) => Promise<void>;
   setOwnerCheckNumber: (id: string, checkNumber: string | null) => Promise<void>;
   setOwnerPaidDate: (id: string, ymd: string | null) => Promise<void>;
@@ -122,17 +123,28 @@ export type OwnerPayoutActions = {
   deleteReceipt: (fd: FormData) => Promise<void>;
 };
 
+// Invoice de serviço em aberto desta propriedade, candidata a desconto.
+export type PayoutDeductible = { id: string; invoiceNumber: number | null; owed: number };
+
 export function OwnerPayoutControl({
   payment,
   canManage,
   actions,
+  deductibles = [],
 }: {
   payment: Payment;
   canManage: boolean;
   actions: OwnerPayoutActions;
+  deductibles?: PayoutDeductible[];
 }) {
   const paymentId = payment.id;
   const paid = payment.owner_paid;
+  // Andrea: descontar é o DEFAULT ("subtract it for you automatically"), mas ela
+  // disse "depending on the owner, sometimes" — então dá pra desmarcar uma linha.
+  const [deduct, setDeduct] = useState<Set<string>>(() => new Set(deductibles.map((d) => d.id)));
+  const deductTotal = deductibles
+    .filter((d) => deduct.has(d.id))
+    .reduce((a, d) => a + d.owed, 0);
   const receipts = (payment.attachments ?? []).filter((a) => a.category === "owner_payout");
   // Aluguel recebido SEM comissão lançada: o repasse fica inflado (rent cheio).
   // Sinaliza em vez de calar — foi assim que o first/last month do 15 Oak Neck #22
@@ -169,7 +181,7 @@ export function OwnerPayoutControl({
     setError(null);
     start(async () => {
       try {
-        await actions.setOwnerPaid(paymentId, !paid);
+        await actions.setOwnerPaid(paymentId, !paid, !paid ? [...deduct] : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not save. Try again.");
       }
@@ -253,6 +265,42 @@ export function OwnerPayoutControl({
               commission)
             </span>
           </p>
+          {deductibles.length > 0 && !paid && (
+            <div className="mt-2 rounded-xl border border-amber-400/40 bg-amber-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
+                Unpaid service {deductibles.length === 1 ? "invoice" : "invoices"} — comes off this payout
+              </p>
+              {deductibles.map((d) => (
+                <label key={d.id} className="mt-1 flex items-center justify-between gap-3 text-xs text-ink/80">
+                  <span className="inline-flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={deduct.has(d.id)}
+                      disabled={!canManage || pending}
+                      onChange={() =>
+                        setDeduct((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(d.id)) next.delete(d.id);
+                          else next.add(d.id);
+                          return next;
+                        })
+                      }
+                      className="h-3.5 w-3.5 rounded border-black/25 text-primary focus:ring-primary/30"
+                    />
+                    Invoice #{d.invoiceNumber ?? "—"}
+                  </span>
+                  <span className="font-semibold text-amber-800">−{money(d.owed)}</span>
+                </label>
+              ))}
+              <div className="mt-1.5 flex items-center justify-between border-t border-amber-400/30 pt-1.5 text-xs">
+                <span className="text-ink/70">Net payout to owner</span>
+                <span className="font-bold text-ink">
+                  {money(Math.max(0, Math.round((ownerOwed(payment) - deductTotal) * 100) / 100))}
+                </span>
+              </div>
+            </div>
+          )}
+
           {missingCommission && (
             <p className="mt-1 text-[11px] font-medium text-amber-700">
               No commission recorded on this {PAYMENT_KIND_LABEL[payment.kind].toLowerCase()} — the owner’s

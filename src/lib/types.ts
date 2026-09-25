@@ -1184,3 +1184,26 @@ export function listingTypeFlags(l: {
 }): ListingTypeFlag[] {
   return LISTING_TYPE_FLAGS.filter((f) => l[f] === true);
 }
+
+// Pagamento do OWNER numa invoice — parcial ou total (migration 0050).
+// Espelha payment_parts do aluguel: cada pagamento tem valor, DATA e método
+// próprios. Antes disso a Andrea lançava um item category='credit' com a data
+// digitada na descrição ("Payment Received August 21, 2026" na #166).
+export const INVOICE_PAYMENT_METHODS = ["Zelle", "Check", "Cash", "Rent deduction", "Other"] as const;
+export type InvoicePaymentMethod = (typeof INVOICE_PAYMENT_METHODS)[number];
+
+export interface InvoicePayment {
+  id: string;
+  invoice_id: string;
+  amount: number;
+  paid_at: string;
+  method: string | null;
+  notes: string | null;
+  // Preenchido quando o pagamento foi o desconto no repasse do aluguel.
+  deducted_from_payment_id: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+export const INVOICE_PAYMENT_COLUMNS =
+  "id, invoice_id, amount, paid_at, method, notes, deducted_from_payment_id, created_at, created_by";

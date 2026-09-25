@@ -1,4 +1,4 @@
-import { serviceOwnerTotal, servicePaymentsReceived } from "@/lib/invoice-formula";
+import { invoiceBalanceDue, ownerPaidToDate, serviceOwnerTotal, servicePaymentsReceived } from "@/lib/invoice-formula";
 import { newestFirst } from "@/lib/order";
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
@@ -6,13 +6,21 @@ import { Badge } from "@/components/ui";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import { money, date } from "@/lib/format";
-import type { Invoice, InvoiceItem, InvoiceAttachment, Client, Property, SeasonalCommissionBase } from "@/lib/types";
+import type { Invoice, InvoiceItem, InvoiceAttachment, InvoicePayment, Client, Property, SeasonalCommissionBase } from "@/lib/types";
+import { INVOICE_PAYMENT_COLUMNS } from "@/lib/types";
 import { SEASONAL_COMMISSION_BASE_LABEL } from "@/lib/types";
 import { InvoiceBackButton, InvoiceActions } from "./InvoiceActions";
 import { InvoiceDocuments } from "../InvoiceDocuments";
 import { InvoicePayoutsPanel } from "../InvoicePayoutsPanel";
 import { ServiceTrackingPanel } from "../ServiceTrackingPanel";
-import { addInvoiceAttachmentAction, deleteInvoiceAttachmentAction } from "../actions";
+import { OwnerPaymentsPanel } from "../OwnerPaymentsPanel";
+import {
+  addInvoiceAttachmentAction,
+  deleteInvoiceAttachmentAction,
+  addInvoicePaymentAction,
+  updateInvoicePaymentAction,
+  deleteInvoicePaymentAction,
+} from "../actions";
 
 // Texto curto da base da comissão (ex.: "10% of host payout"). Usa o que ficou
 // TRAVADO no invoice (commission_base/commission_rate); cai pra base da property
@@ -83,6 +91,18 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
   // Cleaner pago só faz sentido quando a By the C recebe o cleaning fee (e por
   // isso paga o cleaner). Interno — nunca vai pro PDF/impressão.
   const showCleaner = isSeasonal && invoice.cleaning_goes_to === "bythec";
+
+  // Pagamentos do owner (migration 0050) — ordem CRONOLÓGICA: é extrato de
+  // dinheiro, não lista de uploads.
+  const { data: payRows } = await supabase
+    .from("invoice_payments")
+    .select(INVOICE_PAYMENT_COLUMNS)
+    .eq("invoice_id", params.id)
+    .order("paid_at", { ascending: true });
+  const ownerPayments = (payRows ?? []) as unknown as InvoicePayment[];
+  const ownerTotalDue = isGeneral ? invoice.general_total ?? 0 : serviceOwnerTotal(invoice);
+  const ownerPaidSoFar = ownerPaidToDate(ownerPayments);
+  const ownerBalance = invoiceBalanceDue(ownerTotalDue, ownerPaidSoFar);
 
   // Recibos: só guest_receipt entram na seção de recibos/PDF combinado; os de
   // repasse (owner/cleaner) vão pro painel interno de Payouts.
@@ -180,6 +200,20 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         </div>
       )}
 
+      {(isService || isGeneral) && (
+        <div className="mx-auto mb-6 max-w-3xl">
+          <OwnerPaymentsPanel
+            invoiceId={invoice.id}
+            canManage={isGeneral ? generalAccess : serviceAccess}
+            ownerTotal={ownerTotalDue}
+            payments={ownerPayments}
+            addAction={addInvoicePaymentAction}
+            updateAction={updateInvoicePaymentAction}
+            deleteAction={deleteInvoicePaymentAction}
+          />
+        </div>
+      )}
+
       {/* Payouts internos (só temporada) — no TOPO pra ser a 1ª coisa depois do header. */}
       {isSeasonal && (
         <div className="mx-auto mb-6 max-w-3xl">
@@ -245,7 +279,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         ) : isGeneral ? (
           <GeneralBody invoice={invoice} billLines={billLines} serviceAddress={serviceAddress} />
         ) : (
-          <ServiceBody invoice={invoice} billLines={billLines} serviceAddress={serviceAddress} />
+          <ServiceBody invoice={invoice} billLines={billLines} serviceAddress={serviceAddress} payments={ownerPayments} balance={ownerBalance} />
         )}
 
         {invoice.notes && (
@@ -332,10 +366,14 @@ function ServiceBody({
   invoice,
   billLines,
   serviceAddress,
+  payments,
+  balance,
 }: {
   invoice: Invoice & { items: InvoiceItem[] };
   billLines: string[];
   serviceAddress: string | null;
+  payments: InvoicePayment[];
+  balance: number;
 }) {
   const labor = invoice.items.filter((i) => i.category === "labor");
   const material = invoice.items.filter((i) => i.category === "material");
@@ -399,6 +437,23 @@ function ServiceBody({
           <span className="font-semibold text-ink">Total</span>
           <span className="h-display text-primary">{money(total)}</span>
         </div>
+
+        {/* Pagamentos do owner + saldo — SAI no papel/PDF de propósito: quando ela
+            reenvia a invoice, o owner vê o que já pagou e o que falta. */}
+        {payments.length > 0 && (
+          <>
+            {payments.map((p) => (
+              <div key={p.id} className="flex justify-between text-ink/65">
+                <span>Payment received · {date(p.paid_at)}</span>
+                <span className="font-semibold text-ink">−{money(Number(p.amount))}</span>
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-black/[0.1] pt-2 text-base">
+              <span className="font-semibold text-ink">Balance Due</span>
+              <span className="h-display text-primary">{money(balance)}</span>
+            </div>
+          </>
+        )}
       </div>
     </>
   );

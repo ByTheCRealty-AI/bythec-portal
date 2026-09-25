@@ -94,6 +94,55 @@ async function countOffsiteReceipts(): Promise<number> {
   }
 }
 
+// Invoices de serviço/geral AINDA NÃO PAGAS, agrupadas por property — alimentam
+// o desconto automático no repasse do owner (Andrea 2026-09-25). Só entram casas
+// em que a By the C recolhe o aluguel: se o owner recebe direto, não há repasse
+// de onde descontar.
+async function loadDeductibles(): Promise<Record<string, { id: string; invoiceNumber: number | null; owed: number }[]>> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("invoices")
+      .select(
+        "id, invoice_number, kind, property_id, labor_total, material_total, general_total, items:invoice_items(category, total), payments:invoice_payments(amount)"
+      )
+      .eq("paid", false)
+      .is("archived_at", null)
+      .in("kind", ["service", "general"]);
+
+    type Row = {
+      id: string;
+      invoice_number: number | null;
+      kind: string;
+      property_id: string | null;
+      labor_total: number | null;
+      material_total: number | null;
+      general_total: number | null;
+      items: { category: string | null; total: number }[] | null;
+      payments: { amount: number }[] | null;
+    };
+
+    const out: Record<string, { id: string; invoiceNumber: number | null; owed: number }[]> = {};
+    for (const r of (data ?? []) as unknown as Row[]) {
+      if (!r.property_id) continue;
+      const credits = (r.items ?? [])
+        .filter((i) => i.category === "credit")
+        .reduce((a, i) => a + Math.abs(Number(i.total) || 0), 0);
+      const billed =
+        r.kind === "general"
+          ? Number(r.general_total ?? 0)
+          : Number(r.labor_total ?? 0) + Number(r.material_total ?? 0) - credits;
+      const paidSoFar = (r.payments ?? []).reduce((a, x) => a + (Number(x.amount) || 0), 0);
+      const owed = Math.round((billed - paidSoFar) * 100) / 100;
+      if (owed <= 0) continue;
+      (out[r.property_id] ??= []).push({ id: r.id, invoiceNumber: r.invoice_number, owed });
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export default async function PaymentsPage() {
   const profile = await getProfile();
   const canManage = can(profile, "payments.annual") || can(profile, "financials.full");
@@ -107,10 +156,11 @@ export default async function PaymentsPage() {
     );
   }
 
-  const [{ ok, payments }, properties, offsiteReceipts] = await Promise.all([
+  const [{ ok, payments }, properties, offsiteReceipts, deductibles] = await Promise.all([
     loadPayments(),
     loadEligibleProperties(),
     countOffsiteReceipts(),
+    loadDeductibles(),
   ]);
 
   return (
@@ -167,6 +217,7 @@ export default async function PaymentsPage() {
         />
       ) : (
         <PaymentsClient
+          deductibles={deductibles}
           payments={payments}
           properties={properties}
           canManage={canManage}

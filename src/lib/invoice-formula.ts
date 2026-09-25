@@ -81,6 +81,19 @@ export function serviceOwnerTotal(inv: {
   return round2((inv.labor_total ?? 0) + (inv.material_total ?? 0) - servicePaymentsReceived(inv.items));
 }
 
+// ---- Pagamentos do OWNER (tabela invoice_payments, migration 0050) ---------
+// Somatório do que o owner já pagou nesta invoice. NÃO confundir com
+// servicePaymentsReceived acima, que lê os itens legados category='credit'.
+export function ownerPaidToDate(payments?: { amount: number | string }[] | null): number {
+  return round2((payments ?? []).reduce((a, p) => a + (Number(p.amount) || 0), 0));
+}
+
+// Saldo que o owner ainda deve. Nunca negativo (pagou a mais = saldo zero; a
+// sobra aparece como "paid to date" maior que o total, e isso é visível na tela).
+export function invoiceBalanceDue(ownerTotal: number, paidToDate: number): number {
+  return round2(Math.max(0, ownerTotal - paidToDate));
+}
+
 // Base de cálculo da comissão By the C, POR PROPERTY (default 'host_payout').
 // MAIORIA das casas: % sobre o Host Payout. EXCEÇÃO (ex.: Rainbow #335): % sobre o
 // Total Paid by Guest. A base vem da property, mas é confirmável/editável por invoice.

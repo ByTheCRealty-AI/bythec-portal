@@ -11,6 +11,7 @@ import {
 } from "@/lib/reminders";
 import type { ReminderStatus } from "@/lib/types";
 import { LeaseRenewalsCard, type RenewalItem } from "./LeaseRenewalsCard";
+import { OwnerOwesCard, type OwnerOweItem } from "./OwnerOwesCard";
 import {
   Users,
   Home,
@@ -166,12 +167,85 @@ async function getCounts() {
   }
 }
 
+// Invoices de serviço/geral ainda não pagas, com mais de 7 dias. Idade conta do
+// sent_at; sem sent_at, da data da invoice (decisão da Andrea 2026-09-25).
+async function getOwnerOwes(
+  profile: Awaited<ReturnType<typeof getProfile>>
+): Promise<OwnerOweItem[]> {
+  if (!can(profile, "financials.full") && !can(profile, "invoices.service")) return [];
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("invoices")
+      .select(
+        "id, invoice_number, kind, date, sent_at, sent_to_owner, labor_total, material_total, general_total, client:client_id(name), property:property_id(address, address2, rent_collection), items:invoice_items(category, total), payments:invoice_payments(amount)"
+      )
+      .eq("paid", false)
+      .is("archived_at", null)
+      .in("kind", ["service", "general"]);
+
+    type Row = {
+      id: string;
+      invoice_number: number | null;
+      kind: string;
+      date: string | null;
+      sent_at: string | null;
+      sent_to_owner: boolean | null;
+      labor_total: number | null;
+      material_total: number | null;
+      general_total: number | null;
+      client: { name: string | null } | null;
+      property: { address: string | null; address2: string | null; rent_collection: string | null } | null;
+      items: { category: string | null; total: number }[] | null;
+      payments: { amount: number }[] | null;
+    };
+
+    const today = new Date();
+    const out: OwnerOweItem[] = [];
+    for (const r of (data ?? []) as unknown as Row[]) {
+      const anchor = r.sent_at ?? r.date;
+      if (!anchor) continue;
+      const days = Math.floor((today.getTime() - new Date(`${anchor}T12:00:00Z`).getTime()) / 86_400_000);
+      if (days <= 7) continue;
+
+      const credits = (r.items ?? [])
+        .filter((i) => i.category === "credit")
+        .reduce((a, i) => a + Math.abs(Number(i.total) || 0), 0);
+      const billed =
+        r.kind === "general"
+          ? Number(r.general_total ?? 0)
+          : Number(r.labor_total ?? 0) + Number(r.material_total ?? 0) - credits;
+      const paid = (r.payments ?? []).reduce((a, p) => a + (Number(p.amount) || 0), 0);
+      const owed = Math.round((billed - paid) * 100) / 100;
+      if (owed <= 0) continue;
+
+      out.push({
+        id: r.id,
+        invoiceNumber: r.invoice_number,
+        owner: r.client?.name ?? "Unknown owner",
+        property: (r.property?.address ?? "").split(",")[0] || "—",
+        unit: r.property?.address2 ?? null,
+        owed,
+        days,
+        sent: !!r.sent_to_owner,
+        canDeduct: r.property?.rent_collection === "bythec",
+        partiallyPaid: paid > 0 || credits > 0,
+      });
+    }
+    out.sort((a, b) => b.owed - a.owed);
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export default async function OverviewPage({
   searchParams,
 }: {
   searchParams: { denied?: string };
 }) {
   const [c, profile] = await Promise.all([getCounts(), getProfile()]);
+  const ownerOwes = await getOwnerOwes(profile);
   const denied = typeof searchParams.denied === "string" ? searchParams.denied : null;
 
   const showReminders = !!profile && can(profile, "reminders.view");
@@ -320,6 +394,8 @@ export default async function OverviewPage({
           )}
         </Card>
       )}
+
+      {ownerOwes.length > 0 && <OwnerOwesCard items={ownerOwes} />}
 
       {renewals && (renewals.active.length > 0 || renewals.dismissed.length > 0) && (
         <LeaseRenewalsCard

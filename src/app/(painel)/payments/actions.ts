@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
 import type { PaymentKind, PaymentStatus } from "@/lib/types";
+import { syncInvoicePaidFromPayments } from "../invoices/actions";
 
 // --- helpers (mesmo padrão de propriedades/actions.ts) ----------------------
 function str(fd: FormData, key: string): string | null {
@@ -871,7 +872,7 @@ async function paymentPropertyId(
 }
 
 // Marca / desmarca o repasse ao owner. Carimba owner_paid_at ao marcar.
-export async function setOwnerPaidAction(id: string, paid: boolean) {
+export async function setOwnerPaidAction(id: string, paid: boolean, deductInvoiceIds: string[] = []) {
   await assertCanManagePayments();
   if (!id) throw new Error("Missing payment reference.");
   const supabase = createClient();
@@ -905,6 +906,75 @@ export async function setOwnerPaidAction(id: string, paid: boolean) {
 
   const { error } = await supabase.from("payments").update(update).eq("id", id);
   if (error) throw new Error(error.message);
+
+  // ---- Desconto automático das invoices de serviço no repasse ---------------
+  // Andrea (2026-09-25): "subtract it for you automatically from payout". O
+  // registro é gravado AQUI, quando ela marca o repasse como pago — é quando o
+  // dinheiro realmente se move. A invoice conta como paga NA DATA do repasse
+  // (é essa data que leva a comissão pro Finances, confirmado por ela).
+  // Desmarcar o repasse DESFAZ as deduções que ele criou: sem isso, uma correção
+  // deixaria a invoice quitada por um pagamento que nunca aconteceu.
+  const touched = new Set<string>();
+  if (paid && deductInvoiceIds.length > 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: invRows } = await supabase
+      .from("invoices")
+      .select("id, kind, labor_total, material_total, general_total")
+      .in("id", deductInvoiceIds);
+    for (const raw of (invRows ?? []) as {
+      id: string; kind: string; labor_total: number | null; material_total: number | null; general_total: number | null;
+    }[]) {
+      const { data: itemRows } = await supabase
+        .from("invoice_items").select("category, total").eq("invoice_id", raw.id);
+      const credits = ((itemRows ?? []) as { category: string | null; total: number }[])
+        .filter((i) => i.category === "credit")
+        .reduce((a, i) => a + Math.abs(Number(i.total) || 0), 0);
+      const { data: payRows } = await supabase
+        .from("invoice_payments").select("amount").eq("invoice_id", raw.id);
+      const alreadyPaid = ((payRows ?? []) as { amount: number }[])
+        .reduce((a, r) => a + (Number(r.amount) || 0), 0);
+      const billed = raw.kind === "general"
+        ? Number(raw.general_total ?? 0)
+        : Number(raw.labor_total ?? 0) + Number(raw.material_total ?? 0) - credits;
+      const owed = Math.round((billed - alreadyPaid) * 100) / 100;
+      if (owed <= 0) continue;
+
+      // Unique index (invoice_id, deducted_from_payment_id) impede lançar o mesmo
+      // desconto duas vezes no mesmo repasse — essa colisão é ignorada.
+      const { error: insErr } = await supabase.from("invoice_payments").insert({
+        invoice_id: raw.id,
+        amount: owed,
+        paid_at: today,
+        method: "Rent deduction",
+        notes: "Deducted from the owner's rent payout",
+        deducted_from_payment_id: id,
+      });
+      if (insErr && !/duplicate key/i.test(insErr.message)) throw new Error(insErr.message);
+      touched.add(raw.id);
+    }
+  }
+
+  if (!paid) {
+    const { data: undo } = await supabase
+      .from("invoice_payments").select("id, invoice_id").eq("deducted_from_payment_id", id);
+    const rows = (undo ?? []) as { id: string; invoice_id: string }[];
+    for (const r of rows) touched.add(r.invoice_id);
+    if (rows.length > 0) {
+      const { error: delErr } = await supabase
+        .from("invoice_payments").delete().eq("deducted_from_payment_id", id);
+      if (delErr) throw new Error(delErr.message);
+    }
+  }
+
+  for (const invoiceId of touched) {
+    await syncInvoicePaidFromPayments(invoiceId);
+    revalidatePath(`/invoices/${invoiceId}`);
+  }
+  if (touched.size > 0) {
+    revalidatePath("/invoices");
+    revalidatePath("/finances");
+    revalidatePath("/");
+  }
 
   revalidatePath("/payments");
   if (propertyId) revalidatePath("/propriedades/" + propertyId);

@@ -19,7 +19,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import { computeSeasonal, round2, serviceBilled, serviceLineTotals } from "@/lib/invoice-formula";
+import {
+  computeSeasonal,
+  ownerPaidToDate,
+  round2,
+  serviceBilled,
+  serviceLineTotals,
+  servicePaymentsReceived,
+} from "@/lib/invoice-formula";
 import type { CleaningDestination, InvoiceItemCategory, SeasonalCommissionBase } from "@/lib/types";
 
 // ---- Helpers de FormData ---------------------------------------------------
@@ -910,4 +917,142 @@ export async function updateGeneralInvoice(id: string, fd: FormData) {
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${id}`);
   redirect(`/invoices/${id}`);
+}
+
+// =============================================================================
+// PAGAMENTOS DO OWNER numa invoice (parcial ou total) — migration 0050
+// =============================================================================
+// Andrea (2026-09-25): owner às vezes paga PARTE. Antes disso o único jeito era
+// um item category='credit' com a data digitada na descrição. Agora cada
+// pagamento é uma linha com valor, data e método — e o saldo aparece na tela e
+// no PDF. O status `paid` da invoice passa a ser DERIVADO da soma.
+
+// Recalcula paid/paid_date da invoice a partir da soma dos pagamentos.
+// Regra da comissão (confirmada por ela): a invoice conta como paga NO DIA do
+// pagamento que fechou o saldo — é essa data que leva a comissão pro Finances.
+// Ao DESFAZER (apagar um pagamento), não mexemos na comissão — mesmo critério
+// do setPaid acima ("não desfaz ao despagar").
+export async function syncInvoicePaidFromPayments(invoiceId: string) {
+  const supabase = createClient();
+
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("kind, labor_total, material_total, general_total, total_received_by_owner, paid, commission_collected")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  if (!inv) return;
+  const row = inv as {
+    kind: string;
+    labor_total: number | null;
+    material_total: number | null;
+    general_total: number | null;
+    total_received_by_owner: number | null;
+    paid: boolean | null;
+    commission_collected: boolean | null;
+  };
+
+  // Itens legados category='credit' continuam descontando (invoice #166 até a conversão).
+  const { data: itemRows } = await supabase
+    .from("invoice_items")
+    .select("category, total")
+    .eq("invoice_id", invoiceId);
+  const credits = servicePaymentsReceived((itemRows ?? []) as { category: string | null; total: number }[]);
+
+  const ownerTotal =
+    row.kind === "general"
+      ? Number(row.general_total ?? 0)
+      : round2(Number(row.labor_total ?? 0) + Number(row.material_total ?? 0) - credits);
+
+  const { data: payRows } = await supabase
+    .from("invoice_payments")
+    .select("amount, paid_at")
+    .eq("invoice_id", invoiceId)
+    .order("paid_at", { ascending: false });
+  const payments = (payRows ?? []) as { amount: number; paid_at: string }[];
+  const paidToDate = ownerPaidToDate(payments);
+
+  const fullyPaid = ownerTotal > 0 && paidToDate + 0.005 >= ownerTotal;
+  const update: Record<string, unknown> = {
+    paid: fullyPaid,
+    paid_date: fullyPaid ? payments[0]?.paid_at ?? null : null,
+  };
+  if (fullyPaid && row.kind === "service" && !row.commission_collected) {
+    update.commission_collected = true;
+    update.commission_collected_at = payments[0]?.paid_at ?? null;
+  }
+
+  const { error } = await supabase.from("invoices").update(update).eq("id", invoiceId);
+  if (error) throw new Error(error.message);
+}
+
+export async function addInvoicePaymentAction(fd: FormData) {
+  const invoiceId = str(fd, "invoice_id");
+  if (!invoiceId) throw new Error("Missing invoice reference.");
+  await assertCanAccessInvoice(invoiceId);
+
+  const amount = num(fd, "amount");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter how much the owner paid.");
+  const paidAt = str(fd, "paid_at");
+  if (!paidAt) throw new Error("Enter the date the owner paid.");
+
+  const supabase = createClient();
+  const profile = await getProfile();
+  const { error } = await supabase.from("invoice_payments").insert({
+    invoice_id: invoiceId,
+    amount,
+    paid_at: paidAt,
+    method: str(fd, "method"),
+    notes: str(fd, "notes"),
+    created_by: profile?.id ?? null,
+  });
+  if (error) throw new Error(error.message);
+
+  await syncInvoicePaidFromPayments(invoiceId);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
+  revalidatePath("/finances");
+  revalidatePath("/");
+}
+
+export async function updateInvoicePaymentAction(fd: FormData) {
+  const id = str(fd, "id");
+  const invoiceId = str(fd, "invoice_id");
+  if (!id || !invoiceId) throw new Error("Missing payment reference.");
+  await assertCanAccessInvoice(invoiceId);
+
+  const amount = num(fd, "amount");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter how much the owner paid.");
+  const paidAt = str(fd, "paid_at");
+  if (!paidAt) throw new Error("Enter the date the owner paid.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("invoice_payments")
+    .update({ amount, paid_at: paidAt, method: str(fd, "method"), notes: str(fd, "notes") })
+    .eq("id", id)
+    .eq("invoice_id", invoiceId);
+  if (error) throw new Error(error.message);
+
+  await syncInvoicePaidFromPayments(invoiceId);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
+  revalidatePath("/finances");
+  revalidatePath("/");
+}
+
+export async function deleteInvoicePaymentAction(fd: FormData) {
+  const id = str(fd, "id");
+  const invoiceId = str(fd, "invoice_id");
+  if (!id || !invoiceId) throw new Error("Missing payment reference.");
+  await assertCanAccessInvoice(invoiceId);
+
+  const supabase = createClient();
+  const { error } = await supabase.from("invoice_payments").delete().eq("id", id).eq("invoice_id", invoiceId);
+  if (error) throw new Error(error.message);
+
+  await syncInvoicePaidFromPayments(invoiceId);
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath("/invoices");
+  revalidatePath("/finances");
+  revalidatePath("/");
 }
