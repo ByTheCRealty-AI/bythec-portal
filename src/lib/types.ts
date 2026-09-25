@@ -561,6 +561,8 @@ export interface Service {
   property_id: string;
   provider_id: string | null;
   tenant_request_id: string | null;
+  // Quando este serviço vira done, fecha junto o request ligado? (0049)
+  close_request_on_done: boolean;
   service_request_date: string | null;
   description: string | null;
   status: RequestStatus;

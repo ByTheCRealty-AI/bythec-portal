@@ -418,6 +418,10 @@ export async function addServiceAction(fd: FormData) {
     provider_id: str(fd, "provider_id"),
     // Link OPCIONAL a um tenant request desta casa (a done-sync é por trigger).
     tenant_request_id: str(fd, "tenant_request_id"),
+    // Fechar o request junto quando este serviço virar done? Default true (0049).
+    close_request_on_done: fd.has("close_request_on_done_present")
+      ? str(fd, "close_request_on_done") === "1"
+      : true,
     created_by: profile?.id ?? null,
   });
   if (error) throw new Error(error.message);
@@ -429,7 +433,11 @@ export async function addServiceAction(fd: FormData) {
 // Toggle rápido de status do serviço (open <-> done) — usado na aba global de
 // Services e onde precisar marcar concluído em 1 clique. Carimba done_at ao
 // concluir; limpa ao reabrir. Gate: operations.edit. Revalida os dois lugares.
-export async function setServiceStatusAction(id: string, done: boolean) {
+export async function setServiceStatusAction(
+  id: string,
+  done: boolean,
+  closeLinkedRequest: boolean = true
+) {
   const profile = await getProfile();
   if (!can(profile, "operations.edit")) {
     throw new Error("You do not have permission to update services.");
@@ -443,13 +451,21 @@ export async function setServiceStatusAction(id: string, done: boolean) {
     .eq("id", id)
     .maybeSingle();
 
+  // close_request_on_done vai na MESMA linha do status: o trigger (0049) lê o
+  // valor novo e decide se fecha o tenant request ligado. Sem isso não dava pra
+  // concluir só o serviço.
   const { error } = await supabase
     .from("services")
-    .update({ status: done ? "done" : "open", done_at: done ? new Date().toISOString() : null })
+    .update({
+      status: done ? "done" : "open",
+      done_at: done ? new Date().toISOString() : null,
+      close_request_on_done: closeLinkedRequest,
+    })
     .eq("id", id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/services");
+  revalidatePath("/requests");
   const propertyId = (existing as { property_id: string | null } | null)?.property_id;
   if (propertyId) revalidatePath("/propriedades/" + propertyId);
 }
@@ -693,6 +709,11 @@ export async function updateServiceAction(fd: FormData) {
   // (senão editar por um form sem o picker apagaria o link sem querer). "" = desliga.
   if (fd.has("tenant_request_id")) {
     update.tenant_request_id = str(fd, "tenant_request_id");
+  }
+  // Checkbox "Also mark the linked tenant request done" (0049). Só é tocada
+  // quando o form manda o campo — outros forms não mexem na escolha.
+  if (fd.has("close_request_on_done_present")) {
+    update.close_request_on_done = str(fd, "close_request_on_done") === "1";
   }
   const { error } = await supabase.from("services").update(update).eq("id", id);
   if (error) throw new Error(error.message);

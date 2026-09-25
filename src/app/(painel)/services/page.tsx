@@ -44,7 +44,7 @@ async function load() {
     const { data, error } = await supabase
       .from("services")
       .select(
-        "id, property_id, service_request_date, description, status, done_at, price, created_at, created_by, tenant_request_id, property:property_id(id, address, address2), provider:provider_id(id, name)"
+        "id, property_id, service_request_date, description, status, done_at, price, created_at, created_by, tenant_request_id, close_request_on_done, property:property_id(id, address, address2), provider:provider_id(id, name)"
       )
       .order("created_at", { ascending: false });
     if (error) throw error;

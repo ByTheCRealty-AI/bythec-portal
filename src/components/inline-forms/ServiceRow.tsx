@@ -95,6 +95,29 @@ export function ServiceRow({
               </select>
             </Field>
 
+            {/* Concluir o serviço sem fechar o request (0049). Só aparece quando
+                há request ligado — sem link não existe escolha. */}
+            {service.tenant_request_id && (
+              <>
+                <input type="hidden" name="close_request_on_done_present" value="1" />
+                <label className="flex items-start gap-2.5 text-sm text-ink/75">
+                  <input
+                    type="checkbox"
+                    name="close_request_on_done"
+                    value="1"
+                    defaultChecked={service.close_request_on_done !== false}
+                    className="mt-0.5 h-4 w-4 rounded border-black/20"
+                  />
+                  <span>
+                    Also mark the linked tenant request done
+                    <span className="block text-xs text-ink/50">
+                      Untick to close only this service and leave the request open.
+                    </span>
+                  </span>
+                </label>
+              </>
+            )}
+
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field label="Service date">
                 <input

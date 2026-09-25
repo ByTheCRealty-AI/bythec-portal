@@ -83,7 +83,7 @@ function EditServiceModal({
   requests: LinkableRequest[];
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
-  setStatusAction: (id: string, done: boolean) => Promise<void>;
+  setStatusAction: (id: string, done: boolean, closeLinkedRequest?: boolean) => Promise<void>;
   onClose: () => void;
 }) {
   // Requests linkáveis: os OPEN da mesma casa + o que já está linkado (mesmo done).
@@ -97,6 +97,12 @@ function EditServiceModal({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const done = service.status === "done";
+  // Andrea 2026-09-25: às vezes o serviço acabou mas o problema do inquilino
+  // não. Só perguntamos quando há um request ligado e ele AINDA está aberto —
+  // nos outros casos a escolha não existe e a caixa não aparece.
+  const linkedRequest = requests.find((r) => r.id === service.tenant_request_id) ?? null;
+  const askAboutRequest = !done && !!linkedRequest && linkedRequest.status !== "done";
+  const [closeRequest, setCloseRequest] = useState(true);
 
   // Marca concluído / reabre e fecha a janela (a lista atualiza). Separado do
   // "Save changes" — é 1 clique. Carimba done_at no servidor.
@@ -104,7 +110,7 @@ function EditServiceModal({
     setError(null);
     setBusy(true);
     try {
-      await setStatusAction(service.id, !done);
+      await setStatusAction(service.id, !done, askAboutRequest ? closeRequest : true);
       onClose();
       router.refresh();
     } catch (err) {
@@ -195,6 +201,26 @@ function EditServiceModal({
             {done ? "Reopen" : "Mark as done"}
           </button>
         </div>
+
+        {/* A escolha aparece SÓ quando há um request ligado ainda aberto. */}
+        {askAboutRequest && (
+          <label className="-mt-2 flex items-start gap-2.5 rounded-xl border border-black/[0.06] bg-black/[0.015] px-3.5 py-2.5 text-sm text-ink/75">
+            <input
+              type="checkbox"
+              checked={closeRequest}
+              onChange={(e) => setCloseRequest(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-black/20"
+            />
+            <span>
+              Also mark the linked tenant request done
+              <span className="block text-xs text-ink/50">
+                {closeRequest
+                  ? `Closes “${(linkedRequest!.description ?? "the request").slice(0, 60)}” too.`
+                  : "Only this service closes — the tenant request stays open."}
+              </span>
+            </span>
+          </label>
+        )}
 
         <Field label="Description *">
           <textarea
@@ -476,7 +502,7 @@ export function ServicesTable({
   addAction: (fd: FormData) => void | Promise<void>;
   updateAction: (fd: FormData) => void | Promise<void>;
   deleteAction: (fd: FormData) => void | Promise<void>;
-  setStatusAction: (id: string, done: boolean) => Promise<void>;
+  setStatusAction: (id: string, done: boolean, closeLinkedRequest?: boolean) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<Filter>("");
   const [query, setQuery] = useState("");
