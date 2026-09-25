@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { REQUEST_STATUS_LABEL } from "@/lib/types";
 
 type ProviderOption = { id: string; name: string };
+type RequestOption = { id: string; description: string | null; status: string };
 
 // Form inline pra registrar um serviço direto da aba Services do detalhe da
 // propriedade. property_id vai em hidden. Date default hoje; status default
@@ -13,15 +14,22 @@ type ProviderOption = { id: string; name: string };
 export function ServiceAddForm({
   propertyId,
   providers,
+  requests = [],
   action,
   today,
 }: {
   propertyId: string;
   providers: ProviderOption[];
+  // Tenant requests DESTA casa. Andrea 2026-09-25: criar o serviço já ligado ao
+  // request, sem ter que salvar e depois editar. O servidor já aceitava
+  // tenant_request_id (addServiceAction); só o formulário não oferecia.
+  requests?: RequestOption[];
   action: (fd: FormData) => void | Promise<void>;
   today: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Só request ABERTO pode ser linkado — o done-sync é por trigger nos dois lados.
+  const linkable = requests.filter((r) => r.status !== "done");
 
   if (!open) {
     return (
@@ -53,6 +61,29 @@ export function ServiceAddForm({
           className={inputClass}
           placeholder="What was done (e.g. HVAC tune-up, gutter cleaning)…"
         />
+      </Field>
+
+      <Field
+        label="Link to tenant request (optional)"
+        hint={
+          linkable.length > 0
+            ? "Marking either one done marks the other done."
+            : "No open requests for this property to link."
+        }
+      >
+        <select
+          name="tenant_request_id"
+          defaultValue=""
+          className={inputClass}
+          disabled={linkable.length === 0}
+        >
+          <option value="">— No linked request —</option>
+          {linkable.map((r) => (
+            <option key={r.id} value={r.id}>
+              {(r.description ?? "Request").slice(0, 70)}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

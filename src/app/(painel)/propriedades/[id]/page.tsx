@@ -649,6 +649,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
         <ServiceAddForm
           propertyId={p.id}
           providers={providers}
+          requests={requests}
           action={addServiceAction}
           today={today}
         />
