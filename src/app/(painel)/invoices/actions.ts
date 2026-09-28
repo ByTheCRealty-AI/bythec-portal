@@ -979,6 +979,14 @@ export async function syncInvoicePaidFromPayments(invoiceId: string) {
   if (fullyPaid && row.kind === "service" && !row.commission_collected) {
     update.commission_collected = true;
     update.commission_collected_at = payments[0]?.paid_at ?? null;
+  } else if (!fullyPaid && row.kind === "service" && row.commission_collected) {
+    // Achado no teste ao vivo de 2026-09-28: desfazer a dedução deixava a
+    // comissão marcada como coletada numa invoice que voltou a ficar EM ABERTO —
+    // ou seja, receita contada no Finances sem dinheiro nenhum ter entrado.
+    // Regra TRAVADA da Andrea: comissão é REGIME DE CAIXA. Se o saldo reabriu,
+    // a comissão volta atrás junto.
+    update.commission_collected = false;
+    update.commission_collected_at = null;
   }
 
   const { error } = await supabase.from("invoices").update(update).eq("id", invoiceId);
