@@ -109,6 +109,84 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   if (error || !data) notFound();
   const p = data as unknown as PropertyRow;
   const archived = p.archived_at !== null;
+
+  // ---- Preview do arquivamento em cascata (Andrea 2026-09-30) ---------------
+  // Quem MAIS seria arquivado junto com a casa. O servidor recalcula tudo na
+  // hora de arquivar — isto aqui é só o que a confirmação mostra.
+  const cascade = await (async () => {
+    const todayYmd = new Date().toISOString().slice(0, 10);
+
+    if (archived) {
+      if (!p.archived_at) return { tenant: null, owner: null, archivedWith: [] };
+      // Arquivados JUNTO = mesmo carimbo de archived_at (padrão já usado nos payments).
+      const { data } = await supabase.from("clients").select("id, name").eq("archived_at", p.archived_at);
+      const rows = (data ?? []) as { id: string; name: string }[];
+      return {
+        tenant: null,
+        owner: null,
+        archivedWith: rows.map((c) => ({
+          id: c.id,
+          name: c.name,
+          role: c.id === p.owner?.id ? "Owner" : c.id === p.tenant?.id ? "Tenant" : "Archived with this property",
+        })),
+      };
+    }
+
+    // Inquilino atual + quanto está VENCIDO (mês futuro agendado não conta:
+    // quase todo inquilino tem meses à frente e isso não é dívida).
+    let tenant: { id: string; name: string; pastDueCount: number; pastDueTotal: number } | null = null;
+    if (p.tenant) {
+      const { data: due } = await supabase
+        .from("payments")
+        .select("rent_amount, amount_paid")
+        .eq("tenant_id", p.tenant.id)
+        .is("archived_at", null)
+        .neq("status", "received")
+        .lt("due_date", todayYmd);
+      const rows = (due ?? []) as { rent_amount: number | null; amount_paid: number | null }[];
+      const total = rows.reduce(
+        (a, r) => a + Math.max(0, Number(r.rent_amount ?? 0) - Number(r.amount_paid ?? 0)),
+        0
+      );
+      tenant = {
+        id: p.tenant.id,
+        name: p.tenant.name,
+        pastDueCount: rows.length,
+        pastDueTotal: Math.round(total * 100) / 100,
+      };
+    }
+
+    // Owner: só entra se esta for a ÚLTIMA casa ativa dele (regra dela), e se
+    // ele não for inquilino de outra casa nem buyer/seller.
+    let owner: { id: string; name: string; eligible: boolean; reason: string | null } | null = null;
+    if (p.owner) {
+      const [others, rentsElsewhere, cliRow] = await Promise.all([
+        supabase.from("properties").select("id", { count: "exact", head: true })
+          .eq("owner_id", p.owner.id).is("archived_at", null).neq("id", p.id),
+        supabase.from("properties").select("id", { count: "exact", head: true })
+          .eq("tenant_id", p.owner.id).is("archived_at", null),
+        supabase.from("clients").select("is_buyer_seller").eq("id", p.owner.id).maybeSingle(),
+      ]);
+      const n = others.count ?? 0;
+      const rents = rentsElsewhere.count ?? 0;
+      const isBuyerSeller = (cliRow.data as { is_buyer_seller: boolean | null } | null)?.is_buyer_seller === true;
+      const eligible = n === 0 && rents === 0 && !isBuyerSeller;
+      owner = {
+        id: p.owner.id,
+        name: p.owner.name,
+        eligible,
+        reason:
+          n > 0
+            ? `Owner · has ${n} other active ${n === 1 ? "property" : "properties"} — stays active`
+            : rents > 0
+            ? "Owner · also rents a property from you — stays active"
+            : isBuyerSeller
+            ? "Owner · also a buyer / seller — stays active"
+            : null,
+      };
+    }
+    return { tenant, owner, archivedWith: [] };
+  })();
   // Flags (0042): uma casa anual que também está à venda continua sendo aluguel.
   const isRental = p.is_year_round || p.is_winter;
 
@@ -910,7 +988,13 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             <Link href={`/propriedades/${p.id}/editar`} className={buttonClass("ghost")}>
               <Pencil className="h-4 w-4" /> Edit
             </Link>
-            <PropriedadeArchiveButton id={p.id} archived={archived} />
+            <PropriedadeArchiveButton
+              id={p.id}
+              archived={archived}
+              tenant={cascade.tenant}
+              owner={cascade.owner}
+              archivedWith={cascade.archivedWith}
+            />
             {showDelete && (
               <PropriedadeDeleteButton id={p.id} address={p.address} archived={archived} />
             )}

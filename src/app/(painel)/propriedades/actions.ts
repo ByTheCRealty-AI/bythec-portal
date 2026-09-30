@@ -289,9 +289,28 @@ export async function clearPropertyTenantAction(propertyId: string) {
 //     Past payments, e some dali se for arquivado (a tela filtra archived_at).
 // O carimbo é o MESMO da propriedade, então o unarchive devolve exatamente estas
 // linhas e não ressuscita nada que tenha sido arquivado à mão antes.
-export async function archivePropriedadeAction(id: string) {
+// Arquiva a casa e, opcionalmente, o INQUILINO atual e o OWNER (este só quando
+// a casa é a última ativa dele) — pedido da Andrea 2026-09-30.
+//
+// O cliente manda a intenção, mas quem decide é o SERVIDOR: elegibilidade é
+// recalculada aqui. Nunca confiar na checkbox do browser pra arquivar gente.
+//
+// Os clientes levam o MESMO `archived_at` da casa — é assim que o restore sabe
+// quem foi arquivado JUNTO (mesmo padrão que os payments já usavam).
+export async function archivePropriedadeAction(
+  id: string,
+  opts: { tenant?: boolean; owner?: boolean } = {}
+) {
   const supabase = createClient();
   const stamp = new Date().toISOString();
+
+  const { data: propRow } = await supabase
+    .from("properties")
+    .select("owner_id, tenant_id")
+    .eq("id", id)
+    .maybeSingle();
+  const prop = propRow as { owner_id: string | null; tenant_id: string | null } | null;
+
   const { error } = await supabase
     .from("properties")
     .update({ archived_at: stamp })
@@ -306,12 +325,54 @@ export async function archivePropriedadeAction(id: string) {
     .or("status.neq.received,kind.eq.security_deposit");
   if (payErr) throw new Error(payErr.message);
 
+  // ---- Cascata opcional: inquilino atual e/ou owner -------------------------
+  const archiveClient = async (clientId: string) => {
+    const { error: cErr } = await supabase
+      .from("clients")
+      .update({ archived_at: stamp, active: false })
+      .eq("id", clientId)
+      .is("archived_at", null);
+    if (cErr) throw new Error(cErr.message);
+  };
+
+  if (opts.tenant && prop?.tenant_id) {
+    await archiveClient(prop.tenant_id);
+  }
+
+  if (opts.owner && prop?.owner_id) {
+    const ownerId = prop.owner_id;
+    // Re-checa no servidor: só arquiva o owner se esta era a ÚLTIMA casa ativa
+    // dele, e se ele não for inquilino de outra casa nem buyer/seller.
+    const { count: otherActive } = await supabase
+      .from("properties")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", ownerId)
+      .is("archived_at", null)
+      .neq("id", id);
+    const { count: rentsElsewhere } = await supabase
+      .from("properties")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", ownerId)
+      .is("archived_at", null);
+    const { data: cli } = await supabase
+      .from("clients")
+      .select("is_buyer_seller")
+      .eq("id", ownerId)
+      .maybeSingle();
+    const isBuyerSeller = (cli as { is_buyer_seller: boolean | null } | null)?.is_buyer_seller === true;
+
+    if ((otherActive ?? 0) === 0 && (rentsElsewhere ?? 0) === 0 && !isBuyerSeller) {
+      await archiveClient(ownerId);
+    }
+  }
+
   revalidatePath("/propriedades");
+  revalidatePath("/clientes");
   revalidatePath("/payments");
   redirect("/propriedades");
 }
 
-export async function unarchivePropriedadeAction(id: string) {
+export async function unarchivePropriedadeAction(id: string, clientIds: string[] = []) {
   const supabase = createClient();
   // Lê o carimbo ANTES de limpar: é ele que identifica as linhas arquivadas
   // junto com a casa.
@@ -336,9 +397,21 @@ export async function unarchivePropriedadeAction(id: string) {
       .eq("property_id", id)
       .eq("archived_at", stamp);
     if (payErr) throw new Error(payErr.message);
+
+    // Restaura só quem foi arquivado JUNTO com esta casa (mesmo carimbo). Se o
+    // cliente foi arquivado noutro momento, o id não casa e ele fica como está.
+    if (clientIds.length > 0) {
+      const { error: cErr } = await supabase
+        .from("clients")
+        .update({ archived_at: null, active: true })
+        .in("id", clientIds)
+        .eq("archived_at", stamp);
+      if (cErr) throw new Error(cErr.message);
+    }
   }
 
   revalidatePath(`/propriedades/${id}`);
+  revalidatePath("/clientes");
   revalidatePath("/payments");
 }
 
