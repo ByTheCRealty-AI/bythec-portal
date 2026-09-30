@@ -108,7 +108,7 @@ async function loadLeaseRenewals() {
     const { data } = await supabase
       .from("properties")
       .select(
-        "id, address, address2, rental_end, renewal_dismissed_for, tenant:tenant_id(name)"
+        "id, address, address2, rental_end, renewal_dismissed_for, renewal_sent_at, renewal_response, tenant:tenant_id(name)"
       )
       .or("is_year_round.eq.true,is_winter.eq.true")
       .is("archived_at", null)
@@ -124,6 +124,8 @@ async function loadLeaseRenewals() {
       address2: string | null;
       rental_end: string;
       renewal_dismissed_for: string | null;
+      renewal_sent_at: string | null;
+      renewal_response: "accepted" | "declined" | null;
       tenant: { name: string } | null;
     }>).map((r) => {
       const endT = new Date(r.rental_end + "T00:00:00Z");
@@ -134,6 +136,8 @@ async function loadLeaseRenewals() {
         tenant: r.tenant?.name ?? null,
         days: Math.max(0, Math.round((endT.getTime() - todayUTC) / 864e5)),
         endLabel: endT.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+        sent: !!r.renewal_sent_at,
+        response: r.renewal_response,
       };
       return { item, dismissed: r.renewal_dismissed_for === r.rental_end };
     });

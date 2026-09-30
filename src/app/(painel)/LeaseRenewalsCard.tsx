@@ -12,7 +12,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 import { CalendarClock, X, RotateCcw } from "lucide-react";
 import { cx } from "@/lib/format";
-import { dismissRenewalAction, restoreRenewalAction } from "./lease-renewals-actions";
+import { dismissRenewalAction, restoreRenewalAction, setRenewalSentAction } from "./lease-renewals-actions";
 
 export type RenewalItem = {
   id: string;
@@ -21,6 +21,9 @@ export type RenewalItem = {
   tenant: string | null;
   days: number;
   endLabel: string;
+  // Renovação enviada ao inquilino + resposta (Andrea 2026-09-28).
+  sent: boolean;
+  response: "accepted" | "declined" | null;
 };
 
 const VISIBLE = 4;
@@ -37,11 +40,17 @@ export function LeaseRenewalsCard({
   const [expanded, setExpanded] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
   const [pending, start] = useTransition();
+  // Estado local do tick "enviei a renovação" (evita piscar enquanto salva).
+  const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
 
   const shown = expanded ? active : active.slice(0, VISIBLE);
 
   function dismiss(id: string) {
     start(() => dismissRenewalAction(id).catch(() => {}));
+  }
+  function toggleSent(id: string, sent: boolean) {
+    setSentMap((m) => ({ ...m, [id]: sent }));
+    start(() => setRenewalSentAction(id, sent).catch(() => {}));
   }
   function restore(id: string) {
     start(() => restoreRenewalAction(id).catch(() => {}));
@@ -75,12 +84,26 @@ export function LeaseRenewalsCard({
               key={r.id}
               className="flex items-center gap-3 rounded-lg border border-black/[0.06] bg-white px-3.5 py-2"
             >
+              <label title="Renewal sent to tenant" className="flex shrink-0 cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  checked={sentMap[r.id] ?? r.sent}
+                  disabled={!canManage || pending}
+                  onChange={(e) => toggleSent(r.id, e.target.checked)}
+                  className="h-4 w-4 accent-[#198577]"
+                />
+              </label>
               <Link href={`/propriedades/${r.id}`} className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-ink hover:text-primary">
                   {r.label}
                   {r.unit && <span className="font-normal text-ink/45"> · {r.unit}</span>}
                 </span>
-                {r.tenant && <span className="block truncate text-xs text-ink/50">{r.tenant}</span>}
+                <span className="block truncate text-xs text-ink/50">
+                  {r.tenant}
+                  {(sentMap[r.id] ?? r.sent) && (
+                    <span className="text-primary">{r.tenant ? " · " : ""}renewal sent{r.response ? ` · ${r.response}` : ""}</span>
+                  )}
+                </span>
               </Link>
               <span className="shrink-0 text-right">
                 <span

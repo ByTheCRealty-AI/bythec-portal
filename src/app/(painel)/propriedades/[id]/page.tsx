@@ -14,6 +14,7 @@ import { attachmentsNewestFirst } from "@/lib/order";
 import { NoteAddForm } from "@/components/inline-forms/NoteAddForm";
 import { ServiceAddForm } from "@/components/inline-forms/ServiceAddForm";
 import { AcceptApplicationsEditor } from "@/components/AcceptApplicationsEditor";
+import { LeaseRenewalCard } from "@/components/LeaseRenewalCard";
 import { RequestAddForm } from "@/components/inline-forms/RequestAddForm";
 import { DocumentAddForm } from "@/components/inline-forms/DocumentAddForm";
 import { DocumentRow } from "@/components/inline-forms/DocumentRow";
@@ -427,6 +428,25 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               }
             />
           </div>
+        </Card>
+      )}
+
+      {/* Renovação do contrato (Andrea 2026-09-28): enviada? aceita/recusada? o que muda. */}
+      {p.tenant_id && (p.is_year_round || p.is_winter) && (
+        <Card className="md:col-span-2">
+          <h3 className="h-display mb-3 text-sm text-ink/70">Lease renewal</h3>
+          <LeaseRenewalCard
+            id={p.id}
+            canEdit={can(profile, "properties.edit")}
+            sentAt={p.renewal_sent_at ?? null}
+            response={(p.renewal_response as "accepted" | "declined" | null) ?? null}
+            responseAt={p.renewal_response_at ?? null}
+            newRent={p.renewal_new_rent ?? null}
+            newStart={p.renewal_new_start ?? null}
+            newEnd={p.renewal_new_end ?? null}
+            currentRent={p.rent_price}
+            currentEnd={p.rental_end}
+          />
         </Card>
       )}
 

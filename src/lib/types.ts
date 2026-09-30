@@ -170,6 +170,13 @@ export interface Property {
   rent_price: number | null;
   rental_start: string | null;
   rental_end: string | null;
+  // Rastreio da renovação (Andrea 2026-09-28) — registro, não altera o lease.
+  renewal_sent_at?: string | null;
+  renewal_response?: "accepted" | "declined" | null;
+  renewal_response_at?: string | null;
+  renewal_new_rent?: number | null;
+  renewal_new_start?: string | null;
+  renewal_new_end?: string | null;
   rent_due_day: number | null;
   rent_frequency: string | null;
   // Quem coleta o aluguel (year-round/off-season). 'bythec' = By the C coleta e
