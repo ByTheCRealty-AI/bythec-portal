@@ -799,7 +799,11 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
   const canUploadDocs = canEditProperty || canEditOps;
   // For Sale: sem inquilino. Documentos são só da propriedade — esconde o seletor
   // "Belongs to" (add) e o botão "Tenant" (re-tag) nas rows.
-  const isForSaleProp = p.is_for_sale;
+  // Andrea 2026-10-01: SÓ quando a casa é EXCLUSIVAMENTE à venda. Desde o multi-tipo
+  // (0042) uma casa alugada PODE estar à venda ao mesmo tempo — nessas, o re-tag
+  // sumiu sem querer. Com qualquer flag de aluguel (ou inquilino/histórico), mostra.
+  const isForSaleProp =
+    p.is_for_sale && !p.is_year_round && !p.is_winter && !p.is_vacation && !p.tenant_id;
 
   // "Belongs to" grouping: Current tenant -> Past tenant(s) -> Property docs.
   //  - current: tenant_id == current tenant (only when the property is occupied).
