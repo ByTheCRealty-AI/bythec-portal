@@ -159,7 +159,7 @@ export function LeaseRenewalCard({
             </div>
           </div>
           <p className="mt-2 text-[11px] text-ink/40">
-            This is a record of the renewal. The lease itself only changes when you edit the property.
+            Nothing is saved until you press Save renewal.
           </p>
         </>
       )}
