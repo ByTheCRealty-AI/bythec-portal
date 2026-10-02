@@ -225,6 +225,10 @@ export async function generateMonthlyPaymentsAction(
     const dueDate = addMonths(dueBase, i);
     const month = firstOfMonth(dueDate);
     if (!month || !dueDate) continue;
+    // Nunca um vencimento DEPOIS do fim do contrato: um lease de 09/nov/26 a
+    // 08/nov/27 tem 12 meses, não 13 (a contagem por mês inclui o mês do fim).
+    // Mesma regra da renovação automática (apply_due_lease_renewals, 0051).
+    if (dueDate > p.rental_end.slice(0, 10)) continue;
     if (taken.has(month)) {
       skipped++;
       continue;
