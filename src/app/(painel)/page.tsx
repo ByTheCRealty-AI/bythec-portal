@@ -102,6 +102,17 @@ async function loadRemindersSummary(viewerId: string, role: AppRole) {
 // Lease renewals pro Overview: leases (year-round/off-season) terminando nos
 // próximos 90 dias, mais próximos no topo. Split entre ativos e descartados
 // (renewal_dismissed_for = rental_end). Falha silenciosa se algo faltar.
+// Renovações aceitas que já venceram viram contrato aqui (sem cron): a cada
+// carga do Overview o banco aplica o que está no dia e cria o lembrete de 15
+// dias pra secretária. Idempotente — a função só age uma vez por renovação.
+async function runDueRenewals() {
+  try {
+    await createClient().rpc("apply_due_lease_renewals");
+  } catch {
+    /* nunca derruba o Overview */
+  }
+}
+
 async function loadLeaseRenewals() {
   try {
     const supabase = createClient();
@@ -259,6 +270,8 @@ export default async function OverviewPage({
 
   // Lease renewals: só pra internos (owner/manager/secretary — têm properties.edit).
   const canManageLeases = can(profile, "properties.edit");
+  // Aplica o que venceu ANTES de ler a lista, pra a tela já mostrar o novo contrato.
+  if (canManageLeases) await runDueRenewals();
   const renewals = canManageLeases ? await loadLeaseRenewals() : null;
 
   // Counts vêm via RLS → pro realtor, clients/properties já são só os DELE ("her

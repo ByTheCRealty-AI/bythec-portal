@@ -47,6 +47,8 @@ export function LeaseRenewalCard({
   const day = (d: string | null) =>
     d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : null;
 
+  // Andrea 2026-10-02: NADA salva sozinho (cada campo salvando no blur travava a
+  // tela). Tudo é local e vai junto no botão "Save renewal".
   function save(next?: { sent?: boolean; resp?: Response }) {
     const s = next?.sent ?? sent;
     const r = next?.resp === undefined ? resp : next.resp;
@@ -87,7 +89,7 @@ export function LeaseRenewalCard({
             const v = e.target.checked;
             setSent(v);
             if (!v) setResp(null);
-            save({ sent: v, resp: v ? resp : null });
+            setSaved(false);
           }}
           className="h-4 w-4 accent-[#198577]"
         />
@@ -103,7 +105,7 @@ export function LeaseRenewalCard({
             <button
               type="button"
               disabled={!canEdit || pending}
-              onClick={() => { const v: Response = resp === "accepted" ? null : "accepted"; setResp(v); save({ resp: v }); }}
+              onClick={() => { setResp(resp === "accepted" ? null : "accepted"); setSaved(false); }}
               className={pill(resp === "accepted", "green")}
             >
               Accepted
@@ -111,7 +113,7 @@ export function LeaseRenewalCard({
             <button
               type="button"
               disabled={!canEdit || pending}
-              onClick={() => { const v: Response = resp === "declined" ? null : "declined"; setResp(v); save({ resp: v }); }}
+              onClick={() => { setResp(resp === "declined" ? null : "declined"); setSaved(false); }}
               className={pill(resp === "declined", "red")}
             >
               Declined
@@ -127,7 +129,6 @@ export function LeaseRenewalCard({
                 value={rent}
                 disabled={!canEdit || pending}
                 onChange={(e) => { setRent(e.target.value); setSaved(false); }}
-                onBlur={() => save()}
                 type="number"
                 step="0.01"
                 placeholder={currentRent != null ? String(currentRent) : "0.00"}
@@ -141,7 +142,6 @@ export function LeaseRenewalCard({
                 value={start}
                 disabled={!canEdit || pending}
                 onChange={(e) => { setStart(e.target.value); setSaved(false); }}
-                onBlur={() => save()}
                 type="date"
                 className={input}
               />
@@ -152,7 +152,6 @@ export function LeaseRenewalCard({
                 value={end}
                 disabled={!canEdit || pending}
                 onChange={(e) => { setEnd(e.target.value); setSaved(false); }}
-                onBlur={() => save()}
                 type="date"
                 className={input}
               />
@@ -165,7 +164,25 @@ export function LeaseRenewalCard({
         </>
       )}
 
+      {sent && resp === "accepted" && start && (
+        <p className="mt-3 rounded-lg border border-primary/25 bg-primary/[0.06] px-3 py-2 text-xs text-ink/70">
+          On {new Date(start + "T00:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })} the
+          rent and the lease dates change over on their own, and that month&rsquo;s payments are created. The secretary gets a
+          reminder 15 days before.
+        </p>
+      )}
+
       <div className="mt-3 flex items-center gap-3">
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => save()}
+            disabled={pending}
+            className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+          >
+            {pending ? "Saving…" : "Save renewal"}
+          </button>
+        )}
         {pending && <span className="text-xs text-ink/45">Saving…</span>}
         {saved && !pending && (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
