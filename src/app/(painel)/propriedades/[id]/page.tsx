@@ -841,12 +841,28 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     a.name.localeCompare(b.name)
   );
 
+  // Picker de "past tenant" dos DOCUMENTOS: só gente com histórico NESTA casa
+  // (Andrea 2026-10-08: "não quero todas as opções do mundo"). Fontes: ex-inquilinos
+  // com pagamento aqui + quem já está marcado em algum documento desta propriedade.
+  // O inquilino ATUAL não entra (tem opção própria no seletor).
+  const docTenantIds = new Set<string>([
+    ...pastNameById.keys(),
+    ...documents.map((d) => d.tenant_id).filter((id): id is string => Boolean(id)),
+  ]);
+  if (currentTenantId) docTenantIds.delete(currentTenantId);
+  const documentTenantOptions = Array.from(docTenantIds)
+    .map((id) => {
+      const info = clientInfoById.get(id);
+      return { id, name: info?.name ?? pastNameById.get(id) ?? "Former tenant", archived: info?.archived ?? false };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   const docRowProps = {
     canDelete: canUploadDocs,
     deleteAction: deletePropertyDocumentAction,
     canEditTenancy: canUploadDocs && !isForSaleProp,
     currentTenant: p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null,
-    tenantOptions: tenantPickerOptions,
+    tenantOptions: documentTenantOptions,
     updateTenancyAction: updateDocumentTenancyAction,
     canRename: canUploadDocs,
     renameAction: renameDocumentAction,
@@ -870,7 +886,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
             parentId={p.id}
             action={addDocumentAction}
             currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
-            tenantOptions={tenantPickerOptions}
+            tenantOptions={documentTenantOptions}
             hideTenantOptions={isForSaleProp}
           />
           <BulkDocumentImport
@@ -921,7 +937,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
               deleteAction={deletePropertyDocumentAction}
               canEditTenancy={canUploadDocs}
               currentTenant={p.tenant ? { id: p.tenant.id, name: p.tenant.name } : null}
-              tenantOptions={tenantPickerOptions}
+              tenantOptions={documentTenantOptions}
               updateTenancyAction={updateDocumentTenancyAction}
               canRename={canUploadDocs}
               renameAction={renameDocumentAction}
