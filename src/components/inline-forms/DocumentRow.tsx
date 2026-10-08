@@ -316,7 +316,7 @@ function TenancyEditor({
             </button>
           </div>
           {pastMode === "existing" ? (
-            <Field label="Past tenant" hint="Active and archived clients.">
+            <Field label="Past tenant" hint="Past tenants of this property. Someone missing? Use Enter a name.">
               <select
                 value={pastTenantId}
                 onChange={(e) => setPastTenantId(e.target.value)}
