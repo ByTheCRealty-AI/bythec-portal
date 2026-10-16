@@ -278,6 +278,33 @@ export async function setListingSaleMoneyAction(fd: FormData) {
   revalidatePath("/finances");
 }
 
+// ---- Comissão do COMPRADOR (0052). Comprador não tem propriedade: preço de
+// compra + % + $ moram no cliente. Mesmos nomes de campo do InlineSaleMoney
+// (sale_price = preço de compra). Conta no Finances quando o deal fecha.
+export async function setBuyerCommissionAction(fd: FormData) {
+  const profile = await getProfile();
+  if (!can(profile, "clients.edit")) {
+    throw new Error("You do not have permission to edit sales clients.");
+  }
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing client reference.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      purchase_price: numOrNull(fd, "sale_price"),
+      sale_commission_rate: numOrNull(fd, "sale_commission_rate"),
+      sale_commission: numOrNull(fd, "sale_commission"),
+    })
+    .eq("id", id)
+    .eq("is_buyer_seller", true);
+  if (error) throw new Error(error.message);
+  revalidatePath("/sales");
+  revalidatePath(`/clientes/${id}`);
+  revalidatePath("/finances");
+}
+
 // ---- Editar a DATA em que uma listing For Sale foi vendida (properties.sold_at,
 // migration 0034). Registro da listing — não muda a receita do Finances.
 export async function setListingSoldDateAction(fd: FormData) {

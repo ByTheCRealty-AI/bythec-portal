@@ -66,7 +66,32 @@ export default async function FinancesPage({
 
   const payments = pays ?? [];
   const invoices = invs ?? [];
-  const soldListings = (sold ?? []) as unknown as SoldListing[];
+  // Comissão do COMPRADOR (0052): mora no cliente (comprador não tem imóvel).
+  // Mesma regra da venda: deal fechado = ganha, no mês de deal_closed_at, sem
+  // "owed". Entra na MESMA lista das vendas, então soma no stream Sales, no
+  // mensal e na tabela sem caminho paralelo.
+  const { data: boughtData } = await supabase
+    .from("clients")
+    .select("id, name, purchase_price, sale_commission, sale_commission_rate, deal_closed_at")
+    .eq("is_buyer_seller", true)
+    .in("deal_side", ["buyer", "both"])
+    .eq("deal_status", "closed")
+    .is("archived_at", null);
+  const buyerDeals: SoldListing[] = (boughtData ?? []).map((c) => ({
+    id: c.id as string,
+    kind: "buyer" as const,
+    address: c.name as string,
+    address2: null,
+    sale_price: (c.purchase_price as number | null) ?? null,
+    sale_commission: (c.sale_commission as number | null) ?? null,
+    sale_commission_rate: (c.sale_commission_rate as number | null) ?? null,
+    sale_status: "sold",
+    sold_at: (c.deal_closed_at as string | null) ?? null,
+    owner: null,
+  }));
+  const soldListings = [...((sold ?? []) as unknown as SoldListing[]), ...buyerDeals].sort((a, b) =>
+    (b.sold_at ?? "").localeCompare(a.sold_at ?? "")
+  );
   const expenses = exps ?? [];
 
   // Non-facilitator fee (taxa única, sem etapa de cobrança). Duas fontes, SEM
@@ -408,8 +433,8 @@ export default async function FinancesPage({
       <div className="mt-8">
         <h2 className="h-display mb-1 text-base text-ink">Sales commissions {isAll ? "" : `· ${sel}`}</h2>
         <p className="mb-3 text-sm text-ink/55">
-          Every house you have sold, with the commission read straight off the listing. Set the
-          price and commission once in Sales and it lands here.
+          Every house you have sold, and every buyer you closed, with the commission read straight
+          off the listing or the buyer. Set the price and commission once in Sales and it lands here.
         </p>
         <SalesCommissionsSection listings={listingsForYear} />
       </div>

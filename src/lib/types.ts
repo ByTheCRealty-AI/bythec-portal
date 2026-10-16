@@ -140,11 +140,14 @@ export interface Client {
   is_airbnb_owner: boolean;
   is_buyer_seller: boolean;
   is_off_season_tenant: boolean;
-  // LEGADO (migration 0026): a comissão de venda era digitada aqui, no deal.
-  // Desde 2026-08-27 o Finances LÊ da propriedade (properties.sale_commission,
-  // 0027) e estes campos não alimentam mais nenhum número. Mantidos só pra não
-  // quebrar linhas antigas; nenhum deal chegou a ter valor. Ver migration 0041.
+  // Comissão do lado COMPRADOR (0052): comprador não tem propriedade, então
+  // preço + % + $ moram no cliente. O $ (sale_commission, coluna de 0026
+  // reaproveitada) é o que vale; conta no Finances quando deal_status='closed',
+  // no mês de deal_closed_at. Vendedor continua na propriedade (0027).
+  purchase_price: number | null;
+  sale_commission_rate: number | null;
   sale_commission: number | null;
+  // LEGADO (0026): sem uso.
   sale_commission_received: boolean;
   // Non-Client Facilitator: tag em cima do tipo (landlord/buy-sell) — serviço
   // único por taxa única, dono auto-gerencia (migration 0045).

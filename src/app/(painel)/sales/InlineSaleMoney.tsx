@@ -5,6 +5,7 @@
 // tabela For sale, sem abrir a propriedade. A Andrea trabalha nesta tela, então
 // o preço muda aqui (relista, baixa de preço) e não só na página da propriedade.
 // A % recalcula o $ igual ao SaleFields; o $ continua sendo o que vale.
+// Também serve ao COMPRADOR (0052): mesmos campos, gravados no cliente.
 // =============================================================================
 import { useState, useTransition } from "react";
 import { money } from "@/lib/format";
@@ -17,6 +18,7 @@ export function InlineSaleMoney({
   amount,
   canEdit,
   action,
+  priceLabel = "Sale price",
 }: {
   id: string;
   price: number | null;
@@ -24,6 +26,8 @@ export function InlineSaleMoney({
   amount: number | null;
   canEdit: boolean;
   action: (fd: FormData) => Promise<void> | void;
+  // "Sale price" na listing; "Purchase price" no comprador (0052).
+  priceLabel?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [p, setP] = useState(price != null ? String(price) : "");
@@ -79,7 +83,7 @@ export function InlineSaleMoney({
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <label className="sr-only" htmlFor={`price-${id}`}>
-        Sale price
+        {priceLabel}
       </label>
       <input
         id={`price-${id}`}
@@ -91,7 +95,7 @@ export function InlineSaleMoney({
           setP(e.target.value);
           recompute(e.target.value, r);
         }}
-        placeholder="Price"
+        placeholder={priceLabel}
         className={cell}
         autoFocus
       />

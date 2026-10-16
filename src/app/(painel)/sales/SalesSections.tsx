@@ -23,6 +23,7 @@ import {
   addForSaleListingAction,
   setListingSoldDateAction,
   setListingSaleMoneyAction,
+  setBuyerCommissionAction,
 } from "./actions";
 import { InlineDateEditor } from "@/components/InlineDateEditor";
 import { InlineSaleMoney } from "./InlineSaleMoney";
@@ -224,12 +225,13 @@ function FinishedSection({
 
   return (
     <Section title="Sold & Closed" icon={<CheckCircle2 className="h-5 w-5" />}>
-      <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
+      <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm">
         <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
           <tr>
             <th className="px-5 py-3 font-bold">Name / Address</th>
             <th className="px-5 py-3 font-bold">Side</th>
             <th className="px-5 py-3 font-bold">Realtor</th>
+            <th className="px-5 py-3 font-bold">Commission</th>
             <th className="px-5 py-3 font-bold">Outcome</th>
             <th className="px-5 py-3 font-bold">Reopen</th>
           </tr>
@@ -289,7 +291,7 @@ function FinishedSection({
 function GroupHeader({ label, count, tone }: { label: string; count: number; tone: "won" | "expired" }) {
   return (
     <tr className="border-t border-black/[0.05]">
-      <td colSpan={5} className="bg-black/[0.02] px-5 py-2.5">
+      <td colSpan={6} className="bg-black/[0.02] px-5 py-2.5">
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink/55">
           <OutcomeBadge tone={tone} label={tone === "won" ? "Closed" : "Expired"} />
           {label}
@@ -354,6 +356,15 @@ function FinishedClientRow({
       <td className="px-5 py-3.5 text-ink/65">{c.deal_side ? DEAL_SIDE_LABEL[c.deal_side] : "—"}</td>
       <td className="px-5 py-3.5 text-ink/65">{realtorName(c.realtor_id)}</td>
       <td className="px-5 py-3.5">
+        {/* Comprador: editável aqui também — a comissão costuma ser lançada no
+            fechamento, quando o deal já saiu da aba Buyers. */}
+        {c.deal_side === "buyer" || c.deal_side === "both" ? (
+          <BuyerCommissionCell client={c} canEdit={canEdit} />
+        ) : (
+          <span className="text-ink/35">—</span>
+        )}
+      </td>
+      <td className="px-5 py-3.5">
         <span className="inline-flex items-center gap-2">
           <OutcomeBadge tone={tone} label={tone === "won" ? "Closed" : "Expired"} />
           {c.deal_closed_at && <span className="text-xs text-ink/45">{date(c.deal_closed_at)}</span>}
@@ -390,6 +401,9 @@ function FinishedListingRow({
       </td>
       <td className="px-5 py-3.5 text-ink/65">Listing</td>
       <td className="px-5 py-3.5 text-ink/65">{realtorName(p.realtor_id)}</td>
+      <td className="px-5 py-3.5 font-semibold text-ink">
+        {p.sale_commission != null ? money(p.sale_commission) : <span className="font-normal text-ink/35">—</span>}
+      </td>
       <td className="px-5 py-3.5">
         <OutcomeBadge tone={tone} label={tone === "won" ? "Closed" : "Expired"} />
       </td>
@@ -410,6 +424,32 @@ function FinishedListingRow({
         )}
       </td>
     </tr>
+  );
+}
+
+// Preço de compra + comissão do COMPRADOR (0052). Editável na linha, igual à
+// listing; o $ aparece embaixo do preço pra não precisar abrir o editor.
+function BuyerCommissionCell({ client: c, canEdit }: { client: Client; canEdit: boolean }) {
+  return (
+    <span className="block">
+      <InlineSaleMoney
+        id={c.id}
+        price={c.purchase_price}
+        rate={c.sale_commission_rate}
+        amount={c.sale_commission}
+        canEdit={canEdit}
+        action={setBuyerCommissionAction}
+        priceLabel="Purchase price"
+      />
+      {c.sale_commission != null && (
+        <span className="mt-0.5 block text-xs font-semibold text-ink">
+          {money(c.sale_commission)}
+          {c.sale_commission_rate != null && (
+            <span className="ml-1 font-normal text-ink/40">· {c.sale_commission_rate}%</span>
+          )}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -452,7 +492,7 @@ function PeopleTable({
 }) {
   const stageOpts = kind === "seller" ? SELLER_STAGE_OPTS : BUYER_STAGE_OPTS;
   return (
-    <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
+    <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm">
       <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
         <tr>
           <th className="px-5 py-3 font-bold">Name</th>
@@ -460,6 +500,7 @@ function PeopleTable({
           {kind === "unclassified" && <th className="px-5 py-3 font-bold">Side</th>}
           <th className="px-5 py-3 font-bold">Stage</th>
           <th className="px-5 py-3 font-bold">Realtor</th>
+          {kind === "buyer" && <th className="px-5 py-3 font-bold">Price / Commission</th>}
           <th className="px-5 py-3 font-bold">Outcome</th>
         </tr>
       </thead>
@@ -516,6 +557,11 @@ function PeopleTable({
                 disabled={!canEdit}
               />
             </td>
+            {kind === "buyer" && (
+              <td className="px-5 py-3.5">
+                <BuyerCommissionCell client={c} canEdit={canEdit} />
+              </td>
+            )}
             <td className="px-5 py-3.5">
               {/* Active / Closed / Expired. Setting closed or expired moves the
                   deal to "Sold & Closed" and stamps deal_closed_at server-side. */}

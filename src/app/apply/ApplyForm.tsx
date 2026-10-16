@@ -12,7 +12,7 @@
 // só o caminho é enviado. Ocupantes 18+ exigem telefone (≠ do candidato) + ID.
 // =============================================================================
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { DICT, type Lang } from "./i18n";
@@ -24,6 +24,7 @@ import type {
   ReferenceInput,
   VehicleInput,
 } from "./types";
+import { APPLICATION_FEE_CENTS, APPLICATION_PAYMENT_METHODS } from "./types";
 import { createApplicationPaymentIntent, createIdUploadUrl, submitApplication } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 
@@ -126,18 +127,10 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   ]);
   const [applicantId, setApplicantId] = useState<UploadedFile | null>(null);
 
-  // ---- PaymentIntent ($50) --------------------------------------------------
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
-  const [initError, setInitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    createApplicationPaymentIntent()
-      .then((r) => { if (alive) { setClientSecret(r.clientSecret); setPaymentIntentId(r.paymentIntentId); } })
-      .catch((e) => alive && setInitError(e instanceof Error ? e.message : "Payment init failed."));
-    return () => { alive = false; };
-  }, []);
+  // ---- Pagamento ----------------------------------------------------------
+  // NÃO cria PaymentIntent ao abrir a página (cada visita virava um pagamento
+  // "Incomplete" de $103.30 no Stripe). O Payment Element monta em modo
+  // deferido e o PaymentIntent só nasce no clique em Pagar, já validado.
 
   const yesNo = (v: "" | "yes" | "no"): boolean | null => (v === "" ? null : v === "yes");
   const numOrNull = (s: string): number | null => {
@@ -604,14 +597,14 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       {/* Pagamento + envio */}
       <Section title={d.feeSection}>
         <p className="text-sm text-ink/70">{d.feeText}</p>
-        {initError && <p className="mt-3 text-sm text-red-600">{initError}</p>}
         {!stripePromise && <p className="mt-3 text-sm text-red-600">Payment is not configured yet. Please call (508) 364-8556.</p>}
-        {stripePromise && clientSecret ? (
-          <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
-            <PaymentSubmit dict={d} paymentIntentId={paymentIntentId} getPayload={buildPayload} validate={validate} onErrors={setErrs} />
+        {stripePromise && (
+          <Elements stripe={stripePromise} options={{
+            mode: "payment", amount: APPLICATION_FEE_CENTS, currency: "usd",
+            paymentMethodTypes: [...APPLICATION_PAYMENT_METHODS], appearance,
+          }}>
+            <PaymentSubmit dict={d} getPayload={buildPayload} validate={validate} onErrors={setErrs} />
           </Elements>
-        ) : (
-          !initError && stripePromise && <p className="mt-3 text-sm text-ink/50">Loading secure payment…</p>
         )}
       </Section>
     </div>
@@ -622,10 +615,9 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 // PaymentSubmit — dentro de <Elements> pra ter stripe/elements.
 // =============================================================================
 function PaymentSubmit({
-  dict, paymentIntentId, getPayload, validate, onErrors,
+  dict, getPayload, validate, onErrors,
 }: {
   dict: (typeof DICT)[Lang];
-  paymentIntentId: string | null;
   getPayload: () => Omit<ApplicationInput, "stripe_payment_intent_id">;
   validate: () => Set<string>;
   onErrors: (e: Set<string>) => void;
@@ -651,12 +643,16 @@ function PaymentSubmit({
       setTimeout(() => document.querySelector(".\\!border-red-400")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
       return;
     }
-    if (!stripe || !elements || !paymentIntentId) return showError(dict.payFirst);
+    if (!stripe || !elements) return showError(dict.payFirst);
 
     setSubmitting(true);
     try {
+      // 2) confere o cartão digitado; 3) só AGORA cria o PaymentIntent; 4) cobra
+      const { error: cardErr } = await elements.submit();
+      if (cardErr) { setSubmitting(false); return showError(cardErr.message || dict.errorGeneric); }
+      const { clientSecret } = await createApplicationPaymentIntent();
       const { error: payErr, paymentIntent } = await stripe.confirmPayment({
-        elements, redirect: "if_required",
+        elements, clientSecret, redirect: "if_required",
         confirmParams: { return_url: window.location.origin + "/apply/thank-you" },
       });
       if (payErr) { setSubmitting(false); return showError(payErr.message || dict.errorGeneric); }

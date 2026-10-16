@@ -12,6 +12,8 @@ import { money, date } from "@/lib/format";
 
 export type SoldListing = {
   id: string;
+  // "buyer" = deal do lado comprador (0052): id é do CLIENTE, address é o nome.
+  kind?: "listing" | "buyer";
   address: string;
   address2: string | null;
   sale_price: number | null;
@@ -40,7 +42,7 @@ export function SalesCommissionsSection({ listings }: { listings: SoldListing[] 
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="bg-black/[0.025] text-xs uppercase tracking-wider text-ink/50">
           <tr>
-            <th className="px-4 py-3 font-bold">Property</th>
+            <th className="px-4 py-3 font-bold">Property / Buyer</th>
             <th className="px-4 py-3 font-bold">Seller</th>
             <th className="px-4 py-3 font-bold">Closed</th>
             <th className="px-4 py-3 font-bold">Sale price</th>
@@ -65,7 +67,7 @@ function ListingRow({ listing, zebra }: { listing: SoldListing; zebra: boolean }
     <tr className={zebra ? "bg-black/[0.012]" : ""}>
       <td className="px-4 py-3">
         <Link
-          href={`/propriedades/${listing.id}`}
+          href={listing.kind === "buyer" ? `/clientes/${listing.id}` : `/propriedades/${listing.id}`}
           className="font-medium text-ink hover:text-primary"
         >
           {listing.address}
@@ -73,7 +75,9 @@ function ListingRow({ listing, zebra }: { listing: SoldListing; zebra: boolean }
         {listing.address2 && <span className="block text-xs text-ink/45">{listing.address2}</span>}
       </td>
       <td className="px-4 py-3 text-ink/65">
-        {listing.owner ? (
+        {listing.kind === "buyer" ? (
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">Buyer side</span>
+        ) : listing.owner ? (
           <Link href={`/clientes/${listing.owner.id}`} className="hover:text-primary">
             {listing.owner.name}
           </Link>

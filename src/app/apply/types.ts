@@ -107,3 +107,11 @@ export interface PropertyOption {
   accepts_year_round: boolean;
   accepts_winter: boolean;
 }
+
+// Valor TOTAL cobrado no cartão (cents) — $100 líquido + gross-up do fee Stripe.
+// Fonte única: o form (Payment Element deferido) e o server (lib/stripe.ts)
+// leem daqui, então o valor exibido e o cobrado nunca divergem.
+export const APPLICATION_FEE_CENTS = 10330; // $103.30
+// Métodos aceitos — os MESMOS no Payment Element e no PaymentIntent (exigência
+// do modo deferido). Nenhum deles redireciona pra fora da página.
+export const APPLICATION_PAYMENT_METHODS = ["card", "link"] as const;
