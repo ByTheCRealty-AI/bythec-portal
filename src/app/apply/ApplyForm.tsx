@@ -698,10 +698,18 @@ function IdUpload({
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handle = async (ev: ChangeEvent<HTMLInputElement>) => {
-    const file0 = ev.target.files?.[0];
-    if (!file0) return;
+    const picked = ev.target.files?.[0];
+    if (!picked) return;
     setBusy(true); setFailed(false);
     try {
+      // Foto de iPhone vem em HEIC, que nem o navegador nem o PDF pro owner
+      // conseguem abrir: converte pra JPEG antes de subir.
+      let file0: File = picked;
+      if (/^image\/hei[cf]$/i.test(picked.type) || /\.(heic|heif)$/i.test(picked.name)) {
+        const { prepareImage } = await import("@/lib/image-prep");
+        const prepared = await prepareImage(picked);
+        file0 = new File([prepared.blob], prepared.fileName, { type: "image/jpeg" });
+      }
       const { path, token } = await createIdUploadUrl(file0.name);
       const supabase = createClient();
       const { error: upErr } = await supabase.storage.from("documents").uploadToSignedUrl(path, token, file0);

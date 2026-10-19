@@ -19,7 +19,7 @@ import {
   setApplicationStatusAction,
   signAttachmentUrl,
 } from "./actions";
-import { Eye, X, Archive, ExternalLink } from "lucide-react";
+import { Eye, X, Archive, ExternalLink, Download } from "lucide-react";
 
 const STATUSES: ApplicationStatus[] = ["new", "reviewing", "approved", "denied", "withdrawn"];
 
@@ -401,13 +401,22 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
           >
             <Archive className="h-4 w-4" /> Archive
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110"
-          >
-            Done
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/applications/${a.id}/pdf`}
+              title="Download the application as a PDF to send to the owner (SSN shows only the last 4 digits)"
+              className="inline-flex items-center gap-2 rounded-lg border border-primary/30 px-3.5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/[0.06]"
+            >
+              <Download className="h-4 w-4" /> Download PDF
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+            >
+              Done
+            </button>
+          </div>
         </div>
       </div>
     </div>
