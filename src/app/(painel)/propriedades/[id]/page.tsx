@@ -46,6 +46,7 @@ import { PropertyPaymentsTable } from "./PropertyPaymentsTable";
 import { PastTenantPaymentsSection } from "./PastTenantPaymentsSection";
 import { PastTenantDocumentsSection } from "./PastTenantDocumentsSection";
 import { TenancyForm } from "./TenancyForm";
+import { InspectionsSection, type InspectionSummary } from "./InspectionsSection";
 import {
   addPaymentAction,
   addSecurityDepositAction,
@@ -99,7 +100,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export default async function PropriedadeDetailPage({ params }: { params: { id: string } }) {
+export default async function PropriedadeDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { tab?: string };
+}) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("properties")
@@ -212,6 +219,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     { data: paymentsData },
     { data: clientsData },
     { data: invoicesData },
+    { data: inspectionsData },
   ] = await Promise.all([
     supabase
       .from("notes")
@@ -272,6 +280,14 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       .eq("property_id", p.id)
       .order("date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
+    // Inspeções desta propriedade (migration 0056), mais novas primeiro. Se a
+    // migration ainda não rodou, a query falha e a aba só fica vazia.
+    supabase
+      .from("inspections")
+      .select("id, inspected_on, status, pdf_document_id, created_at, items:inspection_items(result)")
+      .eq("property_id", p.id)
+      .order("inspected_on", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   // Nomes dos criadores (owner/manager/secretary) pra exibir "Added by X".
@@ -293,6 +309,23 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
     material_total: number | null;
     items: { category: string | null; total: number }[] | null;
   }[];
+  const inspections: InspectionSummary[] = (
+    (inspectionsData ?? []) as unknown as {
+      id: string;
+      inspected_on: string;
+      status: "draft" | "finished";
+      pdf_document_id: string | null;
+      items: { result: string | null }[] | null;
+    }[]
+  ).map((i) => ({
+    id: i.id,
+    inspected_on: i.inspected_on,
+    status: i.status,
+    attention: (i.items ?? []).filter((it) => it.result === "attention").length,
+    answered: (i.items ?? []).filter((it) => it.result !== null).length,
+    total: (i.items ?? []).length,
+    hasPdf: i.pdf_document_id !== null,
+  }));
   const allClients = (clientsData ?? []) as { id: string; name: string; archived_at: string | null }[];
   // TenancyForm picker stays active-only (you assign a live client as tenant).
   const clientOptions = allClients
@@ -996,6 +1029,18 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       </div>
     );
 
+  // ---- Aba Inspections (relatório de inspeção, migration 0056) ----------------
+  // Escrever: mesmo gate dos documentos (o PDF final vira documento). Checklist
+  // padrão: só owner/manager.
+  const inspectionsTab = (
+    <InspectionsSection
+      propertyId={p.id}
+      inspections={inspections}
+      canEdit={canEditOps || can(profile, "properties.edit")}
+      canEditChecklist={!!profile && profile.active && (profile.role === "owner" || profile.role === "manager")}
+    />
+  );
+
   return (
     <>
       <BackButton />
@@ -1023,6 +1068,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
       />
 
       <Tabs
+        initial={searchParams?.tab}
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
           { id: "payments", label: `Payments (${payments.length})`, content: paymentsTab },
@@ -1031,6 +1077,7 @@ export default async function PropriedadeDetailPage({ params }: { params: { id: 
           { id: "requests", label: `Requests (${requests.length})`, content: requestsTab },
           { id: "invoices", label: `Invoices (${invoices.length})`, content: invoicesTab },
           { id: "documents", label: `Documents (${documents.length})`, content: documentsTab },
+          { id: "inspections", label: `Inspections (${inspections.length})`, content: inspectionsTab },
         ]}
       />
     </>
