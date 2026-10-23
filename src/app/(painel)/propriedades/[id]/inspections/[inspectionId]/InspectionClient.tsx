@@ -4,7 +4,8 @@
 // Inspeção em RASCUNHO — feita no celular, na propriedade.
 // =============================================================================
 // - Cada item: Good / Needs attention / N/A (nunca yes/no).
-// - Good ou Needs attention: Photo (câmera), Video (câmera), Library (galeria).
+// - Good ou Needs attention: Photo (câmera), Video (gravador DO PORTAL em 1080p —
+//   a câmera do sistema via <input capture> grava em baixa no iPhone), Library.
 //   Foto passa pelo image-prep (HEIC -> JPEG, redimensiona) antes de subir;
 //   vídeo sobe como está. Upload direto pro bucket privado via URL assinada.
 // - Legenda OBRIGATÓRIA em toda foto/vídeo; nota obrigatória em Needs attention.
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { prepareImage } from "@/lib/image-prep";
+import { VideoRecorder, isRecorderSupported } from "./VideoRecorder";
 import { buttonClass, inputClass } from "@/components/ui";
 import { cx } from "@/lib/format";
 import {
@@ -98,6 +100,13 @@ export function InspectionClient({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<Record<string, number>>({});
+  // Gravador de vídeo do portal (1080p). recordFor = pra qual item está aberto.
+  // canRecord só é decidido no navegador (evita diferença servidor x cliente).
+  const [recordFor, setRecordFor] = useState<{ itemId: string | null } | null>(null);
+  const [canRecord, setCanRecord] = useState(false);
+  useEffect(() => {
+    setCanRecord(isRecorderSupported());
+  }, []);
   const [showValidation, setShowValidation] = useState(false);
   const [finishMessages, setFinishMessages] = useState<string[]>([]);
   const [finishing, setFinishing] = useState(false);
@@ -388,10 +397,16 @@ export function InspectionClient({
             <Camera className="h-4 w-4" /> Photo
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={pick} />
           </label>
-          <label className={chip}>
-            <Video className="h-4 w-4" /> Video
-            <input type="file" accept="video/*" capture="environment" className="hidden" onChange={pick} />
-          </label>
+          {canRecord ? (
+            <button type="button" className={chip} onClick={() => setRecordFor({ itemId })}>
+              <Video className="h-4 w-4" /> Video
+            </button>
+          ) : (
+            <label className={chip}>
+              <Video className="h-4 w-4" /> Video
+              <input type="file" accept="video/*" capture="environment" className="hidden" onChange={pick} />
+            </label>
+          )}
           <label className={chip}>
             <Images className="h-4 w-4" /> Library
             <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={pick} />
@@ -729,6 +744,17 @@ export function InspectionClient({
           </button>
         </div>
       </section>
+
+      {recordFor && (
+        <VideoRecorder
+          onClose={() => setRecordFor(null)}
+          onDone={(file) => {
+            const target = recordFor.itemId;
+            setRecordFor(null);
+            void uploadFiles(target, [file]);
+          }}
+        />
+      )}
     </div>
   );
 }
