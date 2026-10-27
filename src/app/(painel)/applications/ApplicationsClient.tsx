@@ -138,7 +138,7 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
   const [ssnLoading, setSsnLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const status = a.employment_status ?? "employed";
+  const empStatus = a.employment_status ?? "employed";
   const ids = (a.attachments ?? []).filter((att) => att.category !== "income_proof");
   const proofs = (a.attachments ?? []).filter((att) => att.category === "income_proof");
 
@@ -341,8 +341,8 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
 
           {/* Employment / income */}
           <Group title="Employment / income">
-            <Row label="Status">{EMPLOYMENT_STATUS_LABEL[status]}</Row>
-            {status === "retired" ? (
+            <Row label="Status">{EMPLOYMENT_STATUS_LABEL[empStatus]}</Row>
+            {empStatus === "retired" ? (
               <>
                 <Row label="Income sources">
                   {(a.retirement_income_sources ?? []).map((x) => RETIREMENT_SOURCE_LABEL[x] ?? x).join(", ") || "—"}
@@ -350,7 +350,7 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
                 <Row label="Total monthly income">{a.monthly_income != null ? money(a.monthly_income) : "—"}</Row>
                 <Row label="Retired since">{a.retired_since || "—"}</Row>
               </>
-            ) : status === "self_employed" ? (
+            ) : empStatus === "self_employed" ? (
               <>
                 <Row label="Business name">{a.business_name || "—"}</Row>
                 <Row label="Type of work">{a.business_type || "—"}</Row>
@@ -367,7 +367,7 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
                 <Row label="Length of employment">{a.length_of_employment || "—"}</Row>
               </>
             )}
-            {status !== "employed" && (
+            {empStatus !== "employed" && (
               <Row label="Proof of income">
                 {proofs.length === 0 ? (
                   "—"
