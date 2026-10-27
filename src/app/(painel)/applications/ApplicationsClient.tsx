@@ -9,6 +9,8 @@ import { createPortal } from "react-dom";
 import { cx, date as fmtDate, money } from "@/lib/format";
 import {
   APPLICATION_STATUS_LABEL,
+  EMPLOYMENT_STATUS_LABEL,
+  RETIREMENT_SOURCE_LABEL,
   type ApplicationStatus,
   type RentalApplication,
 } from "@/lib/types";
@@ -136,6 +138,9 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
   const [ssnLoading, setSsnLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const status = a.employment_status ?? "employed";
+  const ids = (a.attachments ?? []).filter((att) => att.category !== "income_proof");
+  const proofs = (a.attachments ?? []).filter((att) => att.category === "income_proof");
 
   const onStatus = async (s: ApplicationStatus) => {
     setStatus(s);
@@ -291,9 +296,9 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
           )}
 
           {/* Government IDs */}
-          {a.attachments && a.attachments.length > 0 && (
+          {ids.length > 0 && (
             <Group title="Government IDs">
-              {a.attachments.map((att) => (
+              {ids.map((att) => (
                 <Row
                   key={att.id}
                   label={att.category === "applicant_id" ? "Applicant" : att.label || `Occupant ${(att.occupant_index ?? 0) + 1}`}
@@ -334,14 +339,47 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
             </Group>
           )}
 
-          {/* Employment */}
-          <Group title="Employment">
-            <Row label="Employer">{a.employer || "—"}</Row>
-            <Row label="Employer address">{a.employer_address || "—"}</Row>
-            <Row label="Manager">{[a.manager_name, a.manager_phone].filter(Boolean).join(" · ") || "—"}</Row>
-            <Row label="Job title">{a.job_title || "—"}</Row>
-            <Row label="Monthly income">{a.monthly_income != null ? money(a.monthly_income) : "—"}</Row>
-            <Row label="Length of employment">{a.length_of_employment || "—"}</Row>
+          {/* Employment / income */}
+          <Group title="Employment / income">
+            <Row label="Status">{EMPLOYMENT_STATUS_LABEL[status]}</Row>
+            {status === "retired" ? (
+              <>
+                <Row label="Income sources">
+                  {(a.retirement_income_sources ?? []).map((x) => RETIREMENT_SOURCE_LABEL[x] ?? x).join(", ") || "—"}
+                </Row>
+                <Row label="Total monthly income">{a.monthly_income != null ? money(a.monthly_income) : "—"}</Row>
+                <Row label="Retired since">{a.retired_since || "—"}</Row>
+              </>
+            ) : status === "self_employed" ? (
+              <>
+                <Row label="Business name">{a.business_name || "—"}</Row>
+                <Row label="Type of work">{a.business_type || "—"}</Row>
+                <Row label="Self-employed for">{a.length_of_employment || "—"}</Row>
+                <Row label="Average monthly income">{a.monthly_income != null ? money(a.monthly_income) : "—"}</Row>
+              </>
+            ) : (
+              <>
+                <Row label="Employer">{a.employer || "—"}</Row>
+                <Row label="Employer address">{a.employer_address || "—"}</Row>
+                <Row label="Manager">{[a.manager_name, a.manager_phone].filter(Boolean).join(" · ") || "—"}</Row>
+                <Row label="Job title">{a.job_title || "—"}</Row>
+                <Row label="Monthly income">{a.monthly_income != null ? money(a.monthly_income) : "—"}</Row>
+                <Row label="Length of employment">{a.length_of_employment || "—"}</Row>
+              </>
+            )}
+            {status !== "employed" && (
+              <Row label="Proof of income">
+                {proofs.length === 0 ? (
+                  "—"
+                ) : (
+                  <span className="flex flex-wrap gap-2">
+                    {proofs.map((att) => (
+                      <IdViewButton key={att.id} filePath={att.file_path} name={att.file_name} text="View" />
+                    ))}
+                  </span>
+                )}
+              </Row>
+            )}
           </Group>
 
           {/* References */}
@@ -464,7 +502,7 @@ function govIdLabel(t: string | null): string {
 
 // Abre uma URL assinada (5 min) pra ver a foto/arquivo do ID. Nunca embute o
 // arquivo direto — busca o link sob demanda e abre em nova aba.
-function IdViewButton({ filePath, name }: { filePath: string; name: string | null }) {
+function IdViewButton({ filePath, name, text = "View ID" }: { filePath: string; name: string | null; text?: string }) {
   const [loading, setLoading] = useState(false);
   const open = async () => {
     setLoading(true);
@@ -484,7 +522,7 @@ function IdViewButton({ filePath, name }: { filePath: string; name: string | nul
       disabled={loading}
       className="inline-flex items-center gap-1.5 rounded-md border border-black/[0.1] px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/[0.05] disabled:opacity-50"
     >
-      <ExternalLink className="h-3 w-3" /> {loading ? "…" : "View ID"}
+      <ExternalLink className="h-3 w-3" /> {loading ? "…" : text}
       {name && <span className="max-w-[130px] truncate text-ink/40">· {name}</span>}
     </button>
   );

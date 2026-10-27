@@ -155,6 +155,18 @@ export async function submitApplication(
         rental_history: sanitizeArray(input.rental_history),
         vehicles: sanitizeArray(input.vehicles),
 
+        employment_status:
+          input.employment_status === "employed" ||
+          input.employment_status === "self_employed" ||
+          input.employment_status === "retired"
+            ? input.employment_status
+            : null,
+        retirement_income_sources: Array.isArray(input.retirement_income_sources)
+          ? input.retirement_income_sources.filter((x) => typeof x === "string" && x.trim()).slice(0, 10)
+          : null,
+        retired_since: clean(input.retired_since),
+        business_name: clean(input.business_name),
+        business_type: clean(input.business_type),
         employer: clean(input.employer),
         employer_address: clean(input.employer_address),
         manager_name: clean(input.manager_name),
@@ -203,7 +215,8 @@ export async function submitApplication(
       .filter((a) => a && typeof a.file_path === "string" && a.file_path)
       .map((a) => ({
         application_id: appId!,
-        category: a.category === "occupant_id" ? "occupant_id" : "applicant_id",
+        category:
+          a.category === "occupant_id" || a.category === "income_proof" ? a.category : "applicant_id",
         occupant_index: typeof a.occupant_index === "number" ? a.occupant_index : null,
         label: clean(a.label),
         file_path: a.file_path,

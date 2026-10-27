@@ -30,7 +30,7 @@ export interface ReferenceInput { name: string; phone: string }
 // Anexo de ID já enviado pro storage (path staged), a ligar na submissão.
 export interface AttachmentInput {
   file_path: string;
-  category: "applicant_id" | "occupant_id";
+  category: "applicant_id" | "occupant_id" | "income_proof";
   occupant_index: number | null;
   label: string | null;
   file_name: string | null;
@@ -68,6 +68,13 @@ export interface ApplicationInput {
   rental_history: HistoryInput[];
   vehicles: VehicleInput[];
 
+  // Situação de emprego: os campos de empregador só valem pra "employed";
+  // autônomo e aposentado mandam comprovante de renda (category income_proof).
+  employment_status: "employed" | "self_employed" | "retired" | null;
+  retirement_income_sources: string[] | null;
+  retired_since: string | null;
+  business_name: string | null;
+  business_type: string | null;
   employer: string | null;
   employer_address: string | null;
   manager_name: string | null;

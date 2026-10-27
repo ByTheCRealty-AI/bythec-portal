@@ -920,6 +920,12 @@ export interface RentalApplication {
   }>;
   vehicles: Array<{ make_model?: string; year?: string; color?: string; plate?: string; plate_state?: string }>;
 
+  // Situação de emprego (migration 0057). NULL = aplicação antiga (employed).
+  employment_status: "employed" | "self_employed" | "retired" | null;
+  retirement_income_sources: string[] | null;
+  retired_since: string | null;
+  business_name: string | null;
+  business_type: string | null;
   employer: string | null;
   employer_address: string | null;
   manager_name: string | null;
@@ -964,11 +970,26 @@ export interface RentalApplication {
   attachments?: RentalApplicationAttachment[];
 }
 
-// Anexo de government ID (candidato ou ocupante 18+). Bucket privado `documents`.
+export const EMPLOYMENT_STATUS_LABEL: Record<"employed" | "self_employed" | "retired", string> = {
+  employed: "Employed",
+  self_employed: "Self-employed",
+  retired: "Retired",
+};
+
+export const RETIREMENT_SOURCE_LABEL: Record<string, string> = {
+  social_security: "Social Security",
+  pension: "Pension",
+  retirement_account: "401(k) / IRA",
+  annuity: "Annuity",
+  other: "Other",
+};
+
+// Anexo da aplicação: government ID (candidato ou ocupante 18+) ou comprovante
+// de renda (income_proof). Bucket privado `documents`.
 export interface RentalApplicationAttachment {
   id: string;
   application_id: string;
-  category: "applicant_id" | "occupant_id";
+  category: "applicant_id" | "occupant_id" | "income_proof";
   occupant_index: number | null;
   label: string | null;
   file_path: string;

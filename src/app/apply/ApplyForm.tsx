@@ -12,7 +12,7 @@
 // só o caminho é enviado. Ocupantes 18+ exigem telefone (≠ do candidato) + ID.
 // =============================================================================
 
-import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { DICT, type Lang } from "./i18n";
@@ -31,6 +31,12 @@ import { createClient } from "@/lib/supabase/client";
 const PUBLISHABLE = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = PUBLISHABLE ? loadStripe(PUBLISHABLE) : null;
 const OTHER = "__other__";
+// Rascunho salvo NO APARELHO do candidato (localStorage), pra quem sai no meio
+// não perder tudo. NUNCA guarda o SSN. Limpo depois do envio com sucesso.
+// Restaurar o rascunho não toca no Stripe: o PaymentIntent continua nascendo
+// só no clique em Pagar.
+const DRAFT_KEY = "bythec-apply-draft-v1";
+const RETIRE_SOURCES = ["social_security", "pension", "retirement_account", "annuity", "other"] as const;
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,6 +73,11 @@ interface FlatState {
   gov_id_number: string;
   email: string;
   occupants_count: string;
+  employment_status: "" | "employed" | "self_employed" | "retired";
+  retirement_income_sources: string[];
+  retired_since: string;
+  business_name: string;
+  business_type: string;
   employer: string;
   employer_address: string;
   manager_name: string;
@@ -96,6 +107,7 @@ const EMPTY_FLAT: FlatState = {
   has_ssn: "", ssn: "", ssn_none_explanation: "", phone: "",
   has_license: "", drivers_license: "", drivers_license_state: "", gov_id_type: "", gov_id_number: "",
   email: "", occupants_count: "",
+  employment_status: "", retirement_income_sources: [], retired_since: "", business_name: "", business_type: "",
   employer: "", employer_address: "", manager_name: "", manager_phone: "", job_title: "",
   monthly_income: "", length_of_employment: "",
   evicted: "", evicted_detail: "", felony: "", felony_detail: "", bankruptcy: "", bankruptcy_detail: "",
@@ -126,6 +138,56 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     { name: "", phone: "" }, { name: "", phone: "" },
   ]);
   const [applicantId, setApplicantId] = useState<UploadedFile | null>(null);
+  const [incomeProofs, setIncomeProofs] = useState<UploadedFile[]>([]);
+
+  // ---- Rascunho no aparelho ------------------------------------------------
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const dr = JSON.parse(raw);
+        if (dr && typeof dr === "object" && dr.f) {
+          setF({ ...EMPTY_FLAT, ...dr.f, ssn: "" });
+          if (Array.isArray(dr.occupants) && dr.occupants.length) setOccupants(dr.occupants);
+          if (Array.isArray(dr.history) && dr.history.length) setHistory(dr.history);
+          if (Array.isArray(dr.vehicles) && dr.vehicles.length) setVehicles(dr.vehicles);
+          if (Array.isArray(dr.refs) && dr.refs.length) setRefs(dr.refs);
+          if (dr.applicantId) setApplicantId(dr.applicantId);
+          if (Array.isArray(dr.incomeProofs)) setIncomeProofs(dr.incomeProofs);
+          if (dr.lang === "pt" || dr.lang === "en") setLang(dr.lang);
+          setRestored(true);
+        }
+      }
+    } catch {
+      /* rascunho corrompido ou storage bloqueado — segue com o form vazio */
+    }
+    setDraftLoaded(true);
+  }, []);
+  useEffect(() => {
+    if (!draftLoaded) return; // não sobrescrever o rascunho antes de restaurar
+    try {
+      window.localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ f: { ...f, ssn: "" }, occupants, history, vehicles, refs, applicantId, incomeProofs, lang })
+      );
+    } catch {
+      /* storage cheio/bloqueado — sem rascunho, o form continua funcionando */
+    }
+  }, [draftLoaded, f, occupants, history, vehicles, refs, applicantId, incomeProofs, lang]);
+  const startOver = () => {
+    if (!confirm(d.startOverConfirm)) return;
+    try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    setF({ ...EMPTY_FLAT, signature_date: todayISO() });
+    setOccupants([{ name: "", dob: "", is_adult: false, phone: "", idFile: null }]);
+    setHistory([emptyHist("current"), emptyHist("previous")]);
+    setVehicles([emptyVeh()]);
+    setRefs([{ name: "", phone: "" }, { name: "", phone: "" }]);
+    setApplicantId(null);
+    setIncomeProofs([]);
+    setRestored(false);
+  };
 
   // ---- Pagamento ----------------------------------------------------------
   // NÃO cria PaymentIntent ao abrir a página (cada visita virava um pagamento
@@ -203,13 +265,27 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       need(`veh_${i}_state`, v.plate_state);
     });
 
-    need("employer", f.employer);
-    need("employer_address", f.employer_address);
-    need("manager_name", f.manager_name);
-    need("manager_phone", f.manager_phone);
-    need("job_title", f.job_title);
-    need("monthly_income", f.monthly_income);
-    need("length_of_employment", f.length_of_employment);
+    if (!f.employment_status) e.add("employment_status");
+    else if (f.employment_status === "employed") {
+      need("employer", f.employer);
+      need("employer_address", f.employer_address);
+      need("manager_name", f.manager_name);
+      need("manager_phone", f.manager_phone);
+      need("job_title", f.job_title);
+      need("monthly_income", f.monthly_income);
+      need("length_of_employment", f.length_of_employment);
+    } else if (f.employment_status === "self_employed") {
+      need("business_name", f.business_name);
+      need("business_type", f.business_type);
+      need("length_of_employment", f.length_of_employment);
+      need("monthly_income", f.monthly_income);
+      if (incomeProofs.length === 0) e.add("income_proof");
+    } else {
+      if (f.retirement_income_sources.length === 0) e.add("retirement_income_sources");
+      need("monthly_income", f.monthly_income);
+      need("retired_since", f.retired_since);
+      if (incomeProofs.length === 0) e.add("income_proof");
+    }
 
     refs.forEach((r, i) => { need(`ref_${i}_name`, r.name); need(`ref_${i}_phone`, r.phone); });
 
@@ -237,6 +313,14 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         file_path: applicantId.path, category: "applicant_id", occupant_index: null,
         label: f.full_name.trim() || null, file_name: applicantId.file_name, content_type: applicantId.content_type,
       });
+    const empStatus = f.employment_status;
+    if (empStatus === "self_employed" || empStatus === "retired")
+      incomeProofs.forEach((pf) =>
+        attachments.push({
+          file_path: pf.path, category: "income_proof", occupant_index: null,
+          label: null, file_name: pf.file_name, content_type: pf.content_type,
+        })
+      );
     occupants.forEach((o, i) => {
       if (o.idFile)
         attachments.push({
@@ -278,13 +362,20 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       rental_history: history,
       vehicles,
 
-      employer: f.employer.trim() || null,
-      employer_address: f.employer_address.trim() || null,
-      manager_name: f.manager_name.trim() || null,
-      manager_phone: f.manager_phone.trim() || null,
-      job_title: f.job_title.trim() || null,
+      // Só manda os campos do status escolhido (troca de status não vaza
+      // resto de outro ramo pro banco).
+      employment_status: f.employment_status || null,
+      retirement_income_sources: f.employment_status === "retired" ? f.retirement_income_sources : null,
+      retired_since: f.employment_status === "retired" ? f.retired_since.trim() || null : null,
+      business_name: f.employment_status === "self_employed" ? f.business_name.trim() || null : null,
+      business_type: f.employment_status === "self_employed" ? f.business_type.trim() || null : null,
+      employer: f.employment_status === "employed" ? f.employer.trim() || null : null,
+      employer_address: f.employment_status === "employed" ? f.employer_address.trim() || null : null,
+      manager_name: f.employment_status === "employed" ? f.manager_name.trim() || null : null,
+      manager_phone: f.employment_status === "employed" ? f.manager_phone.trim() || null : null,
+      job_title: f.employment_status === "employed" ? f.job_title.trim() || null : null,
       monthly_income: numOrNull(f.monthly_income),
-      length_of_employment: f.length_of_employment.trim() || null,
+      length_of_employment: f.employment_status !== "retired" ? f.length_of_employment.trim() || null : null,
 
       personal_references: refs,
 
@@ -335,6 +426,15 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           </div>
         </div>
       </div>
+
+      {restored && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/[0.06] px-4 py-3 text-sm text-ink/80">
+          <span>{d.draftRestored}</span>
+          <button type="button" onClick={startOver} className="shrink-0 font-semibold text-ink/55 underline hover:text-red-600">
+            {d.startOver}
+          </button>
+        </div>
+      )}
 
       {/* Propriedade */}
       <Section title={d.propertySection}>
@@ -535,9 +635,24 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         <button type="button" className={addCls} onClick={() => setVehicles([...vehicles, emptyVeh()])}>{d.addVehicle}</button>
       </Section>
 
-      {/* Emprego — todos obrigatórios */}
+      {/* Emprego — status obrigatório; campos mudam por status */}
       <Section title={d.employmentSection}>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={"rounded-lg p-1" + (errs.has("employment_status") ? " bg-red-50" : "")}>
+          <span className="mb-2 block text-sm font-medium text-ink/80">{d.employmentStatus}<span className="text-red-500"> *</span></span>
+          <div className="flex flex-wrap gap-2">
+            {(["employed", "self_employed", "retired"] as const).map((k) => (
+              <button key={k} type="button" onClick={() => set("employment_status", k)}
+                className={"rounded-lg border px-4 py-1.5 text-sm font-medium transition " +
+                  (f.employment_status === k ? "border-primary bg-primary text-white" : "border-black/[0.1] text-ink/60 hover:border-primary/40")}>
+                {k === "employed" ? d.empEmployed : k === "self_employed" ? d.empSelf : d.empRetired}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {f.employment_status === "employed" && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+
           <Field label={d.employer} required><input className={inputCls + E("employer")} value={f.employer} onChange={(e) => set("employer", e.target.value)} /></Field>
           <Field label={d.employerAddress} required><input className={inputCls + E("employer_address")} value={f.employer_address} onChange={(e) => set("employer_address", e.target.value)} /></Field>
           <Field label={d.managerName} required><input className={inputCls + E("manager_name")} value={f.manager_name} onChange={(e) => set("manager_name", e.target.value)} /></Field>
@@ -546,6 +661,44 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           <Field label={d.monthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
           <Field label={d.lengthEmployment} required><input className={inputCls + E("length_of_employment")} value={f.length_of_employment} onChange={(e) => set("length_of_employment", e.target.value)} /></Field>
         </div>
+        )}
+
+        {f.employment_status === "self_employed" && (
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={d.businessName} required><input className={inputCls + E("business_name")} value={f.business_name} onChange={(e) => set("business_name", e.target.value)} /></Field>
+              <Field label={d.businessType} required><input className={inputCls + E("business_type")} value={f.business_type} onChange={(e) => set("business_type", e.target.value)} /></Field>
+              <Field label={d.selfSince} required><input className={inputCls + E("length_of_employment")} value={f.length_of_employment} onChange={(e) => set("length_of_employment", e.target.value)} /></Field>
+              <Field label={d.selfMonthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
+            </div>
+            <IncomeProofUpload dict={d} hint={d.incomeProofHintSelf} files={incomeProofs} onChange={setIncomeProofs} error={errs.has("income_proof")} />
+          </div>
+        )}
+
+        {f.employment_status === "retired" && (
+          <div className="mt-4 space-y-4">
+            <div className={"rounded-lg p-1" + (errs.has("retirement_income_sources") ? " bg-red-50" : "")}>
+              <span className="mb-2 block text-sm font-medium text-ink/80">{d.retireSources}<span className="text-red-500"> *</span></span>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {RETIRE_SOURCES.map((src) => (
+                  <label key={src} className="flex cursor-pointer items-center gap-2 text-sm text-ink/80">
+                    <input type="checkbox" className="h-4 w-4 accent-[#198577]"
+                      checked={f.retirement_income_sources.includes(src)}
+                      onChange={(e) => set("retirement_income_sources", e.target.checked
+                        ? [...f.retirement_income_sources, src]
+                        : f.retirement_income_sources.filter((x) => x !== src))} />
+                    {src === "social_security" ? d.srcSocialSecurity : src === "pension" ? d.srcPension : src === "retirement_account" ? d.srcRetirementAccount : src === "annuity" ? d.srcAnnuity : d.srcOther}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={d.retireMonthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
+              <Field label={d.retiredSince} required><input className={inputCls + E("retired_since")} inputMode="numeric" maxLength={4} placeholder="2019" value={f.retired_since} onChange={(e) => set("retired_since", e.target.value.replace(/\D/g, ""))} /></Field>
+            </div>
+            <IncomeProofUpload dict={d} hint={d.incomeProofHintRetired} files={incomeProofs} onChange={setIncomeProofs} error={errs.has("income_proof")} />
+          </div>
+        )}
       </Section>
 
       {/* Referências — ambas obrigatórias */}
@@ -660,6 +813,7 @@ function PaymentSubmit({
 
       const res = await submitApplication({ ...getPayload(), stripe_payment_intent_id: paymentIntent.id });
       if (!res.ok) { setSubmitting(false); return showError(res.error || dict.errorGeneric); }
+      try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       window.location.href = "/apply/thank-you";
     } catch (e) {
       setSubmitting(false);
@@ -702,19 +856,7 @@ function IdUpload({
     if (!picked) return;
     setBusy(true); setFailed(false);
     try {
-      // Foto de iPhone vem em HEIC, que nem o navegador nem o PDF pro owner
-      // conseguem abrir: converte pra JPEG antes de subir.
-      let file0: File = picked;
-      if (/^image\/hei[cf]$/i.test(picked.type) || /\.(heic|heif)$/i.test(picked.name)) {
-        const { prepareImage } = await import("@/lib/image-prep");
-        const prepared = await prepareImage(picked);
-        file0 = new File([prepared.blob], prepared.fileName, { type: "image/jpeg" });
-      }
-      const { path, token } = await createIdUploadUrl(file0.name);
-      const supabase = createClient();
-      const { error: upErr } = await supabase.storage.from("documents").uploadToSignedUrl(path, token, file0);
-      if (upErr) throw upErr;
-      onChange({ path, file_name: file0.name, content_type: file0.type });
+      onChange(await uploadApplicationFile(picked));
     } catch {
       setFailed(true);
       onChange(null);
@@ -747,6 +889,81 @@ function IdUpload({
         )}
         {failed && <span className="text-sm text-red-600">{dict.uploadFailed}</span>}
         <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handle} />
+      </div>
+      <span className="mt-1 block text-xs text-ink/45">{hint}</span>
+    </div>
+  );
+}
+
+// Sobe 1 arquivo (ID ou comprovante) via signed upload URL. Foto de iPhone vem
+// em HEIC, que nem o navegador nem o PDF pro owner abrem: vira JPEG antes.
+async function uploadApplicationFile(picked: File): Promise<UploadedFile> {
+  let file0: File = picked;
+  if (/^image\/hei[cf]$/i.test(picked.type) || /\.(heic|heif)$/i.test(picked.name)) {
+    const { prepareImage } = await import("@/lib/image-prep");
+    const prepared = await prepareImage(picked);
+    file0 = new File([prepared.blob], prepared.fileName, { type: "image/jpeg" });
+  }
+  const { path, token } = await createIdUploadUrl(file0.name);
+  const supabase = createClient();
+  const { error: upErr } = await supabase.storage.from("documents").uploadToSignedUrl(path, token, file0);
+  if (upErr) throw upErr;
+  return { path, file_name: file0.name, content_type: file0.type };
+}
+
+// =============================================================================
+// IncomeProofUpload — comprovante de renda (autônomo / aposentado), 1+ arquivos.
+// =============================================================================
+function IncomeProofUpload({
+  dict, hint, files, onChange, error,
+}: {
+  dict: (typeof DICT)[Lang];
+  hint: string;
+  files: UploadedFile[];
+  onChange: (f: UploadedFile[]) => void;
+  error?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handle = async (ev: ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(ev.target.files ?? []);
+    if (picked.length === 0) return;
+    setBusy(true); setFailed(false);
+    const added: UploadedFile[] = [];
+    for (const p of picked) {
+      try { added.push(await uploadApplicationFile(p)); } catch { setFailed(true); }
+    }
+    onChange([...files, ...added]);
+    setBusy(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <div>
+      <p className={"mb-1.5 text-sm font-medium text-ink/80" + (error ? " text-red-600" : "")}>
+        {dict.incomeProof} <span className="text-red-500">*</span>
+      </p>
+      <div className={"space-y-2 rounded-xl border p-3 " + (error ? "border-red-400 bg-red-50/40" : "border-black/[0.12] bg-white")}>
+        {files.map((uf, i) => (
+          <div key={uf.path} className="flex items-center justify-between gap-3 text-sm">
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-primary">
+              ✓ <span className="truncate text-ink/60">{uf.file_name}</span>
+            </span>
+            <button type="button" className="shrink-0 text-xs text-ink/45 hover:text-red-600" onClick={() => onChange(files.filter((_, j) => j !== i))}>
+              {dict.remove}
+            </button>
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+            className="rounded-lg bg-primary/10 px-3.5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:opacity-50">
+            {busy ? dict.uploading : files.length ? dict.addAnotherFile : dict.uploadCta}
+          </button>
+          {failed && <span className="text-sm text-red-600">{dict.uploadFailed}</span>}
+        </div>
+        <input ref={inputRef} type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={handle} />
       </div>
       <span className="mt-1 block text-xs text-ink/45">{hint}</span>
     </div>

@@ -93,6 +93,29 @@ export interface Dict {
   jobTitle: string;
   monthlyIncome: string;
   lengthEmployment: string;
+  employmentStatus: string;
+  empEmployed: string;
+  empSelf: string;
+  empRetired: string;
+  retireSources: string;
+  srcSocialSecurity: string;
+  srcPension: string;
+  srcRetirementAccount: string;
+  srcAnnuity: string;
+  srcOther: string;
+  retireMonthlyIncome: string;
+  retiredSince: string;
+  businessName: string;
+  businessType: string;
+  selfSince: string;
+  selfMonthlyIncome: string;
+  incomeProof: string;
+  incomeProofHintRetired: string;
+  incomeProofHintSelf: string;
+  addAnotherFile: string;
+  draftRestored: string;
+  startOver: string;
+  startOverConfirm: string;
 
   referencesSection: string;
   ref1: string;
@@ -216,6 +239,29 @@ const en: Dict = {
   jobTitle: "Job Title",
   monthlyIncome: "Monthly Income",
   lengthEmployment: "Length of Employment",
+  employmentStatus: "Employment Status",
+  empEmployed: "Employed",
+  empSelf: "Self-employed",
+  empRetired: "Retired",
+  retireSources: "Sources of Retirement Income (check all that apply)",
+  srcSocialSecurity: "Social Security",
+  srcPension: "Pension",
+  srcRetirementAccount: "401(k) / IRA",
+  srcAnnuity: "Annuity",
+  srcOther: "Other",
+  retireMonthlyIncome: "Total Monthly Income",
+  retiredSince: "Retired Since (year)",
+  businessName: "Business Name",
+  businessType: "Type of Work",
+  selfSince: "How Long Self-employed",
+  selfMonthlyIncome: "Average Monthly Income",
+  incomeProof: "Proof of Income",
+  incomeProofHintRetired: "Upload your Social Security award letter, a pension or retirement account statement, or your last 2 bank statements. You can add more than one file.",
+  incomeProofHintSelf: "Upload last year's tax return (1040 with Schedule C), 1099s from the past year, or your last 2 to 3 months of bank statements. You can add more than one file.",
+  addAnotherFile: "Add another file",
+  draftRestored: "Welcome back! We kept the information you already entered on this device. For your security, please re-enter your SSN.",
+  startOver: "Start over",
+  startOverConfirm: "Clear everything you entered and start a new application?",
 
   referencesSection: "References",
   ref1: "Personal Reference 1",
@@ -340,6 +386,29 @@ const pt: Dict = {
   jobTitle: "Cargo",
   monthlyIncome: "Renda Mensal",
   lengthEmployment: "Tempo de Emprego",
+  employmentStatus: "Situação de Emprego",
+  empEmployed: "Empregado(a)",
+  empSelf: "Autônomo(a)",
+  empRetired: "Aposentado(a)",
+  retireSources: "Fontes de Renda da Aposentadoria (marque todas que se aplicam)",
+  srcSocialSecurity: "Social Security",
+  srcPension: "Pensão",
+  srcRetirementAccount: "401(k) / IRA",
+  srcAnnuity: "Anuidade (annuity)",
+  srcOther: "Outra",
+  retireMonthlyIncome: "Renda Mensal Total",
+  retiredSince: "Aposentado(a) desde (ano)",
+  businessName: "Nome da Empresa",
+  businessType: "Tipo de Trabalho",
+  selfSince: "Há Quanto Tempo é Autônomo(a)",
+  selfMonthlyIncome: "Renda Mensal Média",
+  incomeProof: "Comprovante de Renda",
+  incomeProofHintRetired: "Envie a carta de benefício do Social Security, um extrato da pensão ou da conta de aposentadoria, ou seus 2 últimos extratos bancários. Você pode enviar mais de um arquivo.",
+  incomeProofHintSelf: "Envie a declaração de imposto do ano passado (1040 com Schedule C), os 1099 do último ano, ou os extratos bancários dos últimos 2 a 3 meses. Você pode enviar mais de um arquivo.",
+  addAnotherFile: "Adicionar outro arquivo",
+  draftRestored: "Bem-vindo(a) de volta! Guardamos as informações que você já preencheu neste aparelho. Por segurança, digite seu SSN novamente.",
+  startOver: "Começar de novo",
+  startOverConfirm: "Apagar tudo o que você preencheu e começar uma nova aplicação?",
 
   referencesSection: "Referências",
   ref1: "Referência Pessoal 1",

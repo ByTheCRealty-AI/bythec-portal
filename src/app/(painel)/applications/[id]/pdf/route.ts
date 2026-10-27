@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/session";
 import { can } from "@/lib/auth/capabilities";
-import type { RentalApplication } from "@/lib/types";
+import { EMPLOYMENT_STATUS_LABEL, RETIREMENT_SOURCE_LABEL, type RentalApplication } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ const LINE = rgb(0.85, 0.85, 0.86);
 const GREEN = rgb(0.098, 0.522, 0.466); // #198577
 
 const COLUMNS =
-  "id, status, rental_type, lease_start, property_id, property_other, full_name, date_of_birth, has_ssn, ssn_last4, ssn_none_explanation, phone, has_license, drivers_license, drivers_license_state, gov_id_type, gov_id_number, email, occupants_count, occupants, rental_history, vehicles, employer, employer_address, manager_name, manager_phone, job_title, monthly_income, length_of_employment, personal_references, evicted, evicted_detail, felony, felony_detail, bankruptcy, bankruptcy_detail, smokes, has_pets, pets_detail, reason_for_moving, consent_agreed, signature_name, signature_date, signature_name_2, signature_date_2, submitted_at, created_at, property:property_id(id,address,address2), attachments:rental_application_attachments(id, category, occupant_index, label, file_path, file_name, content_type, created_at)";
+  "id, status, rental_type, lease_start, property_id, property_other, full_name, date_of_birth, has_ssn, ssn_last4, ssn_none_explanation, phone, has_license, drivers_license, drivers_license_state, gov_id_type, gov_id_number, email, occupants_count, occupants, rental_history, vehicles, employment_status, retirement_income_sources, retired_since, business_name, business_type, employer, employer_address, manager_name, manager_phone, job_title, monthly_income, length_of_employment, personal_references, evicted, evicted_detail, felony, felony_detail, bankruptcy, bankruptcy_detail, smokes, has_pets, pets_detail, reason_for_moving, consent_agreed, signature_name, signature_date, signature_name_2, signature_date_2, submitted_at, created_at, property:property_id(id,address,address2), attachments:rental_application_attachments(id, category, occupant_index, label, file_path, file_name, content_type, created_at)";
 
 function money(n: number | null | undefined): string {
   if (n == null) return "";
@@ -209,14 +209,31 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }
   }
 
-  // ---- Employment ----
-  section("Employment");
-  row("Employer", a.employer);
-  row("Employer address", a.employer_address);
-  row("Manager", [a.manager_name, a.manager_phone].filter(Boolean).join(" · "));
-  row("Job title", a.job_title);
-  row("Monthly income", money(a.monthly_income));
-  row("Length of employment", a.length_of_employment);
+  // ---- Employment / income ----
+  section("Employment / income");
+  const status = a.employment_status ?? "employed";
+  row("Status", EMPLOYMENT_STATUS_LABEL[status]);
+  if (status === "retired") {
+    row("Income sources", (a.retirement_income_sources ?? []).map((x) => RETIREMENT_SOURCE_LABEL[x] ?? x).join(", "));
+    row("Total monthly income", money(a.monthly_income));
+    row("Retired since", a.retired_since);
+  } else if (status === "self_employed") {
+    row("Business name", a.business_name);
+    row("Type of work", a.business_type);
+    row("Self-employed for", a.length_of_employment);
+    row("Average monthly income", money(a.monthly_income));
+  } else {
+    row("Employer", a.employer);
+    row("Employer address", a.employer_address);
+    row("Manager", [a.manager_name, a.manager_phone].filter(Boolean).join(" · "));
+    row("Job title", a.job_title);
+    row("Monthly income", money(a.monthly_income));
+    row("Length of employment", a.length_of_employment);
+  }
+  if (status !== "employed") {
+    const n = (a.attachments ?? []).filter((x) => x.category === "income_proof").length;
+    row("Proof of income", n ? `${n} document${n > 1 ? "s" : ""} attached at the end` : "");
+  }
 
   // ---- Vehicles ----
   if (a.vehicles?.length) {
@@ -253,7 +270,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // ---- IDs anexados (foto = 1 página; PDF = páginas mescladas) ----
   const atts = (a.attachments ?? []).slice().sort((p, q) => {
     // Aplicante primeiro, depois ocupantes na ordem do formulário.
-    const rank = (x: typeof p) => (x.category === "applicant_id" ? -1 : x.occupant_index ?? 0);
+    // Aplicante, ocupantes, e por último os comprovantes de renda.
+    const rank = (x: typeof p) =>
+      x.category === "applicant_id" ? -1 : x.category === "income_proof" ? 1000 : x.occupant_index ?? 0;
     return rank(p) - rank(q);
   });
   const skipped: string[] = [];
@@ -261,6 +280,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const admin = createAdminClient();
     for (const att of atts) {
       const who = att.category === "applicant_id" ? a.full_name : att.label || `Occupant ${(att.occupant_index ?? 0) + 1}`;
+      const pageTitle = att.category === "income_proof" ? `Proof of income - ${a.full_name}` : `ID - ${who}`;
       let bytes: Uint8Array | null = null;
       try {
         const { data: blob } = await admin.storage.from("documents").download(att.file_path);
@@ -281,7 +301,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         } else if (isJpg || isPng) {
           const img = isPng ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
           page = pdf.addPage([PAGE_W, PAGE_H]);
-          T(`ID - ${who}`, MARGIN, PAGE_H - MARGIN, 11, bold);
+          T(pageTitle, MARGIN, PAGE_H - MARGIN, 11, bold);
           const maxW = PAGE_W - MARGIN * 2;
           const maxH = PAGE_H - MARGIN * 2 - 24;
           const s = Math.min(maxW / img.width, maxH / img.height, 1);
@@ -293,7 +313,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         }
       } catch {
         // HEIC (iPhone) e arquivo corrompido não embutem — avisa na lista.
-        skipped.push(`${who} (${att.file_name || "file"})`);
+        skipped.push(`${att.category === "income_proof" ? "Proof of income" : who} (${att.file_name || "file"})`);
       }
     }
   }
@@ -302,10 +322,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (skipped.length) {
     page = pdf.addPage([PAGE_W, PAGE_H]);
     y = PAGE_H - MARGIN;
-    T("ID FILES NOT INCLUDED", MARGIN, y, 8.5, bold, GREEN);
+    T("FILES NOT INCLUDED", MARGIN, y, 8.5, bold, GREEN);
     y -= 18;
     for (const line of wrap(
-      `These ID files are in a format that can't be placed in a PDF. Ask By the C for a copy if needed: ${skipped.join("; ")}.`,
+      `These files are in a format that can't be placed in a PDF. Ask By the C for a copy if needed: ${skipped.join("; ")}.`,
       font,
       10,
       PAGE_W - MARGIN * 2
