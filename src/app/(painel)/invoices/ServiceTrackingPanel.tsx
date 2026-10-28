@@ -155,6 +155,7 @@ export function ServiceTrackingPanel({
   const [localProvider, setLocalProvider] = useState<string>(providerId ?? "");
 
   function changeProvider(v: string) {
+    if (!v) return;
     setLocalProvider(v);
     startProvider(async () => {
       try {
@@ -229,7 +230,7 @@ export function ServiceTrackingPanel({
             disabled={!canManage || pendingProvider}
             className={inputClass}
           >
-            <option value="">In-house / none</option>
+            {!localProvider && <option value="" disabled>Select the worker…</option>}
             {providers.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}

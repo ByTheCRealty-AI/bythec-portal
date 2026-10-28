@@ -58,6 +58,8 @@ export async function createServiceInvoice(fd: FormData) {
   if (!can(profile, "financials.full") && !can(profile, "invoices.service")) {
     throw new Error("You do not have access to create invoices.");
   }
+  // Worker é obrigatório (Andrea 2026-10-28: sem opção "in-house").
+  if (!str(fd, "provider_id")) throw new Error("Pick the worker who did the job.");
 
   const supabase = createClient();
 
@@ -422,10 +424,11 @@ export async function setCommissionCollectedDate(id: string, ymd: string | null)
   await setServiceDate(id, "commission_collected_at", ymd);
 }
 
-// Provider (worker) que fez o serviço. Opcional (crew interno deixa vazio).
+// Provider (worker) que fez o serviço. Obrigatório (sem "in-house" desde 2026-10-28).
 export async function setServiceProvider(id: string, providerId: string | null) {
   const supabase = createClient();
   const v = providerId && providerId.trim() ? providerId.trim() : null;
+  if (!v) throw new Error("Pick the worker who did the job.");
   const { error } = await supabase.from("invoices").update({ provider_id: v }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/invoices/${id}`);
@@ -770,6 +773,7 @@ export async function updateServiceInvoice(id: string, fd: FormData) {
   if (!can(profile, "financials.full") && !can(profile, "invoices.service")) {
     throw new Error("You do not have access to edit this invoice.");
   }
+  if (!str(fd, "provider_id")) throw new Error("Pick the worker who did the job.");
   const supabase = createClient();
 
   const items = readServiceItems(fd);

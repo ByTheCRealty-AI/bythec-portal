@@ -2,7 +2,7 @@
 
 // =============================================================================
 // New SERVICE invoice — client (bill-to autofill) + property OR typed service
-// address + optional worker/provider + work date + invoice date + repeatable
+// address + worker/provider (obrigatório) + work date + invoice date + repeatable
 // line items.
 //
 // Andrea enters the WORKER'S COST per line (labor or material). By the C's 10%
@@ -189,9 +189,9 @@ export function ServiceInvoiceForm({
         </div>
 
         <div className="mt-5">
-          <Field label="Worker / provider" hint="Optional — who did the work (for your records + 1099s). Leave blank for in-house crew.">
-            <select name="provider_id" defaultValue={invoice?.provider_id ?? ""} className={selectClass}>
-              <option value="">In-house / not tracked</option>
+          <Field label="Worker / provider *" hint="Who did the work (for your records + 1099s).">
+            <select name="provider_id" required defaultValue={invoice?.provider_id ?? ""} className={selectClass}>
+              <option value="" disabled>Select the worker…</option>
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
