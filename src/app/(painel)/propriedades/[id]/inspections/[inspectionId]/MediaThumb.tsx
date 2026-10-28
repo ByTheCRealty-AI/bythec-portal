@@ -28,7 +28,7 @@ export function MediaThumb({ media, url }: { media: InspectionMedia; url: string
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Open video full size"
-          className="absolute bottom-12 right-1.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-black/80"
+          className="absolute right-11 top-1.5 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-black/80"
         >
           <Maximize2 className="h-3 w-3" /> Full size
         </a>
