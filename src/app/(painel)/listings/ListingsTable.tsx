@@ -19,7 +19,7 @@ import { AddressFields } from "@/components/AddressFields";
 import { useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
-  Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink, Link2 as LinkIcon, AlertTriangle,
+  Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink,
   Home, Eye, EyeOff, RotateCcw, AlertTriangle, Link2, Lock,
 } from "lucide-react";
 import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass, type BadgeTone } from "@/components/ui";
@@ -840,7 +840,7 @@ export function ListingsTable({
               title="Open every listing link and flag the ones that no longer work"
               className={buttonClass("ghost")}
             >
-              {rowPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />} Check links
+              {rowPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Check links
             </button>
             <button type="button" onClick={() => setOpen({ listing: null, editing: true })} className={buttonClass("primary")}>
               <Plus className="h-4 w-4" /> Add listing
