@@ -1076,6 +1076,9 @@ export interface Listing {
   link_year_round: string | null;
   link_vacation: string | null;
   link_winter: string | null;
+  // Checagem do link (2026-10-28): 'ok' | 'dead' | null (nunca checado).
+  link_status?: "ok" | "dead" | null;
+  link_checked_at?: string | null;
   listing_type: ListingType;
   listing_status: ListingStatus;
   active: boolean;
@@ -1106,7 +1109,7 @@ export interface Listing {
 // Colunas que a tela de Listings lê. Mantido junto do tipo pra não sair de
 // sincronia com o select da página.
 export const LISTING_COLUMNS =
-  "id, property_id, client_id, is_for_sale, is_year_round, is_vacation, is_winter, address, address2, description, available_date, airbnb_link, mls_link, price_for_sale, price_year_round, price_vacation, price_winter, link_for_sale, link_year_round, link_vacation, link_winter, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
+  "id, property_id, client_id, is_for_sale, is_year_round, is_vacation, is_winter, address, address2, description, available_date, airbnb_link, mls_link, price_for_sale, price_year_round, price_vacation, price_winter, link_for_sale, link_year_round, link_vacation, link_winter, link_status, link_checked_at, listing_id, price, listing_type, listing_status, active, featured, cover_photo_url, bedrooms, bathrooms, half_baths, garage, guests, category, sqft, slug, archived_at, created_at, updated_at";
 
 // Propriedade oferecida no picker "pull from an existing property" do form de
 // listing. Só os campos que o form usa pra preencher sozinho.
@@ -1134,6 +1137,7 @@ export interface ListingPhoto {
   listing_id: string;
   storage_path: string;
   url: string;
+  caption: string | null;
   sort_order: number;
   created_at: string;
   created_by: string | null;

@@ -19,12 +19,13 @@ import { AddressFields } from "@/components/AddressFields";
 import { useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
-  Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink,
+  Search, Plus, Loader2, Check, Pencil, Trash2, X, Star, ExternalLink, Link2 as LinkIcon, AlertTriangle,
   Home, Eye, EyeOff, RotateCcw, AlertTriangle, Link2, Lock,
 } from "lucide-react";
 import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass, type BadgeTone } from "@/components/ui";
 import { cx, money } from "@/lib/format";
 import { ListingPhotos } from "./ListingPhotos";
+import { checkListingLinksAction } from "./actions";
 import {
   LISTING_STATUS_LABEL,
   LISTING_TYPE_FLAGS,
@@ -731,6 +732,8 @@ export function ListingsTable({
   const [confirmPurge, setConfirmPurge] = useState<Listing | null>(null);
   const [rowPending, startRow] = useTransition();
   const [rowError, setRowError] = useState<string | null>(null);
+  // Resultado da última checagem de links (Andrea 2026-10-28).
+  const [checkResult, setCheckResult] = useState<{ checked: number; dead: number } | null>(null);
 
   const showingDeleted = tab === "deleted";
   const source = showingDeleted ? deleted : listings;
@@ -818,14 +821,51 @@ export function ListingsTable({
           />
         </div>
         {canManage && !showingDeleted && (
-          <button type="button" onClick={() => setOpen({ listing: null, editing: true })} className={buttonClass("primary")}>
-            <Plus className="h-4 w-4" /> Add listing
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setRowError(null);
+                setCheckResult(null);
+                startRow(async () => {
+                  try {
+                    const r = await checkListingLinksAction();
+                    setCheckResult(r);
+                  } catch (e) {
+                    setRowError(e instanceof Error ? e.message : "Could not check the links.");
+                  }
+                });
+              }}
+              disabled={rowPending}
+              title="Open every listing link and flag the ones that no longer work"
+              className={buttonClass("ghost")}
+            >
+              {rowPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />} Check links
+            </button>
+            <button type="button" onClick={() => setOpen({ listing: null, editing: true })} className={buttonClass("primary")}>
+              <Plus className="h-4 w-4" /> Add listing
+            </button>
+          </div>
         )}
       </div>
 
       {rowError && (
         <p className="mb-4 rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-600">{rowError}</p>
+      )}
+
+      {checkResult && (
+        <p
+          className={cx(
+            "mb-4 rounded-xl border px-3.5 py-2.5 text-sm",
+            checkResult.dead > 0
+              ? "border-red-300 bg-red-50 text-red-700"
+              : "border-primary/30 bg-primary/[0.06] text-ink/70"
+          )}
+        >
+          {checkResult.dead > 0
+            ? `${checkResult.dead} of ${checkResult.checked} listing links no longer work — they are flagged below. Replace them with a link from your own flexMLS account.`
+            : `All ${checkResult.checked} listing links are working.`}
+        </p>
       )}
 
       {showingDeleted && deleted.length > 0 && (
@@ -924,6 +964,14 @@ export function ListingsTable({
                   <td className="px-5 py-3.5 text-sm"><PriceCell l={l} action={setPriceAction} canManage={canManage && !showingDeleted} /></td>
                   <td className="px-5 py-3.5">
                     <LinkCell l={l} action={setLinkAction} canManage={canManage && !showingDeleted} />
+                    {l.link_status === "dead" && (
+                      <span
+                        title="This link no longer opens — replace it with one from your own flexMLS account"
+                        className="mt-1 inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                      >
+                        <AlertTriangle className="h-3 w-3" /> Link dead
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3.5">
                     {showingDeleted ? (

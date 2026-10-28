@@ -365,3 +365,75 @@ export async function reorderListingPhotosAction(fd: FormData) {
   }
   revalidatePath("/listings");
 }
+
+// Atualiza (ou limpa) a legenda de UMA foto. Caption vazio -> null.
+export async function updateListingPhotoCaptionAction(fd: FormData) {
+  await assertCanManage();
+  const id = str(fd, "id");
+  if (!id) throw new Error("Missing photo reference.");
+  const caption = str(fd, "caption"); // null limpa a legenda
+  const supabase = createClient();
+  const { error } = await supabase.from("listing_photos").update({ caption }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/listings");
+}
+
+// Checagem de link (Andrea 2026-10-28): os shares do flexMLS morrem sem avisar —
+// a prévia no WhatsApp/iMessage continua bonita, mas a página responde
+// "This is not a valid link". Este botão testa cada link e marca o que caiu.
+// Só links http(s); timeout curto; falha de rede NÃO marca como morto (fica como
+// estava, pra não acusar link bom por causa de uma conexão ruim).
+export async function checkListingLinksAction(): Promise<{ checked: number; dead: number }> {
+  const profile = await getProfile();
+  if (!can(profile, "listings.manage")) throw new Error("No permission.");
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("listings")
+    .select("id, mls_link, airbnb_link, link_for_sale, link_year_round, link_vacation, link_winter")
+    .is("archived_at", null);
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as Array<Record<string, string | null> & { id: string }>;
+  const FIELDS = ["mls_link", "airbnb_link", "link_for_sale", "link_year_round", "link_vacation", "link_winter"];
+  let checked = 0;
+  let dead = 0;
+
+  await Promise.all(
+    rows.map(async (row) => {
+      const urls = FIELDS.map((f) => row[f]).filter(
+        (u): u is string => typeof u === "string" && /^https?:\/\//i.test(u)
+      );
+      if (urls.length === 0) return;
+
+      let anyDead = false;
+      let anyAnswered = false;
+      for (const url of Array.from(new Set(urls))) {
+        try {
+          const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) });
+          anyAnswered = true;
+          if (res.status === 404 || res.status === 410) {
+            anyDead = true;
+            continue;
+          }
+          // O flexMLS responde 200 com esta frase quando o share foi apagado.
+          const body = (await res.text()).slice(0, 5000).toLowerCase();
+          if (body.includes("not a valid link")) anyDead = true;
+        } catch {
+          /* rede falhou: não conclui nada sobre este link */
+        }
+      }
+      if (!anyAnswered) return;
+
+      checked++;
+      if (anyDead) dead++;
+      await supabase
+        .from("listings")
+        .update({ link_status: anyDead ? "dead" : "ok", link_checked_at: new Date().toISOString() })
+        .eq("id", row.id);
+    })
+  );
+
+  revalidatePath("/listings");
+  return { checked, dead };
+}
