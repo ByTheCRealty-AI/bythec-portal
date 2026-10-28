@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Badge, Field, EmptyState, inputClass, selectClass, buttonClass, type BadgeTone } from "@/components/ui";
 import { cx, money } from "@/lib/format";
+import { sortByAddress } from "@/lib/order";
 import { ListingPhotos } from "./ListingPhotos";
 import { checkListingLinksAction } from "./actions";
 import {
@@ -743,11 +744,14 @@ export function ListingsTable({
     let rows = source;
     if (tab === "hidden") rows = rows.filter((l) => !l.active);
     else if (tab !== "all" && tab !== "deleted") rows = rows.filter((l) => l[tab] === true);
-    if (!term) return rows;
-    return rows.filter((l) => {
-      const hay = `${l.address ?? ""} ${l.address2 ?? ""} ${l.description ?? ""}`.toLowerCase();
-      return term.split(/\s+/).every((w) => hay.includes(w));
-    });
+    // Sempre em ordem de endereço (alfa/numérica natural), igual Properties.
+    if (term) {
+      rows = rows.filter((l) => {
+        const hay = `${l.address ?? ""} ${l.address2 ?? ""} ${l.description ?? ""}`.toLowerCase();
+        return term.split(/\s+/).every((w) => hay.includes(w));
+      });
+    }
+    return sortByAddress(rows);
   }, [source, tab, query]);
 
   const counts = useMemo(

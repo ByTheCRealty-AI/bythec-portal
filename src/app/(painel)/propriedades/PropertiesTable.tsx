@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { money } from "@/lib/format";
+import { sortByAddress } from "@/lib/order";
 import { propertyTypeLabels, propertyTypeTone, type Property } from "@/lib/types";
 
 type PropertyRow = Property & {
@@ -52,13 +53,15 @@ export function PropertiesTable({
   }, [query]);
 
   const term = query.trim().toLowerCase();
-  const filtered = term
+  const matching = term
     ? properties.filter((p) => {
         const hay = `${p.address ?? ""} ${p.address2 ?? ""} ${p.owner?.name ?? ""} ${p.tenant?.name ?? ""}`.toLowerCase();
         // casa qualquer palavra digitada (endereço, unidade, nome do owner ou tenant)
         return term.split(/\s+/).every((word) => hay.includes(word));
       })
     : properties;
+  // Ordem alfa/numérica natural (7 antes de 11, 19 antes de 118) — a mesma das Listings.
+  const filtered = sortByAddress(matching);
 
   return (
     <>

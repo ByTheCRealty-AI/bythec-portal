@@ -36,3 +36,20 @@ export function attachmentsNewestFirst<T>(rows: T[]): T[] {
   }
   return rows;
 }
+
+// Endereço em ordem alfabética/numérica NATURAL (Andrea 2026-10-28: "coloca as
+// listings em ordem alfa/numérica como em properties"). Collator com
+// numeric:true faz "7 Wolf" vir antes de "11 Mary David" e "19" antes de "118"
+// — o sort de texto puro do banco punha 118 antes de 19. Desempata pela unidade
+// (address2), pra 155 Bayview A vir antes do B.
+const addressCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+export function byAddress(a: { address?: string | null; address2?: string | null },
+                          b: { address?: string | null; address2?: string | null }): number {
+  const main = addressCollator.compare(a.address ?? "", b.address ?? "");
+  return main !== 0 ? main : addressCollator.compare(a.address2 ?? "", b.address2 ?? "");
+}
+
+export function sortByAddress<T extends { address?: string | null; address2?: string | null }>(rows: T[]): T[] {
+  return [...rows].sort(byAddress);
+}
