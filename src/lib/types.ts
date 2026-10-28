@@ -917,6 +917,7 @@ export interface RentalApplication {
     duration?: string;
     landlord_name?: string;
     landlord_phone?: string;
+    ten_plus_years?: boolean;
   }>;
   vehicles: Array<{ make_model?: string; year?: string; color?: string; plate?: string; plate_state?: string }>;
 

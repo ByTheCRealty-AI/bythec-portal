@@ -74,6 +74,7 @@ export interface Dict {
   stateLabel: string;
   zip: string;
   howLong: string;
+  tenPlusYears: string;
   landlordName: string;
   landlordPhone: string;
 
@@ -220,6 +221,7 @@ const en: Dict = {
   stateLabel: "State",
   zip: "Zip",
   howLong: "How long at this address",
+  tenPlusYears: "I have lived at this address for 10 years or more (no previous address needed)",
   landlordName: "Landlord Name",
   landlordPhone: "Landlord Phone Number",
 
@@ -367,6 +369,7 @@ const pt: Dict = {
   stateLabel: "Estado",
   zip: "CEP",
   howLong: "Quanto tempo neste endereço",
+  tenPlusYears: "Moro neste endereço há 10 anos ou mais (não é preciso informar o endereço anterior)",
   landlordName: "Nome do Proprietário",
   landlordPhone: "Contato do Proprietário",
 

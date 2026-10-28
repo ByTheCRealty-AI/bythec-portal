@@ -21,6 +21,8 @@ export interface HistoryInput {
   duration: string;
   landlord_name: string;
   landlord_phone: string;
+  // Só no endereço atual: 10+ anos no mesmo lugar dispensa o endereço anterior.
+  ten_plus_years?: boolean;
 }
 
 export interface VehicleInput { make_model: string; year: string; color: string; plate: string; plate_state: string }

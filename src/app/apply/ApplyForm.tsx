@@ -133,6 +133,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   const [history, setHistory] = useState<HistoryInput[]>([
     emptyHist("current"), emptyHist("previous"),
   ]);
+  const tenPlus = history.some((h) => h.kind === "current" && h.ten_plus_years);
   const [vehicles, setVehicles] = useState<VehicleInput[]>([emptyVeh()]);
   const [refs, setRefs] = useState<ReferenceInput[]>([
     { name: "", phone: "" }, { name: "", phone: "" },
@@ -248,6 +249,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     }
 
     history.forEach((h, i) => {
+      if (h.kind === "previous" && tenPlus) return;
       need(`hist_${i}_street`, h.street);
       need(`hist_${i}_city`, h.city);
       need(`hist_${i}_state`, h.state);
@@ -359,7 +361,8 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         (numOrNull(f.occupants_count) ?? 0) >= 2
           ? occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone }))
           : [],
-      rental_history: history,
+      // 10+ anos no endereço atual: o anterior não é pedido nem enviado.
+      rental_history: tenPlus ? history.filter((h) => h.kind === "current") : history,
       vehicles,
 
       // Só manda os campos do status escolhido (troca de status não vaza
@@ -593,7 +596,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       {/* Histórico de aluguel — todos obrigatórios */}
       <Section title={d.historySection} hint={d.historyHint}>
         <div className="space-y-4">
-          {history.map((h, i) => (
+          {history.map((h, i) => h.kind === "previous" && tenPlus ? null : (
             <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
               <p className="mb-3 text-sm font-semibold text-primary">
                 {h.kind === "current" ? d.current : d.previous}
@@ -611,6 +614,12 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                 <Field label={d.landlordName} required><input className={inputCls + E(`hist_${i}_lname`)} value={h.landlord_name} onChange={(e) => setHistory(upd(history, i, { landlord_name: e.target.value }))} /></Field>
                 <Field label={d.landlordPhone} required><input className={inputCls + E(`hist_${i}_lphone`)} inputMode="tel" value={h.landlord_phone} onChange={(e) => setHistory(upd(history, i, { landlord_phone: formatPhone(e.target.value) }))} /></Field>
               </div>
+              {h.kind === "current" && (
+                <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-ink/80">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#198577]" checked={!!h.ten_plus_years} onChange={(e) => setHistory(upd(history, i, { ten_plus_years: e.target.checked }))} />
+                  <span>{d.tenPlusYears}</span>
+                </label>
+              )}
             </div>
           ))}
         </div>
