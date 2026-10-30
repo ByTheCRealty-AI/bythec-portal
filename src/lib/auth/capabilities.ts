@@ -182,6 +182,12 @@ export interface ProfileLike {
   role: AppRole;
   permissions: PermissionOverrides | null;
   active: boolean;
+  // Public "Meet the Team" fields (website). Edited in Users & Access, owner/manager only.
+  public_title?: string | null;
+  public_bio?: string | null;
+  public_photo_url?: string | null;
+  public_photo_path?: string | null;
+  show_on_website?: boolean | null;
 }
 
 // Capacidade efetiva = defaults do papel, depois aplica overrides do usuário.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -16,7 +16,15 @@ import {
 } from "@/lib/auth/capabilities";
 import { Badge, buttonClass, Field, inputClass, EmptyState } from "@/components/ui";
 import { PhoneInput, AddressFields } from "@/components/form-fields";
-import { inviteUserAction, updateUserAccessAction, deleteUserAction } from "./actions";
+import { createClient } from "@/lib/supabase/client";
+import { prepareImage, ACCEPTED_IMAGE_TYPES } from "@/lib/image-prep";
+import {
+  inviteUserAction,
+  updateUserAccessAction,
+  deleteUserAction,
+  setProfilePhotoAction,
+  removeProfilePhotoAction,
+} from "./actions";
 import {
   ShieldCheck,
   Plus,
@@ -26,7 +34,17 @@ import {
   Check,
   Loader2,
   CircleSlash,
+  ImagePlus,
+  Globe,
 } from "lucide-react";
+
+const TEAM_BUCKET = "team-photos";
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.trim().slice(0, 2).toUpperCase() || "?";
+}
 
 type Actor = Pick<ProfileLike, "id" | "role" | "permissions" | "active">;
 
@@ -157,6 +175,14 @@ export function UsersManager({
                       {u.full_name || "—"}
                       {u.id === actor.id && (
                         <span className="ml-2 text-[10px] uppercase tracking-wide text-ink/40">You</span>
+                      )}
+                      {u.show_on_website && (
+                        <span
+                          title="Shown on the public website"
+                          className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary align-middle"
+                        >
+                          <Globe className="h-3 w-3" /> On website
+                        </span>
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-ink/65">{u.email || "—"}</td>
@@ -350,6 +376,59 @@ function EditDialog({
   const [role, setRole] = useState<AppRole>(user.role);
   const [active, setActive] = useState<boolean>(user.active);
 
+  // Website presence ("Meet the Team")
+  const [showOnWebsite, setShowOnWebsite] = useState<boolean>(!!user.show_on_website);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user.public_photo_url ?? null);
+  const [nameForInitials, setNameForInitials] = useState<string>(user.full_name ?? "");
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoErr(null);
+    setPhotoBusy(true);
+    try {
+      const prepared = await prepareImage(file);
+      const supabase = createClient();
+      const path = `${user.id}/${Date.now()}-${prepared.fileName}`;
+      const { error: upErr } = await supabase.storage
+        .from(TEAM_BUCKET)
+        .upload(path, prepared.blob, { contentType: "image/jpeg", upsert: false });
+      if (upErr) throw new Error(upErr.message);
+      const { data: pub } = supabase.storage.from(TEAM_BUCKET).getPublicUrl(path);
+      const fd = new FormData();
+      fd.set("id", user.id);
+      fd.set("photo_url", pub.publicUrl);
+      fd.set("photo_path", path);
+      const res = await setProfilePhotoAction(fd);
+      if (!res.ok) throw new Error(res.error);
+      setPhotoUrl(pub.publicUrl);
+    } catch (err) {
+      setPhotoErr(err instanceof Error ? err.message : "That photo could not be uploaded.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function onRemovePhoto() {
+    setPhotoErr(null);
+    setPhotoBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set("id", user.id);
+      const res = await removeProfilePhotoAction(fd);
+      if (!res.ok) throw new Error(res.error);
+      setPhotoUrl(null);
+    } catch (err) {
+      setPhotoErr(err instanceof Error ? err.message : "Could not remove the photo.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
   const initialOverride = (cap: Capability): OverrideState => {
     const o = user.permissions ?? {};
     if (Object.prototype.hasOwnProperty.call(o, cap)) return o[cap] ? "true" : "false";
@@ -395,6 +474,7 @@ function EditDialog({
             <input
               name="full_name"
               defaultValue={user.full_name ?? ""}
+              onChange={(e) => setNameForInitials(e.target.value)}
               className={inputClass}
               placeholder="Jane Doe"
             />
@@ -444,6 +524,108 @@ function EditDialog({
           />
         </label>
         </div>
+        </div>
+
+        {/* Website presence — "Meet the Team" on the public website. */}
+        <input type="hidden" name="public_fields" value="1" />
+        <input type="hidden" name="show_on_website" value={showOnWebsite ? "true" : "false"} />
+        <div className="rounded-xl border border-black/[0.08] bg-black/[0.012] p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <Globe className="h-4 w-4 text-primary" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink/50">
+              Website presence — Meet the Team
+            </p>
+          </div>
+          <p className="mb-4 text-xs text-ink/50">
+            Turn this on to show this person in the “Meet the Team” section of the public website.
+            Only the name, title, bio and photo below are shown publicly — never email, phone or role.
+          </p>
+
+          <label className="mb-4 flex items-center justify-between rounded-xl border border-black/[0.1] bg-white px-4 py-3">
+            <span>
+              <span className="block text-sm font-semibold text-ink">Show on the website</span>
+              <span className="block text-xs text-ink/50">When on, this person appears on bythecrealty.com.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={showOnWebsite}
+              onChange={(e) => setShowOnWebsite(e.target.checked)}
+              className="h-5 w-5 accent-primary"
+            />
+          </label>
+
+          <div className="flex flex-col gap-4 sm:flex-row">
+            {/* Photo */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="relative h-24 w-24 overflow-hidden rounded-full border border-black/[0.08] bg-black/[0.03]">
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photoUrl} alt={nameForInitials || "Headshot"} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="grid h-full w-full place-items-center text-xl font-bold text-primary">
+                    {initialsFromName(nameForInitials)}
+                  </span>
+                )}
+                {photoBusy && (
+                  <span className="absolute inset-0 grid place-items-center bg-white/60">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </span>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES}
+                onChange={onPickPhoto}
+                className="hidden"
+              />
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  disabled={photoBusy}
+                  onClick={() => fileRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.10] bg-white px-3 py-1.5 text-xs font-semibold text-ink/80 transition hover:border-black/20 hover:bg-black/[0.03] disabled:opacity-60"
+                >
+                  <ImagePlus className="h-3.5 w-3.5" /> {photoUrl ? "Replace photo" : "Upload photo"}
+                </button>
+                {photoUrl && (
+                  <button
+                    type="button"
+                    disabled={photoBusy}
+                    onClick={onRemovePhoto}
+                    className="text-[11px] font-semibold text-ink/50 transition hover:text-ink disabled:opacity-60"
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Title + bio */}
+            <div className="flex-1 space-y-4">
+              <Field label="Public title" hint="Shown under their name on the website (e.g. “Broker & Owner”).">
+                <input
+                  name="public_title"
+                  defaultValue={user.public_title ?? ""}
+                  className={inputClass}
+                  placeholder="Broker & Owner"
+                />
+              </Field>
+              <Field label="Short bio">
+                <textarea
+                  name="public_bio"
+                  defaultValue={user.public_bio ?? ""}
+                  rows={4}
+                  className={inputClass + " resize-y"}
+                  placeholder="A few sentences about this person, shown on the website."
+                />
+              </Field>
+            </div>
+          </div>
+
+          {photoErr && (
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{photoErr}</p>
+          )}
         </div>
 
         {/* Capability overrides */}

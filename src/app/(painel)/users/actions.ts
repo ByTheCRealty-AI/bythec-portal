@@ -171,6 +171,14 @@ export async function updateUserAccessAction(
   const zip = str(fd, "zip");
   const newEmail = str(fd, "email")?.toLowerCase() ?? null;
 
+  // Campos públicos do site ("Meet the Team"). Só nome/título/bio/visibilidade —
+  // a foto tem ação própria (upload). showOnWebsite só conta se o form mandou o
+  // campo (o toggle manda sempre "true"/"false").
+  const publicTitle = str(fd, "public_title");
+  const publicBio = str(fd, "public_bio");
+  const hasWebsiteFields = fd.get("public_fields") === "1";
+  const showOnWebsite = fd.get("show_on_website") === "true";
+
   // --- E-mail editável -------------------------------------------------------
   // Se mudou, atualizar PRIMEIRO o auth.users (service_role) e só então o
   // profiles.email. Se o Auth falhar (ex.: e-mail já em uso), aborta e mantém
@@ -198,11 +206,86 @@ export async function updateUserAccessAction(
       role: newRole,
       permissions: overrides,
       active,
+      ...(hasWebsiteFields
+        ? {
+            public_title: publicTitle,
+            public_bio: publicBio,
+            show_on_website: showOnWebsite,
+          }
+        : {}),
     })
     .eq("id", targetId);
 
   if (error) return { ok: false, error: error.message };
 
+  revalidatePath("/users");
+  return { ok: true };
+}
+
+// ---- Foto pública ("Meet the Team") ----------------------------------------
+// A foto é preparada e enviada pro bucket público team-photos NO NAVEGADOR
+// (client), e estas ações só gravam/removem a URL no profile. Mesmo gating de
+// quem-pode-editar-quem da edição de acesso.
+const TEAM_BUCKET = "team-photos";
+
+async function loadEditableTarget(
+  targetId: string
+): Promise<{ ok: true; path: string | null } | { ok: false; error: string }> {
+  const actor = await getProfile();
+  if (!actor || !can(actor, "users.manage_access")) {
+    return { ok: false, error: "You do not have permission to edit this person." };
+  }
+  const supabase = createClient();
+  const { data: target } = await supabase
+    .from("profiles")
+    .select("id, role, public_photo_path")
+    .eq("id", targetId)
+    .maybeSingle();
+  if (!target) return { ok: false, error: "User not found or not editable." };
+  if (!canEditTarget(actor, (target as ProfileLike).role)) {
+    return { ok: false, error: "You cannot edit this user." };
+  }
+  return { ok: true, path: (target as { public_photo_path: string | null }).public_photo_path };
+}
+
+export async function setProfilePhotoAction(fd: FormData): Promise<Result> {
+  const targetId = str(fd, "id");
+  const photoUrl = str(fd, "photo_url");
+  const photoPath = str(fd, "photo_path");
+  if (!targetId || !photoUrl || !photoPath) {
+    return { ok: false, error: "Missing photo details." };
+  }
+  const gate = await loadEditableTarget(targetId);
+  if (!gate.ok) return gate;
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ public_photo_url: photoUrl, public_photo_path: photoPath })
+    .eq("id", targetId);
+  if (error) return { ok: false, error: error.message };
+
+  // Limpa o arquivo anterior (best-effort).
+  if (gate.path && gate.path !== photoPath) {
+    await supabase.storage.from(TEAM_BUCKET).remove([gate.path]);
+  }
+  revalidatePath("/users");
+  return { ok: true };
+}
+
+export async function removeProfilePhotoAction(fd: FormData): Promise<Result> {
+  const targetId = str(fd, "id");
+  if (!targetId) return { ok: false, error: "Missing user." };
+  const gate = await loadEditableTarget(targetId);
+  if (!gate.ok) return gate;
+
+  const supabase = createClient();
+  if (gate.path) await supabase.storage.from(TEAM_BUCKET).remove([gate.path]);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ public_photo_url: null, public_photo_path: null })
+    .eq("id", targetId);
+  if (error) return { ok: false, error: error.message };
   revalidatePath("/users");
   return { ok: true };
 }
