@@ -13,7 +13,7 @@
 // =============================================================================
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, type StripePaymentElementOptions } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { DICT, type Lang } from "./i18n";
 import type {
@@ -31,6 +31,9 @@ import { createClient } from "@/lib/supabase/client";
 
 const PUBLISHABLE = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = PUBLISHABLE ? loadStripe(PUBLISHABLE) : null;
+// Sem isto o Stripe continua mostrando Link (e com ele Bank, Klarna e Crypto), mesmo
+// com paymentMethodTypes só em card. `link` está na doc mas ainda não nos tipos.
+const PAYMENT_ELEMENT_OPTIONS = { wallets: { link: "never" } } as unknown as StripePaymentElementOptions;
 const OTHER = "__other__";
 // Rascunho salvo NO APARELHO do candidato (localStorage), pra quem sai no meio
 // não perder tudo. NUNCA guarda o SSN. Limpo depois do envio com sucesso.
@@ -1412,7 +1415,7 @@ function PaymentSubmit({
   return (
     <div className="mt-4">
       <p className="mb-2 text-sm font-medium text-ink">{dict.cardLabel}</p>
-      <div className="rounded-xl border border-black/[0.08] bg-white p-4"><PaymentElement /></div>
+      <div className="rounded-xl border border-black/[0.08] bg-white p-4"><PaymentElement options={PAYMENT_ELEMENT_OPTIONS} /></div>
       {error && <div ref={errRef} className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       <button type="button" onClick={onSubmit} disabled={submitting || !stripe}
         className="mt-5 w-full rounded-xl bg-primary px-5 py-3.5 text-center font-semibold text-white shadow-glow transition hover:brightness-110 disabled:opacity-60">
