@@ -18,3 +18,8 @@ comment on column public.rental_applications.primary_application_id is
 
 create index if not exists idx_rental_applications_primary
   on public.rental_applications (primary_application_id);
+
+-- Andrea 2026-10-30: saber se o número informado é SSN ou ITIN. Aplicações
+-- antigas ficam NULL (não se sabe qual dos dois foi digitado).
+alter table public.rental_applications
+  add column if not exists tax_id_type text check (tax_id_type in ('ssn','itin'));

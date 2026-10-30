@@ -312,7 +312,7 @@ function DetailModal({
           <Group title="Applicant">
             <Row label="Full name">{a.full_name}</Row>
             <Row label="Date of birth">{a.date_of_birth || "—"}</Row>
-            <Row label="SSN / ITIN">
+            <Row label={a.tax_id_type === "ssn" ? "Social Security #" : a.tax_id_type === "itin" ? "ITIN #" : "SSN / ITIN"}>
               {a.has_ssn === false ? (
                 <span className="text-ink/70">No SSN/ITIN{a.ssn_none_explanation ? ` — ${a.ssn_none_explanation}` : ""}</span>
               ) : ssn ? (

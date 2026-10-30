@@ -26,7 +26,7 @@ const LINE = rgb(0.85, 0.85, 0.86);
 const GREEN = rgb(0.098, 0.522, 0.466); // #198577
 
 const COLUMNS =
-  "id, status, rental_type, lease_start, property_id, property_other, full_name, date_of_birth, has_ssn, ssn_last4, ssn_none_explanation, phone, has_license, drivers_license, drivers_license_state, gov_id_type, gov_id_number, email, occupants_count, occupants, rental_history, vehicles, employment_status, retirement_income_sources, retired_since, business_name, business_type, employer, employer_address, manager_name, manager_phone, job_title, monthly_income, length_of_employment, personal_references, evicted, evicted_detail, felony, felony_detail, bankruptcy, bankruptcy_detail, smokes, has_pets, pets_detail, reason_for_moving, consent_agreed, signature_name, signature_date, signature_name_2, signature_date_2, submitted_at, created_at, property:property_id(id,address,address2), attachments:rental_application_attachments(id, category, occupant_index, label, file_path, file_name, content_type, created_at)";
+  "id, status, rental_type, lease_start, property_id, property_other, full_name, date_of_birth, has_ssn, tax_id_type, ssn_last4, ssn_none_explanation, phone, has_license, drivers_license, drivers_license_state, gov_id_type, gov_id_number, email, occupants_count, occupants, rental_history, vehicles, employment_status, retirement_income_sources, retired_since, business_name, business_type, employer, employer_address, manager_name, manager_phone, job_title, monthly_income, length_of_employment, personal_references, evicted, evicted_detail, felony, felony_detail, bankruptcy, bankruptcy_detail, smokes, has_pets, pets_detail, reason_for_moving, consent_agreed, signature_name, signature_date, signature_name_2, signature_date_2, submitted_at, created_at, property:property_id(id,address,address2), attachments:rental_application_attachments(id, category, occupant_index, label, file_path, file_name, content_type, created_at)";
 
 function money(n: number | null | undefined): string {
   if (n == null) return "";
@@ -173,7 +173,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   row("Full name", a.full_name);
   row("Date of birth", fmtDate(a.date_of_birth));
   row(
-    "SSN / ITIN",
+    a.tax_id_type === "ssn" ? "Social Security #" : a.tax_id_type === "itin" ? "ITIN #" : "SSN / ITIN",
     a.has_ssn === false
       ? `None${a.ssn_none_explanation ? ` - ${a.ssn_none_explanation}` : ""}`
       : a.ssn_last4

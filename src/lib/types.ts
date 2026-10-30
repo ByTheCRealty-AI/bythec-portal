@@ -897,6 +897,7 @@ export interface RentalApplication {
   full_name: string;
   date_of_birth: string | null;
   has_ssn: boolean | null;
+  tax_id_type: "ssn" | "itin" | null;
   ssn_last4: string | null;
   ssn_none_explanation: string | null;
   phone: string | null;

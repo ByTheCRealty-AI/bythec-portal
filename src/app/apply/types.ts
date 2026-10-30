@@ -58,6 +58,7 @@ export interface ApplicationInput {
 
   // SSN/ITIN — pergunta obrigatória; sem SSN exige explicação.
   has_ssn: boolean;
+  tax_id_type: "ssn" | "itin" | null; // qual dos dois foi informado
   ssn: string | null;
   ssn_none_explanation: string | null;
 

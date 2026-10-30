@@ -34,6 +34,9 @@ export interface Dict {
   fullName: string;
   dob: string;
   ssnQuestion: string;
+  taxIdWhich: string;
+  taxIdSsn: string;
+  taxIdItin: string;
   ssn: string;
   ssnHint: string;
   ssnNoneExplain: string;
@@ -194,6 +197,9 @@ const en: Dict = {
   fullName: "Full Name",
   dob: "Date of Birth (MM/DD/YYYY)",
   ssnQuestion: "Do you have a Social Security # or ITIN?",
+  taxIdWhich: "Which one are you providing?",
+  taxIdSsn: "Social Security #",
+  taxIdItin: "ITIN #",
   ssn: "Social Security # / ITIN #",
   ssnHint: "Encrypted and visible only to By the C staff.",
   ssnNoneExplain: "Please explain why you don't have an SSN or ITIN",
@@ -319,7 +325,7 @@ const en: Dict = {
 
   consentSection: "Signature and Consent",
   consentText:
-    "I believe that the statements I have made are true and correct. I hereby authorize the verification of information I provided, communication with any and all names listed on this application and for the issuer of this form to conduct a background check to obtain additional information on credit history, criminal history and all Unlawful Detainers. I understand that any discrepancy or lack of information may result in the rejection of this application. I understand that this is an application for a home or apartment and does not constitute a rental or lease agreement in whole or in part. I further understand that there is a non-refundable fee of $100.00 to cover the cost of processing my application and I am not entitled to a refund.",
+    "I believe that the statements I have made are true and correct. I hereby authorize the verification of information I provided, communication with any and all names listed on this application and for the issuer of this form to conduct a background check to obtain additional information on credit history, criminal history and all Unlawful Detainers. I understand that any discrepancy or lack of information may result in the rejection of this application. I understand that this is an application for a home or apartment and does not constitute a rental or lease agreement in whole or in part. I further understand that there is a non-refundable fee of $100.00, plus $50.00 for each co-applicant, plus a card processing fee, for a total of {total} on this application, to cover the cost of processing my application and I am not entitled to a refund.",
   consentCheckbox: "I have read and agree to the statement above, and authorize the background and credit check.",
   signature: "Primary applicant signature (type your full name)",
   signature2: "Second applicant signature (optional)",
@@ -363,6 +369,9 @@ const pt: Dict = {
   fullName: "Nome Completo",
   dob: "Data de Nascimento (MM/DD/AAAA)",
   ssnQuestion: "Você tem Social Security nº ou ITIN?",
+  taxIdWhich: "Qual deles você vai informar?",
+  taxIdSsn: "Social Security nº",
+  taxIdItin: "ITIN nº",
   ssn: "Número Social Security ou ITIN nº",
   ssnHint: "Criptografado e visível apenas para a equipe da By the C.",
   ssnNoneExplain: "Explique por que você não tem SSN ou ITIN",
@@ -488,7 +497,7 @@ const pt: Dict = {
 
   consentSection: "Assinatura e Consentimento",
   consentText:
-    "Acredito que as declarações que fiz são verdadeiras e corretas. Por meio deste, autorizo a verificação das informações que forneci, a comunicação com todo e qualquer nome listado nesta aplicação e para que o emissor desta aplicação conduza uma verificação de antecedentes para obter informações adicionais sobre histórico de crédito, antecedentes criminais e todos os Detentores Ilegais. Compreendo que qualquer discrepância ou falta de informação poderá resultar na rejeição desta aplicação. Entendo que este é um pedido de locação e não constitui um contrato de locação. Compreendo ainda que existe uma taxa de $100.00 não reembolsável para cobrir os custos de processamento da minha aplicação e não tenho direito a reembolso.",
+    "Acredito que as declarações que fiz são verdadeiras e corretas. Por meio deste, autorizo a verificação das informações que forneci, a comunicação com todo e qualquer nome listado nesta aplicação e para que o emissor desta aplicação conduza uma verificação de antecedentes para obter informações adicionais sobre histórico de crédito, antecedentes criminais e todos os Detentores Ilegais. Compreendo que qualquer discrepância ou falta de informação poderá resultar na rejeição desta aplicação. Entendo que este é um pedido de locação e não constitui um contrato de locação. Compreendo ainda que existe uma taxa não reembolsável de $100.00, mais $50.00 por co-candidato, mais uma taxa de processamento do cartão, no total de {total} nesta aplicação, para cobrir os custos de processamento da minha aplicação e não tenho direito a reembolso.",
   consentCheckbox: "Li e concordo com a declaração acima, e autorizo a verificação de antecedentes e crédito.",
   signature: "Assinatura do candidato principal (digite seu nome completo)",
   signature2: "Assinatura do segundo candidato (opcional)",

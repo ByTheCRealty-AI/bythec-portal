@@ -227,6 +227,7 @@ function applicationRow(input: RowInput, consent_ip: string | null) {
     date_of_birth: clean(input.date_of_birth),
 
     has_ssn: input.has_ssn,
+    tax_id_type: input.has_ssn && (input.tax_id_type === "ssn" || input.tax_id_type === "itin") ? input.tax_id_type : null,
     ssn_none_explanation: input.has_ssn ? null : clean(input.ssn_none_explanation),
 
     phone: clean(input.phone),

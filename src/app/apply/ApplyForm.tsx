@@ -118,6 +118,7 @@ interface OccRow {
 // nascimento, telefone, e-mail, ID): o mesmo do candidato, menos imóvel/ocupantes.
 interface CoData {
   has_ssn: "" | "yes" | "no";
+  tax_id_type: "" | "ssn" | "itin";
   ssn: string;
   ssn_none_explanation: string;
   has_license: "" | "yes" | "no";
@@ -164,6 +165,7 @@ interface FlatState {
   full_name: string;
   date_of_birth: string;
   has_ssn: "" | "yes" | "no";
+  tax_id_type: "" | "ssn" | "itin";
   ssn: string;
   ssn_none_explanation: string;
   phone: string;
@@ -205,7 +207,7 @@ interface FlatState {
 
 const EMPTY_FLAT: FlatState = {
   rental_type: "", lease_start: "", property_id: "", property_other: "", full_name: "", date_of_birth: "",
-  has_ssn: "", ssn: "", ssn_none_explanation: "", phone: "",
+  has_ssn: "", tax_id_type: "", ssn: "", ssn_none_explanation: "", phone: "",
   has_license: "", drivers_license: "", drivers_license_state: "", gov_id_type: "", gov_id_number: "",
   email: "", occupants_count: "",
   employment_status: "", retirement_income_sources: [], retired_since: "", business_name: "", business_type: "",
@@ -221,7 +223,7 @@ const emptyHist = (kind: "current" | "previous"): HistoryInput => ({
 });
 const emptyVeh = (): VehicleInput => ({ make_model: "", year: "", color: "", plate: "", plate_state: "" });
 const emptyCo = (): CoData => ({
-  has_ssn: "", ssn: "", ssn_none_explanation: "",
+  has_ssn: "", tax_id_type: "", ssn: "", ssn_none_explanation: "",
   has_license: "", drivers_license: "", drivers_license_state: "", gov_id_type: "", gov_id_number: "",
   history: [emptyHist("current"), emptyHist("previous")],
   vehicles: [emptyVeh()],
@@ -351,7 +353,10 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     if (!isDob(f.date_of_birth)) e.add("date_of_birth");
 
     if (f.has_ssn === "") e.add("has_ssn");
-    else if (f.has_ssn === "yes") need("ssn", f.ssn);
+    else if (f.has_ssn === "yes") {
+      if (!f.tax_id_type) e.add("tax_id_type");
+      need("ssn", f.ssn);
+    }
     else need("ssn_none_explanation", f.ssn_none_explanation);
 
     need("phone", f.phone);
@@ -484,6 +489,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       date_of_birth: f.date_of_birth || null,
 
       has_ssn: f.has_ssn === "yes",
+      tax_id_type: f.has_ssn === "yes" ? (f.tax_id_type || null) : null,
       ssn: f.has_ssn === "yes" ? f.ssn.trim() || null : null,
       ssn_none_explanation: f.has_ssn === "no" ? f.ssn_none_explanation.trim() || null : null,
 
@@ -634,9 +640,14 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         <div className="mt-4">
           <YesNo label={d.ssnQuestion} value={f.has_ssn} onChange={(v) => set("has_ssn", v)} yes={d.yesShort} no={d.noShort} err={errs.has("has_ssn")} />
           {f.has_ssn === "yes" && (
-            <div className="mt-3"><Field label={d.ssn} hint={d.ssnHint} required>
-              <input type="password" className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={f.ssn} onChange={(e) => set("ssn", e.target.value)} />
-            </Field></div>
+            <div className="mt-3 space-y-3">
+              <TaxIdType dict={d} value={f.tax_id_type} onChange={(v) => set("tax_id_type", v)} err={errs.has("tax_id_type")} />
+              {f.tax_id_type && (
+                <Field label={f.tax_id_type === "itin" ? d.taxIdItin : d.taxIdSsn} hint={d.ssnHint} required>
+                  <input type="password" className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={f.ssn} onChange={(e) => set("ssn", e.target.value)} />
+                </Field>
+              )}
+            </div>
           )}
           {f.has_ssn === "no" && (
             <div className="mt-3"><Field label={d.ssnNoneExplain} required>
@@ -902,7 +913,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 
       {/* Consentimento */}
       <Section title={`${d.primaryLabel}: ${d.consentSection}`}>
-        <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
+        <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText.replace("{total}", dollars(feeCents))}</p>
         <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (errs.has("consent") ? " bg-red-50" : "")}>
           <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={f.consent_agreed} onChange={(e) => set("consent_agreed", e.target.checked)} />
           <span>{d.consentCheckbox}</span>
@@ -923,6 +934,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           onChange={(patch) => setOccupants((prev) => upd(prev, i, { co: { ...prev[i].co, ...patch } }))}
           errs={errs}
           prefix={`co_${i}_`}
+          feeCents={feeCents}
         />
       ) : null)}
 
@@ -953,7 +965,10 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 function validateCo(c: CoData, p: string, e: Set<string>) {
   const need = (key: string, v: string) => { if (!v.trim()) e.add(p + key); };
   if (c.has_ssn === "") e.add(p + "has_ssn");
-  else if (c.has_ssn === "yes") need("ssn", c.ssn);
+  else if (c.has_ssn === "yes") {
+    if (!c.tax_id_type) e.add(p + "tax_id_type");
+    need("ssn", c.ssn);
+  }
   else need("ssn_none_explanation", c.ssn_none_explanation);
 
   if (c.has_license === "") e.add(p + "has_license");
@@ -1047,6 +1062,7 @@ function buildCo(o: OccRow): CoApplicantInput {
     full_name: o.name.trim(),
     date_of_birth: o.dob || null,
     has_ssn: c.has_ssn === "yes",
+    tax_id_type: c.has_ssn === "yes" ? (c.tax_id_type || null) : null,
     ssn: c.has_ssn === "yes" ? c.ssn.trim() || null : null,
     ssn_none_explanation: c.has_ssn === "no" ? c.ssn_none_explanation.trim() || null : null,
     phone: o.phone.trim() || null,
@@ -1087,7 +1103,7 @@ function buildCo(o: OccRow): CoApplicantInput {
 // CoApplicantSection — mesmos campos do candidato, para um ocupante 18+.
 // =============================================================================
 function CoApplicantSection({
-  dict: d, name, co: c, onChange, errs, prefix,
+  dict: d, name, co: c, onChange, errs, prefix, feeCents,
 }: {
   dict: (typeof DICT)[Lang];
   name: string;
@@ -1095,6 +1111,7 @@ function CoApplicantSection({
   onChange: (patch: Partial<CoData>) => void;
   errs: Set<string>;
   prefix: string;
+  feeCents: number;
 }) {
   const [incomeTyping, setIncomeTyping] = useState(false);
   const who = name.trim() || d.coSection;
@@ -1118,9 +1135,14 @@ function CoApplicantSection({
         <div>
           <YesNo label={d.ssnQuestion} value={c.has_ssn} onChange={(v) => onChange({ has_ssn: v })} yes={d.yesShort} no={d.noShort} err={has("has_ssn")} />
           {c.has_ssn === "yes" && (
-            <div className="mt-3"><Field label={d.ssn} hint={d.ssnHint} required>
-              <input type="password" className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={c.ssn} onChange={(e) => onChange({ ssn: e.target.value })} />
-            </Field></div>
+            <div className="mt-3 space-y-3">
+              <TaxIdType dict={d} value={c.tax_id_type} onChange={(v) => onChange({ tax_id_type: v })} err={has("tax_id_type")} />
+              {c.tax_id_type && (
+                <Field label={c.tax_id_type === "itin" ? d.taxIdItin : d.taxIdSsn} hint={d.ssnHint} required>
+                  <input type="password" className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={c.ssn} onChange={(e) => onChange({ ssn: e.target.value })} />
+                </Field>
+              )}
+            </div>
           )}
           {c.has_ssn === "no" && (
             <div className="mt-3"><Field label={d.ssnNoneExplain} required>
@@ -1310,7 +1332,7 @@ function CoApplicantSection({
         {/* Consentimento + assinatura próprios */}
         <div>
           <h4 className="h-display text-sm text-primary">{heading(d.consentSection)}</h4>
-          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
+          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText.replace("{total}", dollars(feeCents))}</p>
           <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (has("consent") ? " bg-red-50" : "")}>
             <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={c.consent_agreed} onChange={(e) => onChange({ consent_agreed: e.target.checked })} />
             <span>{d.consentCheckbox}</span>
@@ -1580,6 +1602,31 @@ function YesNo({
             className={"rounded-lg border px-4 py-1.5 text-sm font-medium transition " +
               (value === opt ? "border-primary bg-primary text-white" : "border-black/[0.1] text-ink/60 hover:border-primary/40")}>
             {opt === "yes" ? yes : no}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// SSN ou ITIN: a equipe precisa saber qual dos dois foi informado.
+function TaxIdType({
+  dict: d, value, onChange, err,
+}: {
+  dict: (typeof DICT)[Lang];
+  value: "" | "ssn" | "itin";
+  onChange: (v: "ssn" | "itin") => void;
+  err?: boolean;
+}) {
+  return (
+    <div className={"flex flex-wrap items-center justify-between gap-3 rounded-lg p-1 " + (err ? "bg-red-50" : "")}>
+      <span className="text-sm text-ink/80">{d.taxIdWhich}<span className="text-red-500"> *</span></span>
+      <div className="flex gap-2">
+        {(["ssn", "itin"] as const).map((opt) => (
+          <button key={opt} type="button" onClick={() => onChange(opt)}
+            className={"rounded-lg border px-4 py-1.5 text-sm font-medium transition " +
+              (value === opt ? "border-primary bg-primary text-white" : "border-black/[0.1] text-ink/60 hover:border-primary/40")}>
+            {opt === "ssn" ? d.taxIdSsn : d.taxIdItin}
           </button>
         ))}
       </div>
