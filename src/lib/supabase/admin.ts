@@ -30,5 +30,11 @@ export function createAdminClient() {
       persistSession: false,
       autoRefreshToken: false,
     },
+    // Sem isto o Next guarda as leituras no Data Cache da Vercel (este client não
+    // usa cookies, então nada o tira do cache) e telas públicas como o /apply
+    // mostram dado velho mesmo após novo deploy. Andrea 2026-10-30.
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }
