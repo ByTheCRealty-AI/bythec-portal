@@ -20,6 +20,7 @@ import {
   KeyRound,
   BellRing,
   ClipboardList,
+  Inbox,
   ShieldCheck,
   ChevronDown,
   LogOut,
@@ -69,6 +70,7 @@ const NAV: Item[] = [
   { href: "/expenses", label: "Expenses", icon: Receipt, ready: true, cap: "expenses.manage" },
   { href: "/finances", label: "Finances", icon: PiggyBank, ready: true, cap: "financials.full" },
   { href: "/applications", label: "Applications", icon: ClipboardList, ready: true, cap: "applications.manage" },
+  { href: "/leads", label: "Leads", icon: Inbox, ready: true, cap: "operations.edit" },
   { href: "/requests", label: "Requests", icon: Wrench, ready: true, cap: "operations.edit" },
   { href: "/services", label: "Services", icon: Hammer, ready: true, cap: "operations.edit" },
   { href: "/providers", label: "Providers", icon: HardHat, ready: true, cap: "providers.view" },
@@ -89,6 +91,7 @@ export function Sidebar({
   user,
   remindersBadge = 0,
   applicationsBadge = 0,
+  leadsBadge = 0,
   onNavigate,
   className,
 }: {
@@ -99,6 +102,8 @@ export function Sidebar({
   remindersBadge?: number;
   // Nº de aplicações de aluguel com status 'new' (não vistas). 0 = sem badge.
   applicationsBadge?: number;
+  // Nº de leads do site ainda não tratados (handled = false). 0 = sem badge.
+  leadsBadge?: number;
   // Chamado ao clicar num link de navegação — usado pelo drawer mobile pra fechar.
   onNavigate?: () => void;
   // Override do shell externo (ex.: static md+ vs. drawer mobile).
@@ -223,6 +228,11 @@ export function Sidebar({
               {item.href === "/applications" && applicationsBadge > 0 && (
                 <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {applicationsBadge}
+                </span>
+              )}
+              {item.href === "/leads" && leadsBadge > 0 && (
+                <span className="grid min-w-[1.25rem] place-items-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {leadsBadge}
                 </span>
               )}
               {!item.ready && (

@@ -15,6 +15,7 @@ export function AppShell({
   user,
   remindersBadge = 0,
   applicationsBadge = 0,
+  leadsBadge = 0,
   children,
 }: {
   caps: Capability[];
@@ -22,6 +23,7 @@ export function AppShell({
   user: SidebarUser;
   remindersBadge?: number;
   applicationsBadge?: number;
+  leadsBadge?: number;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -44,7 +46,7 @@ export function AppShell({
     <div className="flex min-h-screen">
       {/* Sidebar estática — só md+ */}
       <div className="hidden md:block">
-        <Sidebar caps={caps} canManageUsers={canManageUsers} user={user} remindersBadge={remindersBadge} applicationsBadge={applicationsBadge} />
+        <Sidebar caps={caps} canManageUsers={canManageUsers} user={user} remindersBadge={remindersBadge} applicationsBadge={applicationsBadge} leadsBadge={leadsBadge} />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -95,6 +97,7 @@ export function AppShell({
               user={user}
               remindersBadge={remindersBadge}
               applicationsBadge={applicationsBadge}
+              leadsBadge={leadsBadge}
               onNavigate={() => setDrawerOpen(false)}
               className="relative"
             />

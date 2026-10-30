@@ -79,6 +79,7 @@ create table if not exists website_leads (
   phone             text,
   message           text,
   property_address  text,
+  service           text,                              -- which service the lead wants (Buying / Selling / Rental / Management …)
   kind              text not null default 'contact',   -- contact | sell | listing
   source            text,                              -- which page/form
   listing_slug      text,                              -- if from a listing inquiry

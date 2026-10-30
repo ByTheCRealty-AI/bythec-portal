@@ -56,7 +56,7 @@ async function load() {
       // mais barato que uma query por listing.
       supabase
         .from("listing_photos")
-        .select("id, listing_id, storage_path, url, sort_order, created_at, created_by")
+        .select("id, listing_id, storage_path, url, caption, sort_order, created_at, created_by")
         .order("sort_order", { ascending: true }),
     ]);
     if (live.error) throw live.error;

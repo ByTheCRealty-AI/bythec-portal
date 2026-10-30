@@ -70,6 +70,21 @@ async function newApplicationsCount(): Promise<number> {
   }
 }
 
+// Badge de Leads = nº de leads do site ainda não tratados (handled = false).
+// Falha silenciosa (0) se a tabela ainda não existe (migration 0033 não aplicada).
+async function newLeadsCount(): Promise<number> {
+  try {
+    const supabase = createClient();
+    const { count } = await supabase
+      .from("website_leads")
+      .select("id", { count: "exact", head: true })
+      .eq("handled", false);
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function initialsFrom(name: string | null, email: string | null): string {
   const src = (name || email || "?").trim();
   const parts = src.split(/\s+/).filter(Boolean);
@@ -89,9 +104,10 @@ export default async function PainelLayout({ children }: { children: React.React
     initials: initialsFrom(profile.full_name, profile.email),
   };
 
-  const [remindersBadge, applicationsBadge] = await Promise.all([
+  const [remindersBadge, applicationsBadge, leadsBadge] = await Promise.all([
     can(profile, "reminders.view") ? remindersBadgeCount(profile.role) : Promise.resolve(0),
     can(profile, "applications.manage") ? newApplicationsCount() : Promise.resolve(0),
+    can(profile, "operations.edit") ? newLeadsCount() : Promise.resolve(0),
   ]);
 
   return (
@@ -101,6 +117,7 @@ export default async function PainelLayout({ children }: { children: React.React
       user={user}
       remindersBadge={remindersBadge}
       applicationsBadge={applicationsBadge}
+      leadsBadge={leadsBadge}
     >
       {/* Rede de segurança: se um link de convite/recuperação cair numa rota do
           painel com a sessão no hash, finaliza o fluxo (grava sessão do convidado

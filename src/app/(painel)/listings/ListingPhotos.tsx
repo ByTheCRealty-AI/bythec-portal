@@ -1,7 +1,7 @@
 "use client";
 
 // =============================================================================
-// Galeria de fotos da listing — upload direto do celular/computador.
+// Galeria de fotos da listing — upload + REORDENAR (arrastar) + LEGENDAS.
 // =============================================================================
 // A Andrea fotografa com iPhone, então chega HEIC (que navegador não abre) e
 // JPG de 8 MB. O preparo acontece AQUI no navegador antes de subir:
@@ -12,15 +12,16 @@
 // listings.manage) — não passam por server action, então nada de limite de
 // payload da Vercel.
 //
-// A PRIMEIRA foto é a capa: é ela que o site mostra no card. Um trigger no
-// banco mantém listings.cover_photo_url apontando pra primeira, então "Make
-// cover" é só reordenar.
-import { useRef, useState, useTransition } from "react";
+// ORDEM: arrasta pra reordenar (a 1ª é a capa). Um trigger no banco mantém
+// listings.cover_photo_url apontando pra primeira. LEGENDA: campo por foto,
+// salva ao sair do campo; aparece embaixo da foto na galeria do site.
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ImagePlus, Loader2, Trash2, Star, AlertCircle } from "lucide-react";
+import { ImagePlus, Loader2, Trash2, Star, AlertCircle, GripVertical } from "lucide-react";
 import { cx } from "@/lib/format";
 import { prepareImage, ACCEPTED_IMAGE_TYPES } from "@/lib/image-prep";
 import type { ListingPhoto } from "@/lib/types";
+import { updateListingPhotoCaptionAction } from "./actions";
 
 type Action = (fd: FormData) => void | Promise<void>;
 const BUCKET = "listing-photos";
@@ -45,14 +46,23 @@ export function ListingPhotos({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  // Cópia local pra UI otimista (reordenar sem esperar o round-trip). Sincroniza
+  // sempre que o servidor devolve a lista nova (revalidatePath).
+  const [items, setItems] = useState<ListingPhoto[]>(photos);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setItems(photos);
+    setCaptions(Object.fromEntries(photos.map((p) => [p.id, p.caption ?? ""])));
+  }, [photos]);
+
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
     setError(null);
     const supabase = createClient();
 
-    // Uma de cada vez: converter HEIC é pesado e assim a mensagem de progresso
-    // diz exatamente qual foto está sendo processada.
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
@@ -75,16 +85,14 @@ export function ListingPhotos({
         await addAction(fd);
       } catch (err) {
         setError(
-          err instanceof Error
-            ? `${file.name}: ${err.message}`
-            : `${file.name} could not be added.`
+          err instanceof Error ? `${file.name}: ${err.message}` : `${file.name} could not be added.`
         );
-        break; // para no primeiro erro em vez de despejar N mensagens iguais
+        break;
       }
     }
 
     setBusy(null);
-    if (fileRef.current) fileRef.current.value = ""; // permite re-escolher o mesmo arquivo
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   function remove(p: ListingPhoto) {
@@ -100,18 +108,53 @@ export function ListingPhotos({
     });
   }
 
-  // "Make cover" = mandar essa foto pro início da ordem.
-  function makeCover(p: ListingPhoto) {
-    setError(null);
-    const rest = photos.filter((x) => x.id !== p.id).map((x) => x.id);
+  // Persiste a ordem nova (lista de ids). Atualiza a UI na hora e grava.
+  function persistOrder(next: ListingPhoto[]) {
+    setItems(next);
     const fd = new FormData();
     fd.set("listing_id", listingId);
-    fd.set("order", [p.id, ...rest].join(","));
+    fd.set("order", next.map((x) => x.id).join(","));
     start(async () => {
       try {
         await reorderAction(fd);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not change the cover photo.");
+        setError(err instanceof Error ? err.message : "Could not save the new order.");
+      }
+    });
+  }
+
+  function makeCover(p: ListingPhoto) {
+    setError(null);
+    persistOrder([p, ...items.filter((x) => x.id !== p.id)]);
+  }
+
+  // --- Drag to reorder (desktop) --------------------------------------------
+  function onDrop(targetId: string) {
+    if (!dragId || dragId === targetId) {
+      setDragId(null);
+      return;
+    }
+    const dragItem = items.find((x) => x.id === dragId);
+    if (!dragItem) return;
+    const without = items.filter((x) => x.id !== dragId);
+    const targetIndex = without.findIndex((x) => x.id === targetId);
+    const next = [...without.slice(0, targetIndex), dragItem, ...without.slice(targetIndex)];
+    setDragId(null);
+    persistOrder(next);
+  }
+
+  // --- Captions --------------------------------------------------------------
+  function saveCaption(p: ListingPhoto) {
+    const value = (captions[p.id] ?? "").trim();
+    if (value === (p.caption ?? "")) return; // nada mudou
+    const fd = new FormData();
+    fd.set("id", p.id);
+    fd.set("caption", value);
+    start(async () => {
+      try {
+        await updateListingPhotoCaptionAction(fd);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save the caption.");
       }
     });
   }
@@ -124,8 +167,8 @@ export function ListingPhotos({
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink/50">Photos</p>
           <p className="mt-0.5 text-xs text-ink/45">
-            The first photo is the cover shown on the website. iPhone photos (HEIC) are converted
-            automatically.
+            Drag to reorder — the first photo is the cover shown on the website. Add a caption under any
+            photo. iPhone photos (HEIC) are converted automatically.
           </p>
         </div>
         {canManage && (
@@ -162,53 +205,80 @@ export function ListingPhotos({
         </p>
       )}
 
-      {photos.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/[0.12] bg-black/[0.015] px-4 py-8 text-center text-sm text-ink/50">
           No photos yet.{canManage ? " Add the first one — it becomes the cover." : ""}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {photos.map((p, i) => (
+          {items.map((p, i) => (
             <div
               key={p.id}
-              className={cx(
-                "group relative aspect-[4/3] overflow-hidden rounded-xl border bg-black/[0.03]",
-                i === 0 ? "border-primary/40 ring-2 ring-primary/20" : "border-black/[0.08]"
-              )}
+              draggable={canManage}
+              onDragStart={() => canManage && setDragId(p.id)}
+              onDragOver={(e) => canManage && e.preventDefault()}
+              onDrop={() => canManage && onDrop(p.id)}
+              onDragEnd={() => setDragId(null)}
+              className={cx("flex flex-col gap-1.5", dragId === p.id && "opacity-50")}
             >
-              {/* next/image exigiria configurar o host remoto; <img> é o certo
-                  aqui — é um thumbnail interno, não uma imagem do site. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+              <div
+                className={cx(
+                  "group relative aspect-[4/3] overflow-hidden rounded-xl border bg-black/[0.03]",
+                  i === 0 ? "border-primary/40 ring-2 ring-primary/20" : "border-black/[0.08]",
+                  canManage && "cursor-grab active:cursor-grabbing"
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt="" draggable={false} className="h-full w-full object-cover" loading="lazy" />
 
-              {i === 0 && (
-                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-white">
-                  <Star className="h-3 w-3 fill-white" /> Cover
-                </span>
-              )}
+                {i === 0 && (
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-white">
+                    <Star className="h-3 w-3 fill-white" /> Cover
+                  </span>
+                )}
+                {canManage && (
+                  <span className="absolute right-2 top-2 rounded-md bg-black/45 p-1 text-white opacity-0 transition group-hover:opacity-100">
+                    <GripVertical className="h-3.5 w-3.5" />
+                  </span>
+                )}
 
-              {canManage && (
-                <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
-                  {i !== 0 && (
+                {canManage && (
+                  <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                    {i !== 0 && (
+                      <button
+                        type="button"
+                        disabled={working}
+                        onClick={() => makeCover(p)}
+                        className="rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-ink transition hover:bg-white disabled:opacity-60"
+                      >
+                        Make cover
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={working}
-                      onClick={() => makeCover(p)}
-                      className="rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-ink transition hover:bg-white disabled:opacity-60"
+                      onClick={() => remove(p)}
+                      aria-label="Remove photo"
+                      className="ml-auto rounded-lg bg-white/90 p-1.5 text-red-600 transition hover:bg-white disabled:opacity-60"
                     >
-                      Make cover
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    disabled={working}
-                    onClick={() => remove(p)}
-                    aria-label="Remove photo"
-                    className="ml-auto rounded-lg bg-white/90 p-1.5 text-red-600 transition hover:bg-white disabled:opacity-60"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                  </div>
+                )}
+              </div>
+
+              {canManage ? (
+                <input
+                  type="text"
+                  value={captions[p.id] ?? ""}
+                  onChange={(e) => setCaptions((c) => ({ ...c, [p.id]: e.target.value }))}
+                  onBlur={() => saveCaption(p)}
+                  placeholder="Add a caption…"
+                  maxLength={160}
+                  className="w-full rounded-lg border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-ink/80 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                />
+              ) : (
+                p.caption && <p className="px-0.5 text-xs text-ink/55">{p.caption}</p>
               )}
             </div>
           ))}
