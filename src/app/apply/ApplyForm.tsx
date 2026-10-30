@@ -19,12 +19,13 @@ import { DICT, type Lang } from "./i18n";
 import type {
   ApplicationInput,
   AttachmentInput,
+  CoApplicantInput,
   HistoryInput,
   PropertyOption,
   ReferenceInput,
   VehicleInput,
 } from "./types";
-import { APPLICATION_FEE_CENTS, APPLICATION_PAYMENT_METHODS } from "./types";
+import { APPLICATION_PAYMENT_METHODS, applicationBaseCents, applicationFeeCents } from "./types";
 import { createApplicationPaymentIntent, createIdUploadUrl, submitApplication } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 
@@ -91,7 +92,53 @@ function formatPhone(v: string): string {
 }
 
 interface UploadedFile { path: string; file_name: string; content_type: string }
-interface OccRow { name: string; dob: string; is_adult: boolean; phone: string; email: string; relationship: string; idFile: UploadedFile | null }
+interface OccRow {
+  name: string; dob: string; is_adult: boolean; phone: string; email: string; relationship: string; idFile: UploadedFile | null;
+  co_applicant: "" | "yes" | "no"; // obrigatório pra 18+
+  co: CoData;
+}
+
+// O que o co-applicant preenche além do que já está na linha do ocupante (nome,
+// nascimento, telefone, e-mail, ID): o mesmo do candidato, menos imóvel/ocupantes.
+interface CoData {
+  has_ssn: "" | "yes" | "no";
+  ssn: string;
+  ssn_none_explanation: string;
+  has_license: "" | "yes" | "no";
+  drivers_license: string;
+  drivers_license_state: string;
+  gov_id_type: "" | "state_id" | "passport";
+  gov_id_number: string;
+  history: HistoryInput[];
+  vehicles: VehicleInput[];
+  employment_status: "" | "employed" | "self_employed" | "retired";
+  retirement_income_sources: string[];
+  retired_since: string;
+  business_name: string;
+  business_type: string;
+  employer: string;
+  employer_address: string;
+  manager_name: string;
+  manager_phone: string;
+  job_title: string;
+  monthly_income: string;
+  length_of_employment: string;
+  incomeProofs: UploadedFile[];
+  refs: ReferenceInput[];
+  evicted: "" | "yes" | "no";
+  evicted_detail: string;
+  felony: "" | "yes" | "no";
+  felony_detail: string;
+  bankruptcy: "" | "yes" | "no";
+  bankruptcy_detail: string;
+  smokes: "" | "yes" | "no";
+  has_pets: "" | "yes" | "no";
+  pets_detail: string;
+  reason_for_moving: string;
+  consent_agreed: boolean;
+  signature_name: string;
+  signature_date: string;
+}
 
 interface FlatState {
   rental_type: "" | "year_round" | "winter";
@@ -157,6 +204,24 @@ const emptyHist = (kind: "current" | "previous"): HistoryInput => ({
   kind, street: "", city: "", state: "", zip: "", duration: "", landlord_name: "", landlord_phone: "",
 });
 const emptyVeh = (): VehicleInput => ({ make_model: "", year: "", color: "", plate: "", plate_state: "" });
+const emptyCo = (): CoData => ({
+  has_ssn: "", ssn: "", ssn_none_explanation: "",
+  has_license: "", drivers_license: "", drivers_license_state: "", gov_id_type: "", gov_id_number: "",
+  history: [emptyHist("current"), emptyHist("previous")],
+  vehicles: [emptyVeh()],
+  employment_status: "", retirement_income_sources: [], retired_since: "", business_name: "", business_type: "",
+  employer: "", employer_address: "", manager_name: "", manager_phone: "", job_title: "",
+  monthly_income: "", length_of_employment: "", incomeProofs: [],
+  refs: [{ name: "", phone: "" }, { name: "", phone: "" }],
+  evicted: "", evicted_detail: "", felony: "", felony_detail: "", bankruptcy: "", bankruptcy_detail: "",
+  smokes: "", has_pets: "", pets_detail: "", reason_for_moving: "",
+  consent_agreed: false, signature_name: "", signature_date: todayISO(),
+});
+const emptyOcc = (): OccRow => ({
+  name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null,
+  co_applicant: "", co: emptyCo(),
+});
+const dollars = (cents: number) => "$" + (cents / 100).toFixed(2);
 
 export default function ApplyForm({ properties }: { properties: PropertyOption[] }) {
   const [lang, setLang] = useState<Lang>("en");
@@ -165,9 +230,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   const [f, setF] = useState<FlatState>(EMPTY_FLAT);
   const set = <K extends keyof FlatState>(k: K, v: FlatState[K]) => setF((p) => ({ ...p, [k]: v }));
 
-  const [occupants, setOccupants] = useState<OccRow[]>([
-    { name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null },
-  ]);
+  const [occupants, setOccupants] = useState<OccRow[]>([emptyOcc()]);
   const [history, setHistory] = useState<HistoryInput[]>([
     emptyHist("current"), emptyHist("previous"),
   ]);
@@ -189,7 +252,13 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         const dr = JSON.parse(raw);
         if (dr && typeof dr === "object" && dr.f) {
           setF({ ...EMPTY_FLAT, ...dr.f, ssn: "" });
-          if (Array.isArray(dr.occupants) && dr.occupants.length) setOccupants(dr.occupants);
+          if (Array.isArray(dr.occupants) && dr.occupants.length) {
+            // Rascunho antigo não tem os campos de co-applicant.
+            setOccupants(dr.occupants.map((o: Partial<OccRow>) => {
+              const blank = emptyOcc();
+              return { ...blank, ...o, co: { ...blank.co, ...(o.co ?? {}), ssn: "" } };
+            }));
+          }
           if (Array.isArray(dr.history) && dr.history.length) setHistory(dr.history);
           if (Array.isArray(dr.vehicles) && dr.vehicles.length) setVehicles(dr.vehicles);
           if (Array.isArray(dr.refs) && dr.refs.length) setRefs(dr.refs);
@@ -209,7 +278,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     try {
       window.localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ f: { ...f, ssn: "" }, occupants, history, vehicles, refs, applicantId, incomeProofs, lang })
+        JSON.stringify({ f: { ...f, ssn: "" }, occupants: occupants.map((o) => ({ ...o, co: { ...o.co, ssn: "" } })), history, vehicles, refs, applicantId, incomeProofs, lang })
       );
     } catch {
       /* storage cheio/bloqueado — sem rascunho, o form continua funcionando */
@@ -219,7 +288,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     if (!confirm(d.startOverConfirm)) return;
     try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     setF({ ...EMPTY_FLAT, signature_date: todayISO() });
-    setOccupants([{ name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null }]);
+    setOccupants([emptyOcc()]);
     setHistory([emptyHist("current"), emptyHist("previous")]);
     setVehicles([emptyVeh()]);
     setRefs([{ name: "", phone: "" }, { name: "", phone: "" }]);
@@ -241,6 +310,15 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     const n = Number((s || "").replace(/[^0-9.]/g, ""));
     return s.trim() && Number.isFinite(n) ? n : null;
   };
+
+  // Ocupante #1 = o próprio candidato. Só pede detalhes de outros ocupantes se 2+.
+  const occCountLive = numOrNull(f.occupants_count);
+  const showOtherOccupants = occCountLive != null && occCountLive >= 2;
+  // Valem só os 18+ que responderam "sim" (quem desmarca o 18+ deixa de contar).
+  const coOccupants = showOtherOccupants ? occupants.filter((o) => o.is_adult && o.co_applicant === "yes") : [];
+  const coCount = coOccupants.length;
+  const feeCents = applicationFeeCents(coCount);
+  const baseCents = applicationBaseCents(coCount);
 
   // ---- Validation (tudo obrigatório) ---------------------------------------
   const validate = (): Set<string> => {
@@ -290,6 +368,8 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           need(`occ_${i}_phone`, o.phone);
           if (o.phone.trim() && f.phone.trim() && digits(o.phone) === digits(f.phone)) e.add(`occ_${i}_phone_dup`);
           if (!o.idFile) e.add(`occ_${i}_id`);
+          if (o.co_applicant === "") e.add(`occ_${i}_co`);
+          else if (o.co_applicant === "yes") validateCo(o.co, `co_${i}_`, e);
         }
       });
     }
@@ -405,7 +485,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       // Só envia outros ocupantes quando o total é 2+ (o #1 é o próprio candidato).
       occupants:
         (numOrNull(f.occupants_count) ?? 0) >= 2
-          ? occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone, email: o.email.trim(), relationship: o.relationship }))
+          ? occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone, email: o.email.trim(), relationship: o.relationship, co_applicant: o.is_adult && o.co_applicant === "yes" }))
           : [],
       // 10+ anos no endereço atual: o anterior não é pedido nem enviado.
       rental_history: tenPlus ? history.filter((h) => h.kind === "current") : history,
@@ -442,6 +522,8 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       signature_date_2: f.signature_date_2 || null,
 
       attachments,
+
+      co_applicants: coOccupants.map(buildCo),
     };
   };
 
@@ -453,9 +535,6 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     []
   );
 
-  // Ocupante #1 = o próprio candidato. Só pede detalhes de outros ocupantes se 2+.
-  const occCountLive = numOrNull(f.occupants_count);
-  const showOtherOccupants = occCountLive != null && occCountLive >= 2;
 
   return (
     <div className="space-y-6">
@@ -636,6 +715,10 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                     {errs.has(`occ_${i}_phone_dup`) && <span className="mt-1 block text-xs text-red-500">{d.occPhone}</span>}
                   </Field>
                   <IdUpload label={d.idUploadOccupant} hint={d.idUploadHint} dict={d} file={o.idFile} onChange={(uf) => setOccupants(upd(occupants, i, { idFile: uf }))} error={errs.has(`occ_${i}_id`)} />
+                  <div>
+                    <YesNo label={d.occCoQuestion} value={o.co_applicant} onChange={(v) => setOccupants(upd(occupants, i, { co_applicant: v }))} yes={d.yesShort} no={d.noShort} err={errs.has(`occ_${i}_co`)} />
+                    <span className="mt-1 block text-xs text-ink/45">{d.occCoHint}</span>
+                  </div>
                 </div>
               )}
               {occupants.length > 1 && (
@@ -646,7 +729,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
             </div>
           ))}
         </div>
-        <button type="button" className={addCls} onClick={() => setOccupants([...occupants, { name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null }])}>
+        <button type="button" className={addCls} onClick={() => setOccupants([...occupants, emptyOcc()])}>
           {d.addOccupant}
         </button>
         </>
@@ -801,6 +884,19 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         </div>
       </Section>
 
+      {/* Co-applicants: uma seção completa pra cada ocupante 18+ marcado "sim" */}
+      {showOtherOccupants && occupants.map((o, i) => o.is_adult && o.co_applicant === "yes" ? (
+        <CoApplicantSection
+          key={i}
+          dict={d}
+          name={o.name}
+          co={o.co}
+          onChange={(patch) => setOccupants((prev) => upd(prev, i, { co: { ...prev[i].co, ...patch } }))}
+          errs={errs}
+          prefix={`co_${i}_`}
+        />
+      ) : null)}
+
       {/* Consentimento */}
       <Section title={d.consentSection}>
         <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
@@ -811,21 +907,25 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label={d.signature} required><input className={inputCls + E("signature_name")} value={f.signature_name} onChange={(e) => set("signature_name", e.target.value)} /></Field>
           <Field label={d.date} required><input type="date" className={inputCls + E("signature_date")} value={f.signature_date} onChange={(e) => set("signature_date", e.target.value)} /></Field>
-          <Field label={d.signature2}><input className={inputCls} value={f.signature_name_2} onChange={(e) => set("signature_name_2", e.target.value)} /></Field>
-          <Field label={d.date}><input type="date" className={inputCls} value={f.signature_date_2} onChange={(e) => set("signature_date_2", e.target.value)} /></Field>
         </div>
       </Section>
 
       {/* Pagamento + envio */}
       <Section title={d.feeSection}>
         <p className="text-sm text-ink/70">{d.feeText}</p>
+        <dl className="mt-3 space-y-1 rounded-xl border border-black/[0.06] bg-page/60 p-4 text-sm text-ink/75">
+          <div className="flex justify-between gap-3"><dt>{d.feeBase}</dt><dd>{dollars(10000)}</dd></div>
+          {coCount > 0 && <div className="flex justify-between gap-3"><dt>{d.feeCo} × {coCount}</dt><dd>{dollars(5000 * coCount)}</dd></div>}
+          <div className="flex justify-between gap-3"><dt>{d.feeProcessing}</dt><dd>{dollars(feeCents - baseCents)}</dd></div>
+          <div className="flex justify-between gap-3 border-t border-black/[0.08] pt-1.5 font-semibold text-ink"><dt>{d.feeTotal}</dt><dd>{dollars(feeCents)}</dd></div>
+        </dl>
         {!stripePromise && <p className="mt-3 text-sm text-red-600">Payment is not configured yet. Please call (508) 364-8556.</p>}
         {stripePromise && (
           <Elements stripe={stripePromise} options={{
-            mode: "payment", amount: APPLICATION_FEE_CENTS, currency: "usd",
+            mode: "payment", amount: feeCents, currency: "usd",
             paymentMethodTypes: [...APPLICATION_PAYMENT_METHODS], appearance,
           }}>
-            <PaymentSubmit dict={d} getPayload={buildPayload} validate={validate} onErrors={setErrs} />
+            <PaymentSubmit dict={d} getPayload={buildPayload} validate={validate} onErrors={setErrs} coCount={coCount} feeCents={feeCents} />
           </Elements>
         )}
       </Section>
@@ -833,16 +933,392 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   );
 }
 
+// Mesmas regras do candidato, com as chaves prefixadas por co-applicant.
+function validateCo(c: CoData, p: string, e: Set<string>) {
+  const need = (key: string, v: string) => { if (!v.trim()) e.add(p + key); };
+  if (c.has_ssn === "") e.add(p + "has_ssn");
+  else if (c.has_ssn === "yes") need("ssn", c.ssn);
+  else need("ssn_none_explanation", c.ssn_none_explanation);
+
+  if (c.has_license === "") e.add(p + "has_license");
+  else if (c.has_license === "yes") {
+    need("drivers_license", c.drivers_license);
+    need("drivers_license_state", c.drivers_license_state);
+  } else {
+    if (!c.gov_id_type) e.add(p + "gov_id_type");
+    need("gov_id_number", c.gov_id_number);
+  }
+
+  const longStay = c.history.some((h) => h.kind === "current" && h.ten_plus_years);
+  c.history.forEach((h, i) => {
+    if (h.kind === "previous" && longStay) return;
+    need(`hist_${i}_street`, h.street);
+    need(`hist_${i}_city`, h.city);
+    need(`hist_${i}_state`, h.state);
+    need(`hist_${i}_zip`, h.zip);
+    need(`hist_${i}_dur`, h.duration);
+    need(`hist_${i}_lname`, h.landlord_name);
+    need(`hist_${i}_lphone`, h.landlord_phone);
+  });
+
+  c.vehicles.forEach((v, i) => {
+    need(`veh_${i}_mm`, v.make_model);
+    need(`veh_${i}_year`, v.year);
+    need(`veh_${i}_color`, v.color);
+    need(`veh_${i}_plate`, v.plate);
+    need(`veh_${i}_state`, v.plate_state);
+  });
+
+  if (!c.employment_status) e.add(p + "employment_status");
+  else if (c.employment_status === "employed") {
+    need("employer", c.employer);
+    need("employer_address", c.employer_address);
+    need("manager_name", c.manager_name);
+    need("manager_phone", c.manager_phone);
+    need("job_title", c.job_title);
+    need("monthly_income", c.monthly_income);
+    need("length_of_employment", c.length_of_employment);
+  } else if (c.employment_status === "self_employed") {
+    need("business_name", c.business_name);
+    need("business_type", c.business_type);
+    need("length_of_employment", c.length_of_employment);
+    need("monthly_income", c.monthly_income);
+    if (c.incomeProofs.length === 0) e.add(p + "income_proof");
+  } else {
+    if (c.retirement_income_sources.length === 0) e.add(p + "retirement_income_sources");
+    need("monthly_income", c.monthly_income);
+    need("retired_since", c.retired_since);
+    if (c.incomeProofs.length === 0) e.add(p + "income_proof");
+  }
+
+  c.refs.forEach((r, i) => { need(`ref_${i}_name`, r.name); need(`ref_${i}_phone`, r.phone); });
+
+  (["evicted", "felony", "bankruptcy", "smokes", "has_pets"] as const).forEach((k) => {
+    if (c[k] === "") e.add(p + k);
+  });
+  if (c.evicted === "yes") need("evicted_detail", c.evicted_detail);
+  if (c.felony === "yes") need("felony_detail", c.felony_detail);
+  if (c.bankruptcy === "yes") need("bankruptcy_detail", c.bankruptcy_detail);
+  if (c.has_pets === "yes") need("pets_detail", c.pets_detail);
+  need("reason_for_moving", c.reason_for_moving);
+
+  if (!c.consent_agreed) e.add(p + "consent");
+  need("signature_name", c.signature_name);
+  need("signature_date", c.signature_date);
+}
+
+// Payload de um co-applicant: identidade vem da linha do ocupante.
+function buildCo(o: OccRow): CoApplicantInput {
+  const c = o.co;
+  const status = c.employment_status;
+  const attachments: AttachmentInput[] = [];
+  if (o.idFile)
+    attachments.push({
+      file_path: o.idFile.path, category: "applicant_id", occupant_index: null,
+      label: o.name.trim() || null, file_name: o.idFile.file_name, content_type: o.idFile.content_type,
+    });
+  if (status === "self_employed" || status === "retired")
+    c.incomeProofs.forEach((pf) =>
+      attachments.push({
+        file_path: pf.path, category: "income_proof", occupant_index: null,
+        label: null, file_name: pf.file_name, content_type: pf.content_type,
+      })
+    );
+  const yn = (v: "" | "yes" | "no"): boolean | null => (v === "" ? null : v === "yes");
+  const n = Number((c.monthly_income || "").replace(/[^0-9.]/g, ""));
+  const longStay = c.history.some((h) => h.kind === "current" && h.ten_plus_years);
+  return {
+    full_name: o.name.trim(),
+    date_of_birth: o.dob || null,
+    has_ssn: c.has_ssn === "yes",
+    ssn: c.has_ssn === "yes" ? c.ssn.trim() || null : null,
+    ssn_none_explanation: c.has_ssn === "no" ? c.ssn_none_explanation.trim() || null : null,
+    phone: o.phone.trim() || null,
+    has_license: c.has_license === "yes",
+    drivers_license: c.has_license === "yes" ? c.drivers_license.trim() || null : null,
+    drivers_license_state: c.has_license === "yes" ? c.drivers_license_state.trim() || null : null,
+    gov_id_type: c.has_license === "no" ? (c.gov_id_type || null) : null,
+    gov_id_number: c.has_license === "no" ? c.gov_id_number.trim() || null : null,
+    email: o.email.trim() || null,
+    rental_history: longStay ? c.history.filter((h) => h.kind === "current") : c.history,
+    vehicles: c.vehicles,
+    employment_status: status || null,
+    retirement_income_sources: status === "retired" ? c.retirement_income_sources : null,
+    retired_since: status === "retired" ? c.retired_since.trim() || null : null,
+    business_name: status === "self_employed" ? c.business_name.trim() || null : null,
+    business_type: status === "self_employed" ? c.business_type.trim() || null : null,
+    employer: status === "employed" ? c.employer.trim() || null : null,
+    employer_address: status === "employed" ? c.employer_address.trim() || null : null,
+    manager_name: status === "employed" ? c.manager_name.trim() || null : null,
+    manager_phone: status === "employed" ? c.manager_phone.trim() || null : null,
+    job_title: status === "employed" ? c.job_title.trim() || null : null,
+    monthly_income: c.monthly_income.trim() && Number.isFinite(n) ? n : null,
+    length_of_employment: status !== "retired" ? c.length_of_employment.trim() || null : null,
+    personal_references: c.refs,
+    evicted: yn(c.evicted), evicted_detail: c.evicted_detail.trim() || null,
+    felony: yn(c.felony), felony_detail: c.felony_detail.trim() || null,
+    bankruptcy: yn(c.bankruptcy), bankruptcy_detail: c.bankruptcy_detail.trim() || null,
+    smokes: yn(c.smokes), has_pets: yn(c.has_pets), pets_detail: c.pets_detail.trim() || null,
+    reason_for_moving: c.reason_for_moving.trim() || null,
+    consent_agreed: c.consent_agreed,
+    signature_name: c.signature_name.trim() || null,
+    signature_date: c.signature_date || null,
+    attachments,
+  };
+}
+
+// =============================================================================
+// CoApplicantSection — mesmos campos do candidato, para um ocupante 18+.
+// =============================================================================
+function CoApplicantSection({
+  dict: d, name, co: c, onChange, errs, prefix,
+}: {
+  dict: (typeof DICT)[Lang];
+  name: string;
+  co: CoData;
+  onChange: (patch: Partial<CoData>) => void;
+  errs: Set<string>;
+  prefix: string;
+}) {
+  const [incomeTyping, setIncomeTyping] = useState(false);
+  const E = (key: string) => (errs.has(prefix + key) ? " !border-red-400 ring-2 ring-red-200" : "");
+  const has = (key: string) => errs.has(prefix + key);
+  const longStay = c.history.some((h) => h.kind === "current" && h.ten_plus_years);
+  const setHistory = (i: number, patch: Partial<HistoryInput>) => onChange({ history: upd(c.history, i, patch) });
+  const setVehicle = (i: number, patch: Partial<VehicleInput>) => onChange({ vehicles: upd(c.vehicles, i, patch) });
+  const setRef = (i: number, patch: Partial<ReferenceInput>) => onChange({ refs: upd(c.refs, i, patch) });
+  const income = (label: string) => (
+    <Field label={label} required>
+      <input className={inputCls + E("monthly_income")} inputMode="decimal" value={formatMoney(c.monthly_income, incomeTyping)} onFocus={() => setIncomeTyping(true)} onBlur={() => setIncomeTyping(false)} onChange={(e) => onChange({ monthly_income: cleanMoney(e.target.value) })} />
+    </Field>
+  );
+
+  return (
+    <Section title={`${d.coSection}: ${name.trim() || "—"}`} hint={d.coHint}>
+      <div className="space-y-6">
+        {/* SSN */}
+        <div>
+          <YesNo label={d.ssnQuestion} value={c.has_ssn} onChange={(v) => onChange({ has_ssn: v })} yes={d.yesShort} no={d.noShort} err={has("has_ssn")} />
+          {c.has_ssn === "yes" && (
+            <div className="mt-3"><Field label={d.ssn} hint={d.ssnHint} required>
+              <input type="password" className={inputCls + E("ssn")} inputMode="numeric" autoComplete="off" value={c.ssn} onChange={(e) => onChange({ ssn: e.target.value })} />
+            </Field></div>
+          )}
+          {c.has_ssn === "no" && (
+            <div className="mt-3"><Field label={d.ssnNoneExplain} required>
+              <textarea className={inputCls + " min-h-[60px]" + E("ssn_none_explanation")} value={c.ssn_none_explanation} onChange={(e) => onChange({ ssn_none_explanation: e.target.value })} />
+            </Field></div>
+          )}
+        </div>
+
+        {/* Licença */}
+        <div>
+          <YesNo label={d.licenseQuestion} value={c.has_license} onChange={(v) => onChange({ has_license: v })} yes={d.yesShort} no={d.noShort} err={has("has_license")} />
+          {c.has_license === "yes" && (
+            <div className="mt-3"><Field label={d.license} required>
+              <div className="flex gap-2">
+                <input className={inputCls + E("drivers_license")} value={c.drivers_license} onChange={(e) => onChange({ drivers_license: e.target.value })} />
+                <input className={inputCls + " w-20" + E("drivers_license_state")} placeholder="ST" maxLength={2} value={c.drivers_license_state} onChange={(e) => onChange({ drivers_license_state: e.target.value.toUpperCase() })} />
+              </div>
+            </Field></div>
+          )}
+          {c.has_license === "no" && (
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <Field label={d.govIdType} required>
+                <select className={inputCls + E("gov_id_type")} value={c.gov_id_type} onChange={(e) => onChange({ gov_id_type: e.target.value as CoData["gov_id_type"] })}>
+                  <option value="">—</option>
+                  <option value="state_id">{d.govIdStateId}</option>
+                  <option value="passport">{d.govIdPassport}</option>
+                </select>
+              </Field>
+              <Field label={d.govIdNumber} required>
+                <input className={inputCls + E("gov_id_number")} value={c.gov_id_number} onChange={(e) => onChange({ gov_id_number: e.target.value })} />
+              </Field>
+            </div>
+          )}
+        </div>
+
+        {/* Histórico */}
+        <div>
+          <h4 className="h-display text-sm text-ink">{d.historySection}</h4>
+          <p className="mt-1 text-xs text-ink/55">{d.historyHint}</p>
+          <div className="mt-3 space-y-4">
+            {c.history.map((h, i) => h.kind === "previous" && longStay ? null : (
+              <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
+                <p className="mb-3 text-sm font-semibold text-primary">{h.kind === "current" ? d.current : d.previous}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={d.street} required><input className={inputCls + E(`hist_${i}_street`)} value={h.street} onChange={(e) => setHistory(i, { street: e.target.value })} /></Field>
+                  <Field label={d.city} required><input className={inputCls + E(`hist_${i}_city`)} value={h.city} onChange={(e) => setHistory(i, { city: e.target.value })} /></Field>
+                  <Field label={`${d.stateLabel} / ${d.zip}`} required>
+                    <div className="flex gap-2">
+                      <input className={inputCls + " w-20" + E(`hist_${i}_state`)} placeholder="ST" maxLength={2} value={h.state} onChange={(e) => setHistory(i, { state: e.target.value.toUpperCase() })} />
+                      <input className={inputCls + E(`hist_${i}_zip`)} inputMode="numeric" value={h.zip} onChange={(e) => setHistory(i, { zip: e.target.value })} />
+                    </div>
+                  </Field>
+                  <Field label={d.howLong} required><input className={inputCls + E(`hist_${i}_dur`)} value={h.duration} onChange={(e) => setHistory(i, { duration: e.target.value, ...(h.kind === "current" && !longStayTyped(e.target.value) ? { ten_plus_years: false } : {}) })} /></Field>
+                  <Field label={d.landlordName} required><input className={inputCls + E(`hist_${i}_lname`)} value={h.landlord_name} onChange={(e) => setHistory(i, { landlord_name: e.target.value })} /></Field>
+                  <Field label={d.landlordPhone} required><input className={inputCls + E(`hist_${i}_lphone`)} inputMode="tel" value={h.landlord_phone} onChange={(e) => setHistory(i, { landlord_phone: formatPhone(e.target.value) })} /></Field>
+                </div>
+                {h.kind === "current" && longStayTyped(h.duration) && (
+                  <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-ink/80">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#198577]" checked={!!h.ten_plus_years} onChange={(e) => setHistory(i, { ten_plus_years: e.target.checked })} />
+                    <span>{d.tenPlusYears}</span>
+                  </label>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Veículos */}
+        <div>
+          <h4 className="h-display text-sm text-ink">{d.vehiclesSection}</h4>
+          <div className="mt-3 space-y-2">
+            {c.vehicles.map((v, i) => (
+              <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr_auto]">
+                <input className={inputCls + E(`veh_${i}_mm`)} placeholder={d.makeModel} value={v.make_model} onChange={(e) => setVehicle(i, { make_model: e.target.value })} />
+                <input className={inputCls + E(`veh_${i}_year`)} placeholder={d.year} value={v.year} onChange={(e) => setVehicle(i, { year: e.target.value })} />
+                <input className={inputCls + E(`veh_${i}_color`)} placeholder={d.color} value={v.color} onChange={(e) => setVehicle(i, { color: e.target.value })} />
+                <input className={inputCls + E(`veh_${i}_plate`)} placeholder={d.plate} value={v.plate} onChange={(e) => setVehicle(i, { plate: e.target.value })} />
+                <input className={inputCls + E(`veh_${i}_state`)} placeholder={d.plateState} maxLength={2} value={v.plate_state} onChange={(e) => setVehicle(i, { plate_state: e.target.value.toUpperCase() })} />
+                {c.vehicles.length > 1 && (
+                  <button type="button" className={removeCls} onClick={() => onChange({ vehicles: c.vehicles.filter((_, j) => j !== i) })}>{d.remove}</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button type="button" className={addCls} onClick={() => onChange({ vehicles: [...c.vehicles, emptyVeh()] })}>{d.addVehicle}</button>
+        </div>
+
+        {/* Emprego */}
+        <div>
+          <h4 className="h-display text-sm text-ink">{d.employmentSection}</h4>
+          <div className={"mt-3 rounded-lg p-1" + (has("employment_status") ? " bg-red-50" : "")}>
+            <span className="mb-2 block text-sm font-medium text-ink/80">{d.employmentStatus}<span className="text-red-500"> *</span></span>
+            <div className="flex flex-wrap gap-2">
+              {(["employed", "self_employed", "retired"] as const).map((k) => (
+                <button key={k} type="button" onClick={() => onChange({ employment_status: k })}
+                  className={"rounded-lg border px-4 py-1.5 text-sm font-medium transition " +
+                    (c.employment_status === k ? "border-primary bg-primary text-white" : "border-black/[0.1] text-ink/60 hover:border-primary/40")}>
+                  {k === "employed" ? d.empEmployed : k === "self_employed" ? d.empSelf : d.empRetired}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {c.employment_status === "employed" && (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label={d.employer} required><input className={inputCls + E("employer")} value={c.employer} onChange={(e) => onChange({ employer: e.target.value })} /></Field>
+              <Field label={d.employerAddress} required><input className={inputCls + E("employer_address")} value={c.employer_address} onChange={(e) => onChange({ employer_address: e.target.value })} /></Field>
+              <Field label={d.managerName} required><input className={inputCls + E("manager_name")} value={c.manager_name} onChange={(e) => onChange({ manager_name: e.target.value })} /></Field>
+              <Field label={d.managerPhone} required><input className={inputCls + E("manager_phone")} inputMode="tel" value={c.manager_phone} onChange={(e) => onChange({ manager_phone: formatPhone(e.target.value) })} /></Field>
+              <Field label={d.jobTitle} required><input className={inputCls + E("job_title")} value={c.job_title} onChange={(e) => onChange({ job_title: e.target.value })} /></Field>
+              {income(d.monthlyIncome)}
+              <Field label={d.lengthEmployment} required><input className={inputCls + E("length_of_employment")} value={c.length_of_employment} onChange={(e) => onChange({ length_of_employment: e.target.value })} /></Field>
+            </div>
+          )}
+
+          {c.employment_status === "self_employed" && (
+            <div className="mt-4 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={d.businessName} required><input className={inputCls + E("business_name")} value={c.business_name} onChange={(e) => onChange({ business_name: e.target.value })} /></Field>
+                <Field label={d.businessType} required><input className={inputCls + E("business_type")} value={c.business_type} onChange={(e) => onChange({ business_type: e.target.value })} /></Field>
+                <Field label={d.selfSince} required><input className={inputCls + E("length_of_employment")} value={c.length_of_employment} onChange={(e) => onChange({ length_of_employment: e.target.value })} /></Field>
+                {income(d.selfMonthlyIncome)}
+              </div>
+              <IncomeProofUpload dict={d} hint={d.incomeProofHintSelf} files={c.incomeProofs} onChange={(files) => onChange({ incomeProofs: files })} error={has("income_proof")} />
+            </div>
+          )}
+
+          {c.employment_status === "retired" && (
+            <div className="mt-4 space-y-4">
+              <div className={"rounded-lg p-1" + (has("retirement_income_sources") ? " bg-red-50" : "")}>
+                <span className="mb-2 block text-sm font-medium text-ink/80">{d.retireSources}<span className="text-red-500"> *</span></span>
+                <div className="flex flex-wrap gap-x-5 gap-y-2">
+                  {RETIRE_SOURCES.map((src) => (
+                    <label key={src} className="flex cursor-pointer items-center gap-2 text-sm text-ink/80">
+                      <input type="checkbox" className="h-4 w-4 accent-[#198577]"
+                        checked={c.retirement_income_sources.includes(src)}
+                        onChange={(e) => onChange({ retirement_income_sources: e.target.checked
+                          ? [...c.retirement_income_sources, src]
+                          : c.retirement_income_sources.filter((x) => x !== src) })} />
+                      {src === "social_security" ? d.srcSocialSecurity : src === "pension" ? d.srcPension : src === "retirement_account" ? d.srcRetirementAccount : src === "annuity" ? d.srcAnnuity : d.srcOther}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {income(d.retireMonthlyIncome)}
+                <Field label={d.retiredSince} required><input className={inputCls + E("retired_since")} inputMode="numeric" maxLength={4} placeholder="2019" value={c.retired_since} onChange={(e) => onChange({ retired_since: e.target.value.replace(/\D/g, "") })} /></Field>
+              </div>
+              <IncomeProofUpload dict={d} hint={d.incomeProofHintRetired} files={c.incomeProofs} onChange={(files) => onChange({ incomeProofs: files })} error={has("income_proof")} />
+            </div>
+          )}
+        </div>
+
+        {/* Referências */}
+        <div>
+          <h4 className="h-display text-sm text-ink">{d.referencesSection}</h4>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            {c.refs.map((r, i) => (
+              <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
+                <p className="mb-3 text-sm font-semibold text-primary">{i === 0 ? d.ref1 : d.ref2}</p>
+                <Field label={d.refName} required><input className={inputCls + E(`ref_${i}_name`)} value={r.name} onChange={(e) => setRef(i, { name: e.target.value })} /></Field>
+                <div className="mt-3"><Field label={d.refPhone} required><input className={inputCls + E(`ref_${i}_phone`)} inputMode="tel" value={r.phone} onChange={(e) => setRef(i, { phone: formatPhone(e.target.value) })} /></Field></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Adicionais */}
+        <div>
+          <h4 className="h-display text-sm text-ink">{d.additionalSection}</h4>
+          <div className="mt-3 space-y-4">
+            <YesNo label={d.evicted} value={c.evicted} onChange={(v) => onChange({ evicted: v })} yes={d.yes} no={d.no} err={has("evicted")} />
+            {c.evicted === "yes" && <input className={inputCls + E("evicted_detail")} placeholder={d.ifYesWhen} value={c.evicted_detail} onChange={(e) => onChange({ evicted_detail: e.target.value })} />}
+            <YesNo label={d.felony} value={c.felony} onChange={(v) => onChange({ felony: v })} yes={d.yes} no={d.no} err={has("felony")} />
+            {c.felony === "yes" && <input className={inputCls + E("felony_detail")} placeholder={d.ifYesWhen} value={c.felony_detail} onChange={(e) => onChange({ felony_detail: e.target.value })} />}
+            <YesNo label={d.bankruptcy} value={c.bankruptcy} onChange={(v) => onChange({ bankruptcy: v })} yes={d.yes} no={d.no} err={has("bankruptcy")} />
+            {c.bankruptcy === "yes" && <input className={inputCls + E("bankruptcy_detail")} placeholder={d.ifYesWhen} value={c.bankruptcy_detail} onChange={(e) => onChange({ bankruptcy_detail: e.target.value })} />}
+            <YesNo label={d.smoke} value={c.smokes} onChange={(v) => onChange({ smokes: v })} yes={d.yes} no={d.no} err={has("smokes")} />
+            <YesNo label={d.pets} value={c.has_pets} onChange={(v) => onChange({ has_pets: v })} yes={d.yes} no={d.no} err={has("has_pets")} />
+            {c.has_pets === "yes" && <input className={inputCls + E("pets_detail")} placeholder={d.petsList} value={c.pets_detail} onChange={(e) => onChange({ pets_detail: e.target.value })} />}
+            <Field label={d.reasonMoving} required>
+              <textarea className={inputCls + " min-h-[70px]" + E("reason_for_moving")} value={c.reason_for_moving} onChange={(e) => onChange({ reason_for_moving: e.target.value })} />
+            </Field>
+          </div>
+        </div>
+
+        {/* Consentimento + assinatura próprios */}
+        <div>
+          <h4 className="h-display text-sm text-ink">{d.consentSection}</h4>
+          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
+          <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (has("consent") ? " bg-red-50" : "")}>
+            <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={c.consent_agreed} onChange={(e) => onChange({ consent_agreed: e.target.checked })} />
+            <span>{d.consentCheckbox}</span>
+          </label>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Field label={d.signature} required><input className={inputCls + E("signature_name")} value={c.signature_name} onChange={(e) => onChange({ signature_name: e.target.value })} /></Field>
+            <Field label={d.date} required><input type="date" className={inputCls + E("signature_date")} value={c.signature_date} onChange={(e) => onChange({ signature_date: e.target.value })} /></Field>
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // =============================================================================
 // PaymentSubmit — dentro de <Elements> pra ter stripe/elements.
 // =============================================================================
 function PaymentSubmit({
-  dict, getPayload, validate, onErrors,
+  dict, getPayload, validate, onErrors, coCount, feeCents,
 }: {
   dict: (typeof DICT)[Lang];
   getPayload: () => Omit<ApplicationInput, "stripe_payment_intent_id">;
   validate: () => Set<string>;
   onErrors: (e: Set<string>) => void;
+  coCount: number;
+  feeCents: number;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -872,7 +1348,7 @@ function PaymentSubmit({
       // 2) confere o cartão digitado; 3) só AGORA cria o PaymentIntent; 4) cobra
       const { error: cardErr } = await elements.submit();
       if (cardErr) { setSubmitting(false); return showError(cardErr.message || dict.errorGeneric); }
-      const { clientSecret } = await createApplicationPaymentIntent();
+      const { clientSecret } = await createApplicationPaymentIntent(coCount);
       const { error: payErr, paymentIntent } = await stripe.confirmPayment({
         elements, clientSecret, redirect: "if_required",
         confirmParams: { return_url: window.location.origin + "/apply/thank-you" },
@@ -897,7 +1373,7 @@ function PaymentSubmit({
       {error && <div ref={errRef} className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       <button type="button" onClick={onSubmit} disabled={submitting || !stripe}
         className="mt-5 w-full rounded-xl bg-primary px-5 py-3.5 text-center font-semibold text-white shadow-glow transition hover:brightness-110 disabled:opacity-60">
-        {submitting ? dict.submitting : dict.submit}
+        {submitting ? dict.submitting : dict.submit.replace("{total}", dollars(feeCents))}
       </button>
     </div>
   );

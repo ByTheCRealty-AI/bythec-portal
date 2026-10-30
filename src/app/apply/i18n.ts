@@ -64,6 +64,14 @@ export interface Dict {
   occName: string;
   occDob: string;
   occAdult: string;
+  occCoQuestion: string;
+  occCoHint: string;
+  coSection: string;
+  coHint: string;
+  feeBase: string;
+  feeCo: string;
+  feeProcessing: string;
+  feeTotal: string;
   occPhone: string;
   addOccupant: string;
   remove: string;
@@ -222,6 +230,14 @@ const en: Dict = {
   occName: "Full Name",
   occDob: "Date of Birth (MM/DD/YY)",
   occAdult: "18 or older?",
+  occCoQuestion: "Will this person be a co-applicant?",
+  occCoHint: "Each co-applicant adds a $50.00 fee and must fill out their own information below.",
+  coSection: "Co-applicant",
+  coHint: "The same information as the applicant, for this person. Name, date of birth, phone, email and ID come from the occupant list above.",
+  feeBase: "Application fee",
+  feeCo: "Co-applicant fee",
+  feeProcessing: "Card processing",
+  feeTotal: "Total charged to your card",
   occPhone: "Phone Number (must differ from applicant's)",
   addOccupant: "+ Add occupant",
   remove: "Remove",
@@ -306,10 +322,10 @@ const en: Dict = {
   date: "Date",
 
   feeSection: "Application Fee",
-  feeText: "A non-refundable $100.00 application fee is required. A $3.30 card processing fee is added so we receive the full amount — your card is charged $103.30 total when you submit.",
+  feeText: "A non-refundable $100.00 application fee is required, plus $50.00 for each co-applicant. A card processing fee is added so we receive the full amount.",
   cardLabel: "Card details",
 
-  submit: "Pay $103.30 & Submit Application",
+  submit: "Pay {total} & Submit Application",
   submitting: "Submitting…",
   required: "This field is required.",
   fixErrors: "Please complete all required fields highlighted below before submitting.",
@@ -381,6 +397,14 @@ const pt: Dict = {
   occName: "Nome Completo",
   occDob: "Data de Nascimento (MM/DD/AA)",
   occAdult: "18 anos ou mais?",
+  occCoQuestion: "Esta pessoa será co-candidata?",
+  occCoHint: "Cada co-candidato adiciona uma taxa de $50.00 e precisa preencher as próprias informações abaixo.",
+  coSection: "Co-candidato",
+  coHint: "As mesmas informações do candidato, para esta pessoa. Nome, data de nascimento, telefone, e-mail e documento vêm da lista de ocupantes acima.",
+  feeBase: "Taxa de aplicação",
+  feeCo: "Taxa de co-candidato",
+  feeProcessing: "Processamento do cartão",
+  feeTotal: "Total cobrado no seu cartão",
   occPhone: "Número de Telefone (diferente do candidato)",
   addOccupant: "+ Adicionar ocupante",
   remove: "Remover",
@@ -465,10 +489,10 @@ const pt: Dict = {
   date: "Data",
 
   feeSection: "Taxa de Aplicação",
-  feeText: "É necessária uma taxa de aplicação não reembolsável de $100.00. Uma taxa de processamento de cartão de $3.30 é adicionada para recebermos o valor integral — seu cartão é cobrado no total de $103.30 ao enviar.",
+  feeText: "É necessária uma taxa de aplicação não reembolsável de $100.00, mais $50.00 por co-candidato. Uma taxa de processamento de cartão é adicionada para recebermos o valor integral.",
   cardLabel: "Dados do cartão",
 
-  submit: "Pagar $103.30 e Enviar Aplicação",
+  submit: "Pagar {total} e Enviar Aplicação",
   submitting: "Enviando…",
   required: "Este campo é obrigatório.",
   fixErrors: "Preencha todos os campos obrigatórios destacados abaixo antes de enviar.",

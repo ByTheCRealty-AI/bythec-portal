@@ -202,7 +202,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     occupants.forEach((o, i) =>
       row(
         o.name || `Occupant ${i + 1}`,
-        [fmtDate(o.dob), relLabel(o.relationship), o.is_adult ? "18+" : null, o.phone, o.email]
+        [fmtDate(o.dob), relLabel(o.relationship), o.is_adult ? "18+" : null, o.co_applicant ? "Co-applicant" : null, o.phone, o.email]
           .filter(Boolean)
           .join(" · ")
       )

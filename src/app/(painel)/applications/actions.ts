@@ -57,7 +57,8 @@ export async function archiveApplicationAction(id: string) {
   const { error } = await supabase
     .from("rental_applications")
     .update({ archived_at: new Date().toISOString() })
-    .eq("id", id);
+    // Os co-applicants saem junto com a aplicação principal.
+    .or(`id.eq.${id},primary_application_id.eq.${id}`);
   if (error) throw new Error(error.message);
   revalidatePath("/applications");
 }

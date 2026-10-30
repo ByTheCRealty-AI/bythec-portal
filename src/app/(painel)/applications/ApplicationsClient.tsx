@@ -64,7 +64,19 @@ export function ApplicationsClient({ applications }: { applications: RentalAppli
     return c;
   }, [applications]);
 
-  const visible = filter === "all" ? applications : applications.filter((a) => a.status === filter);
+  // Co-applicant aparece logo abaixo da aplicação principal, não pela própria data.
+  const ordered = useMemo(() => {
+    const coOf = new Map<string, RentalApplication[]>();
+    for (const a of applications) {
+      if (a.primary_application_id) coOf.set(a.primary_application_id, [...(coOf.get(a.primary_application_id) ?? []), a]);
+    }
+    const primaries = applications.filter(
+      (a) => !a.primary_application_id || !applications.some((p) => p.id === a.primary_application_id)
+    );
+    return primaries.flatMap((a) => [a, ...(coOf.get(a.id) ?? [])]);
+  }, [applications]);
+  const nameOf = (id: string | null) => applications.find((a) => a.id === id)?.full_name ?? null;
+  const visible = filter === "all" ? ordered : ordered.filter((a) => a.status === filter);
   const open = applications.find((a) => a.id === openId) ?? null;
 
   return (
@@ -108,6 +120,9 @@ export function ApplicationsClient({ applications }: { applications: RentalAppli
               >
                 <td className="px-4 py-3">
                   <div className="font-semibold text-ink">{a.full_name}</div>
+                  {a.primary_application_id && (
+                    <div className="text-xs font-semibold text-primary">Co-applicant of {nameOf(a.primary_application_id) ?? "another application"}</div>
+                  )}
                   <div className="text-xs text-ink/45">
                     {a.email || a.phone || "—"} {a.language === "pt" && <span className="ml-1">· PT</span>}
                   </div>
@@ -129,7 +144,16 @@ export function ApplicationsClient({ applications }: { applications: RentalAppli
         </table>
       </div>
 
-      {open && <DetailModal application={open} onClose={() => setOpenId(null)} />}
+      {open && (
+        <DetailModal
+          key={open.id}
+          application={open}
+          onClose={() => setOpenId(null)}
+          primaryName={nameOf(open.primary_application_id)}
+          coApplicants={applications.filter((x) => x.primary_application_id === open.id)}
+          onOpen={setOpenId}
+        />
+      )}
     </div>
   );
 }
@@ -137,7 +161,15 @@ export function ApplicationsClient({ applications }: { applications: RentalAppli
 // =============================================================================
 // Modal de detalhe (portal-to-body, centralizado — padrão do portal).
 // =============================================================================
-function DetailModal({ application: a, onClose }: { application: RentalApplication; onClose: () => void }) {
+function DetailModal({
+  application: a, onClose, primaryName, coApplicants, onOpen,
+}: {
+  application: RentalApplication;
+  onClose: () => void;
+  primaryName: string | null;
+  coApplicants: RentalApplication[];
+  onOpen: (id: string) => void;
+}) {
   const [status, setStatus] = useState<ApplicationStatus>(a.status);
   const [notes, setNotes] = useState(a.internal_notes ?? "");
   const [ssn, setSsn] = useState<string | null>(null);
@@ -237,6 +269,26 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
             </div>
           </div>
 
+          {/* Co-applicants */}
+          {(a.primary_application_id || coApplicants.length > 0) && (
+            <Group title="Co-applicants">
+              {a.primary_application_id && (
+                <Row label="Co-applicant of">
+                  <button type="button" onClick={() => onOpen(a.primary_application_id!)} className="font-semibold text-primary hover:underline">
+                    {primaryName ?? "Open main application"}
+                  </button>
+                </Row>
+              )}
+              {coApplicants.map((co) => (
+                <Row key={co.id} label="Co-applicant">
+                  <button type="button" onClick={() => onOpen(co.id)} className="font-semibold text-primary hover:underline">
+                    {co.full_name}
+                  </button>
+                </Row>
+              ))}
+            </Group>
+          )}
+
           {/* Rental */}
           <Group title="Rental">
             <Row label="Rental type">{rentalTypeLabel(a.rental_type)}</Row>
@@ -299,6 +351,7 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
                     o.dob,
                     REL_LABEL[o.relationship ?? ""] ?? o.relationship,
                     o.is_adult ? "18+" : null,
+                    o.co_applicant ? "Co-applicant" : null,
                     o.phone,
                     o.email,
                   ]
