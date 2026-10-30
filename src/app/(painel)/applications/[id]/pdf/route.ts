@@ -25,8 +25,13 @@ const MUTED = rgb(0.45, 0.45, 0.47);
 const LINE = rgb(0.85, 0.85, 0.86);
 const GREEN = rgb(0.098, 0.522, 0.466); // #198577
 
+// Mesmo texto que o candidato aceitou no /apply, em inglês, SEM valores: o PDF vai
+// pro owner e a taxa não entra nele (Andrea 2026-10-30).
+const CONSENT_STATEMENT =
+  "I believe that the statements I have made are true and correct. I hereby authorize the verification of information I provided, communication with any and all names listed on this application and for the issuer of this form to conduct a background check to obtain additional information on credit history, criminal history and all Unlawful Detainers. I understand that any discrepancy or lack of information may result in the rejection of this application. I understand that this is an application for a home or apartment and does not constitute a rental or lease agreement in whole or in part. I further understand that there is a non-refundable fee to cover the cost of processing my application and I am not entitled to a refund.";
+
 const COLUMNS =
-  "id, status, rental_type, lease_start, property_id, property_other, full_name, date_of_birth, has_ssn, tax_id_type, ssn_last4, ssn_none_explanation, phone, has_license, drivers_license, drivers_license_state, gov_id_type, gov_id_number, email, occupants_count, occupants, rental_history, vehicles, employment_status, retirement_income_sources, retired_since, business_name, business_type, employer, employer_address, manager_name, manager_phone, job_title, monthly_income, length_of_employment, personal_references, evicted, evicted_detail, felony, felony_detail, bankruptcy, bankruptcy_detail, smokes, has_pets, pets_detail, reason_for_moving, consent_agreed, signature_name, signature_date, signature_name_2, signature_date_2, submitted_at, created_at, property:property_id(id,address,address2), attachments:rental_application_attachments(id, category, occupant_index, label, file_path, file_name, content_type, created_at)";
+  "id, primary_application_id, status, rental_type, lease_start, property_id, property_other, full_name, date_of_birth, has_ssn, tax_id_type, ssn_last4, ssn_none_explanation, phone, has_license, drivers_license, drivers_license_state, gov_id_type, gov_id_number, email, occupants_count, occupants, rental_history, vehicles, employment_status, retirement_income_sources, retired_since, business_name, business_type, employer, employer_address, manager_name, manager_phone, job_title, monthly_income, length_of_employment, personal_references, evicted, evicted_detail, felony, felony_detail, bankruptcy, bankruptcy_detail, smokes, has_pets, pets_detail, reason_for_moving, consent_agreed, signature_name, signature_date, signature_name_2, signature_date_2, submitted_at, created_at, property:property_id(id,address,address2), attachments:rental_application_attachments(id, category, occupant_index, label, file_path, file_name, content_type, created_at)";
 
 function money(n: number | null | undefined): string {
   if (n == null) return "";
@@ -155,7 +160,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   T("By the C Realty", MARGIN, y - 4, 18, bold);
   T("and Property Management", MARGIN, y - 22, 10, font, MUTED);
   T("info@bythecrealty.com  ·  Cape Cod, MA", MARGIN, y - 36, 9, font, MUTED);
-  TR("RENTAL APPLICATION", PAGE_W - MARGIN, y - 2, 9, bold, MUTED);
+  TR(a.primary_application_id ? "RENTAL APPLICATION - CO-APPLICANT" : "RENTAL APPLICATION", PAGE_W - MARGIN, y - 2, 9, bold, MUTED);
   TR(a.full_name, PAGE_W - MARGIN, y - 22, 16, bold);
   TR(`Submitted: ${fmtDate(a.submitted_at)}`, PAGE_W - MARGIN, y - 38, 9, font, MUTED);
   y -= 52;
@@ -273,9 +278,22 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   row("Reason for moving", a.reason_for_moving);
 
   // ---- Consent ----
-  section("Consent & signature");
-  row("Consent", a.consent_agreed ? "Agreed - background and credit check authorized" : "Not agreed");
-  row("Signature", [a.signature_name, fmtDate(a.signature_date)].filter(Boolean).join(" · "));
+  const signerLabel = a.primary_application_id ? "Co-applicant" : "Primary applicant";
+  const consentLines = wrap(CONSENT_STATEMENT, font, 9.5, PAGE_W - MARGIN * 2);
+  // Declaração e assinatura ficam juntas na mesma página.
+  ensure(40 + consentLines.length * 13 + 90);
+  section(`Signature and consent - ${signerLabel}`);
+  consentLines.forEach((ln, i) => T(ln, MARGIN, y - i * 13, 9.5));
+  y -= consentLines.length * 13 + 8;
+  T(
+    a.consent_agreed
+      ? "Agreed to the statement above and authorized the background and credit check."
+      : "NOT agreed to the statement above.",
+    MARGIN, y, 10, bold
+  );
+  y -= 18;
+  row(`${signerLabel} signature`, a.signature_name);
+  row("Date signed", fmtDate(a.signature_date));
   if (a.signature_name_2) row("Second signature", [a.signature_name_2, fmtDate(a.signature_date_2)].filter(Boolean).join(" · "));
 
   // ---- IDs anexados (foto = 1 página; PDF = páginas mescladas) ----
