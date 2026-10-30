@@ -68,6 +68,8 @@ export interface Dict {
   occCoHint: string;
   coSection: string;
   coHint: string;
+  primaryLabel: string;
+  coSignature: string;
   feeBase: string;
   feeCo: string;
   feeProcessing: string;
@@ -188,9 +190,9 @@ const en: Dict = {
   propertyOther: "Not listed / other",
   propertyOtherLabel: "Which property? (address or description)",
 
-  applicantSection: "Applicant Information",
+  applicantSection: "Primary Applicant: Information",
   fullName: "Full Name",
-  dob: "Date of Birth (MM/DD/YY)",
+  dob: "Date of Birth (MM/DD/YYYY)",
   ssnQuestion: "Do you have a Social Security # or ITIN?",
   ssn: "Social Security # / ITIN #",
   ssnHint: "Encrypted and visible only to By the C staff.",
@@ -228,12 +230,14 @@ const en: Dict = {
   occupantsSolo: "Just you — no other occupants to list.",
   occupantsCount: "Number of Occupants",
   occName: "Full Name",
-  occDob: "Date of Birth (MM/DD/YY)",
+  occDob: "Date of Birth (MM/DD/YYYY)",
   occAdult: "18 or older?",
   occCoQuestion: "Will this person be a co-applicant?",
   occCoHint: "Each co-applicant adds a $50.00 fee and must fill out their own information below.",
   coSection: "Co-applicant",
-  coHint: "The same information as the applicant, for this person. Name, date of birth, phone, email and ID come from the occupant list above.",
+  coHint: "Everything in this section is about {name}, not the primary applicant, and {name} signs it at the end. Name, date of birth, phone, email and ID come from the occupant list above.",
+  primaryLabel: "Primary Applicant",
+  coSignature: "Co-applicant signature: {name} (type full name)",
   feeBase: "Application fee",
   feeCo: "Co-applicant fee",
   feeProcessing: "Card processing",
@@ -317,7 +321,7 @@ const en: Dict = {
   consentText:
     "I believe that the statements I have made are true and correct. I hereby authorize the verification of information I provided, communication with any and all names listed on this application and for the issuer of this form to conduct a background check to obtain additional information on credit history, criminal history and all Unlawful Detainers. I understand that any discrepancy or lack of information may result in the rejection of this application. I understand that this is an application for a home or apartment and does not constitute a rental or lease agreement in whole or in part. I further understand that there is a non-refundable fee of $100.00 to cover the cost of processing my application and I am not entitled to a refund.",
   consentCheckbox: "I have read and agree to the statement above, and authorize the background and credit check.",
-  signature: "Signature (type your full name)",
+  signature: "Primary applicant signature (type your full name)",
   signature2: "Second applicant signature (optional)",
   date: "Date",
 
@@ -355,9 +359,9 @@ const pt: Dict = {
   propertyOther: "Não listada / outra",
   propertyOtherLabel: "Qual propriedade? (endereço ou descrição)",
 
-  applicantSection: "Informações do Candidato",
+  applicantSection: "Candidato Principal: Informações",
   fullName: "Nome Completo",
-  dob: "Data de Nascimento (MM/DD/AA)",
+  dob: "Data de Nascimento (MM/DD/AAAA)",
   ssnQuestion: "Você tem Social Security nº ou ITIN?",
   ssn: "Número Social Security ou ITIN nº",
   ssnHint: "Criptografado e visível apenas para a equipe da By the C.",
@@ -395,12 +399,14 @@ const pt: Dict = {
   occupantsSolo: "Apenas você — nenhum outro ocupante a listar.",
   occupantsCount: "Número de ocupantes",
   occName: "Nome Completo",
-  occDob: "Data de Nascimento (MM/DD/AA)",
+  occDob: "Data de Nascimento (MM/DD/AAAA)",
   occAdult: "18 anos ou mais?",
   occCoQuestion: "Esta pessoa será co-candidata?",
   occCoHint: "Cada co-candidato adiciona uma taxa de $50.00 e precisa preencher as próprias informações abaixo.",
   coSection: "Co-candidato",
-  coHint: "As mesmas informações do candidato, para esta pessoa. Nome, data de nascimento, telefone, e-mail e documento vêm da lista de ocupantes acima.",
+  coHint: "Tudo nesta seção é sobre {name}, não sobre o candidato principal, e {name} assina no final. Nome, data de nascimento, telefone, e-mail e documento vêm da lista de ocupantes acima.",
+  primaryLabel: "Candidato Principal",
+  coSignature: "Assinatura do co-candidato: {name} (digite o nome completo)",
   feeBase: "Taxa de aplicação",
   feeCo: "Taxa de co-candidato",
   feeProcessing: "Processamento do cartão",
@@ -484,7 +490,7 @@ const pt: Dict = {
   consentText:
     "Acredito que as declarações que fiz são verdadeiras e corretas. Por meio deste, autorizo a verificação das informações que forneci, a comunicação com todo e qualquer nome listado nesta aplicação e para que o emissor desta aplicação conduza uma verificação de antecedentes para obter informações adicionais sobre histórico de crédito, antecedentes criminais e todos os Detentores Ilegais. Compreendo que qualquer discrepância ou falta de informação poderá resultar na rejeição desta aplicação. Entendo que este é um pedido de locação e não constitui um contrato de locação. Compreendo ainda que existe uma taxa de $100.00 não reembolsável para cobrir os custos de processamento da minha aplicação e não tenho direito a reembolso.",
   consentCheckbox: "Li e concordo com a declaração acima, e autorizo a verificação de antecedentes e crédito.",
-  signature: "Assinatura (digite seu nome completo)",
+  signature: "Assinatura do candidato principal (digite seu nome completo)",
   signature2: "Assinatura do segundo candidato (opcional)",
   date: "Data",
 

@@ -84,6 +84,22 @@ function longStayTyped(duration: string): boolean {
   return Number.isFinite(n) && n >= LONG_STAY_YEARS;
 }
 
+// Nascimento sempre MM/DD/YYYY (Andrea 2026-10-30): as barras entram sozinhas e o
+// ano precisa dos 4 dígitos. Guardado como texto, igual antes.
+function formatDob(v: string): string {
+  const d = digits(v).slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+function isDob(v: string): boolean {
+  const m = v.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return false;
+  const [mo, da, yr] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(yr, mo - 1, da);
+  return dt.getMonth() === mo - 1 && dt.getDate() === da && yr >= 1900 && dt <= new Date();
+}
+
 function formatPhone(v: string): string {
   const d = digits(v).slice(0, 10);
   if (d.length <= 3) return d;
@@ -332,7 +348,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     if (f.property_id === OTHER) need("property_other", f.property_other);
 
     need("full_name", f.full_name);
-    need("date_of_birth", f.date_of_birth);
+    if (!isDob(f.date_of_birth)) e.add("date_of_birth");
 
     if (f.has_ssn === "") e.add("has_ssn");
     else if (f.has_ssn === "yes") need("ssn", f.ssn);
@@ -359,7 +375,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     if (occCount != null && occCount >= 2) {
       occupants.forEach((o, i) => {
         need(`occ_${i}_name`, o.name);
-        need(`occ_${i}_dob`, o.dob);
+        if (!isDob(o.dob)) e.add(`occ_${i}_dob`);
         // Parentesco é OPCIONAL (Andrea 2026-10-30): aparece pra todo ocupante,
         // mas não trava o envio — e não se pede detalhe do "Other".
         if (o.is_adult) {
@@ -610,7 +626,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
             <input className={inputCls + E("full_name")} value={f.full_name} onChange={(e) => set("full_name", e.target.value)} />
           </Field>
           <Field label={d.dob} required>
-            <input className={inputCls + E("date_of_birth")} placeholder="MM/DD/YY" value={f.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
+            <input className={inputCls + E("date_of_birth")} placeholder="MM/DD/YYYY" inputMode="numeric" value={f.date_of_birth} onChange={(e) => set("date_of_birth", formatDob(e.target.value))} />
           </Field>
         </div>
 
@@ -687,7 +703,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                   <input className={inputCls + E(`occ_${i}_name`)} value={o.name} onChange={(e) => setOccupants(upd(occupants, i, { name: e.target.value }))} />
                 </Field>
                 <Field label={d.occDob} required>
-                  <input className={inputCls + E(`occ_${i}_dob`)} placeholder="MM/DD/YY" value={o.dob} onChange={(e) => setOccupants(upd(occupants, i, { dob: e.target.value }))} />
+                  <input className={inputCls + E(`occ_${i}_dob`)} placeholder="MM/DD/YYYY" inputMode="numeric" value={o.dob} onChange={(e) => setOccupants(upd(occupants, i, { dob: formatDob(e.target.value) }))} />
                 </Field>
               </div>
               <div className="mt-3">
@@ -706,6 +722,10 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
               </label>
               {o.is_adult && (
                 <div className="mt-3 space-y-3">
+                  <div>
+                    <YesNo label={d.occCoQuestion} value={o.co_applicant} onChange={(v) => setOccupants(upd(occupants, i, { co_applicant: v }))} yes={d.yesShort} no={d.noShort} err={errs.has(`occ_${i}_co`)} />
+                    <span className="mt-1 block text-xs text-ink/45">{d.occCoHint}</span>
+                  </div>
                   <Field label={d.occEmail} required>
                     <input className={inputCls + E(`occ_${i}_email`)} inputMode="email" value={o.email} onChange={(e) => setOccupants(upd(occupants, i, { email: e.target.value }))} />
                   </Field>
@@ -715,10 +735,6 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                     {errs.has(`occ_${i}_phone_dup`) && <span className="mt-1 block text-xs text-red-500">{d.occPhone}</span>}
                   </Field>
                   <IdUpload label={d.idUploadOccupant} hint={d.idUploadHint} dict={d} file={o.idFile} onChange={(uf) => setOccupants(upd(occupants, i, { idFile: uf }))} error={errs.has(`occ_${i}_id`)} />
-                  <div>
-                    <YesNo label={d.occCoQuestion} value={o.co_applicant} onChange={(v) => setOccupants(upd(occupants, i, { co_applicant: v }))} yes={d.yesShort} no={d.noShort} err={errs.has(`occ_${i}_co`)} />
-                    <span className="mt-1 block text-xs text-ink/45">{d.occCoHint}</span>
-                  </div>
                 </div>
               )}
               {occupants.length > 1 && (
@@ -737,7 +753,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       </Section>
 
       {/* Histórico de aluguel — todos obrigatórios */}
-      <Section title={d.historySection} hint={d.historyHint}>
+      <Section title={`${d.primaryLabel}: ${d.historySection}`} hint={d.historyHint}>
         <div className="space-y-4">
           {history.map((h, i) => h.kind === "previous" && tenPlus ? null : (
             <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
@@ -769,7 +785,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       </Section>
 
       {/* Veículos — obrigatório */}
-      <Section title={d.vehiclesSection}>
+      <Section title={`${d.primaryLabel}: ${d.vehiclesSection}`}>
         <div className="space-y-2">
           {vehicles.map((v, i) => (
             <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr_auto]">
@@ -788,7 +804,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       </Section>
 
       {/* Emprego — status obrigatório; campos mudam por status */}
-      <Section title={d.employmentSection}>
+      <Section title={`${d.primaryLabel}: ${d.employmentSection}`}>
         <div className={"rounded-lg p-1" + (errs.has("employment_status") ? " bg-red-50" : "")}>
           <span className="mb-2 block text-sm font-medium text-ink/80">{d.employmentStatus}<span className="text-red-500"> *</span></span>
           <div className="flex flex-wrap gap-2">
@@ -854,7 +870,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       </Section>
 
       {/* Referências — ambas obrigatórias */}
-      <Section title={d.referencesSection}>
+      <Section title={`${d.primaryLabel}: ${d.referencesSection}`}>
         <div className="grid gap-4 sm:grid-cols-2">
           {refs.map((r, i) => (
             <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
@@ -867,7 +883,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       </Section>
 
       {/* Adicionais */}
-      <Section title={d.additionalSection}>
+      <Section title={`${d.primaryLabel}: ${d.additionalSection}`}>
         <div className="space-y-4">
           <YesNo label={d.evicted} value={f.evicted} onChange={(v) => set("evicted", v)} yes={d.yes} no={d.no} err={errs.has("evicted")} />
           {f.evicted === "yes" && <input className={inputCls + E("evicted_detail")} placeholder={d.ifYesWhen} value={f.evicted_detail} onChange={(e) => set("evicted_detail", e.target.value)} />}
@@ -884,6 +900,19 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
         </div>
       </Section>
 
+      {/* Consentimento */}
+      <Section title={`${d.primaryLabel}: ${d.consentSection}`}>
+        <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
+        <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (errs.has("consent") ? " bg-red-50" : "")}>
+          <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={f.consent_agreed} onChange={(e) => set("consent_agreed", e.target.checked)} />
+          <span>{d.consentCheckbox}</span>
+        </label>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label={d.signature} required><input className={inputCls + E("signature_name")} value={f.signature_name} onChange={(e) => set("signature_name", e.target.value)} /></Field>
+          <Field label={d.date} required><input type="date" className={inputCls + E("signature_date")} value={f.signature_date} onChange={(e) => set("signature_date", e.target.value)} /></Field>
+        </div>
+      </Section>
+
       {/* Co-applicants: uma seção completa pra cada ocupante 18+ marcado "sim" */}
       {showOtherOccupants && occupants.map((o, i) => o.is_adult && o.co_applicant === "yes" ? (
         <CoApplicantSection
@@ -896,19 +925,6 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           prefix={`co_${i}_`}
         />
       ) : null)}
-
-      {/* Consentimento */}
-      <Section title={d.consentSection}>
-        <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
-        <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (errs.has("consent") ? " bg-red-50" : "")}>
-          <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={f.consent_agreed} onChange={(e) => set("consent_agreed", e.target.checked)} />
-          <span>{d.consentCheckbox}</span>
-        </label>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label={d.signature} required><input className={inputCls + E("signature_name")} value={f.signature_name} onChange={(e) => set("signature_name", e.target.value)} /></Field>
-          <Field label={d.date} required><input type="date" className={inputCls + E("signature_date")} value={f.signature_date} onChange={(e) => set("signature_date", e.target.value)} /></Field>
-        </div>
-      </Section>
 
       {/* Pagamento + envio */}
       <Section title={d.feeSection}>
@@ -1081,6 +1097,8 @@ function CoApplicantSection({
   prefix: string;
 }) {
   const [incomeTyping, setIncomeTyping] = useState(false);
+  const who = name.trim() || d.coSection;
+  const heading = (title: string) => `${d.coSection} (${who}): ${title}`;
   const E = (key: string) => (errs.has(prefix + key) ? " !border-red-400 ring-2 ring-red-200" : "");
   const has = (key: string) => errs.has(prefix + key);
   const longStay = c.history.some((h) => h.kind === "current" && h.ten_plus_years);
@@ -1094,7 +1112,7 @@ function CoApplicantSection({
   );
 
   return (
-    <Section title={`${d.coSection}: ${name.trim() || "—"}`} hint={d.coHint}>
+    <Section accent title={`${d.coSection}: ${who}`} hint={d.coHint.replaceAll("{name}", who)}>
       <div className="space-y-6">
         {/* SSN */}
         <div>
@@ -1140,7 +1158,7 @@ function CoApplicantSection({
 
         {/* Histórico */}
         <div>
-          <h4 className="h-display text-sm text-ink">{d.historySection}</h4>
+          <h4 className="h-display text-sm text-primary">{heading(d.historySection)}</h4>
           <p className="mt-1 text-xs text-ink/55">{d.historyHint}</p>
           <div className="mt-3 space-y-4">
             {c.history.map((h, i) => h.kind === "previous" && longStay ? null : (
@@ -1172,7 +1190,7 @@ function CoApplicantSection({
 
         {/* Veículos */}
         <div>
-          <h4 className="h-display text-sm text-ink">{d.vehiclesSection}</h4>
+          <h4 className="h-display text-sm text-primary">{heading(d.vehiclesSection)}</h4>
           <div className="mt-3 space-y-2">
             {c.vehicles.map((v, i) => (
               <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr_auto]">
@@ -1192,7 +1210,7 @@ function CoApplicantSection({
 
         {/* Emprego */}
         <div>
-          <h4 className="h-display text-sm text-ink">{d.employmentSection}</h4>
+          <h4 className="h-display text-sm text-primary">{heading(d.employmentSection)}</h4>
           <div className={"mt-3 rounded-lg p-1" + (has("employment_status") ? " bg-red-50" : "")}>
             <span className="mb-2 block text-sm font-medium text-ink/80">{d.employmentStatus}<span className="text-red-500"> *</span></span>
             <div className="flex flex-wrap gap-2">
@@ -1258,7 +1276,7 @@ function CoApplicantSection({
 
         {/* Referências */}
         <div>
-          <h4 className="h-display text-sm text-ink">{d.referencesSection}</h4>
+          <h4 className="h-display text-sm text-primary">{heading(d.referencesSection)}</h4>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             {c.refs.map((r, i) => (
               <div key={i} className="rounded-xl border border-black/[0.06] bg-page/60 p-4">
@@ -1272,7 +1290,7 @@ function CoApplicantSection({
 
         {/* Adicionais */}
         <div>
-          <h4 className="h-display text-sm text-ink">{d.additionalSection}</h4>
+          <h4 className="h-display text-sm text-primary">{heading(d.additionalSection)}</h4>
           <div className="mt-3 space-y-4">
             <YesNo label={d.evicted} value={c.evicted} onChange={(v) => onChange({ evicted: v })} yes={d.yes} no={d.no} err={has("evicted")} />
             {c.evicted === "yes" && <input className={inputCls + E("evicted_detail")} placeholder={d.ifYesWhen} value={c.evicted_detail} onChange={(e) => onChange({ evicted_detail: e.target.value })} />}
@@ -1291,14 +1309,14 @@ function CoApplicantSection({
 
         {/* Consentimento + assinatura próprios */}
         <div>
-          <h4 className="h-display text-sm text-ink">{d.consentSection}</h4>
+          <h4 className="h-display text-sm text-primary">{heading(d.consentSection)}</h4>
           <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
           <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (has("consent") ? " bg-red-50" : "")}>
             <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={c.consent_agreed} onChange={(e) => onChange({ consent_agreed: e.target.checked })} />
             <span>{d.consentCheckbox}</span>
           </label>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field label={d.signature} required><input className={inputCls + E("signature_name")} value={c.signature_name} onChange={(e) => onChange({ signature_name: e.target.value })} /></Field>
+            <Field label={d.coSignature.replace("{name}", who)} required><input className={inputCls + E("signature_name")} value={c.signature_name} onChange={(e) => onChange({ signature_name: e.target.value })} /></Field>
             <Field label={d.date} required><input type="date" className={inputCls + E("signature_date")} value={c.signature_date} onChange={(e) => onChange({ signature_date: e.target.value })} /></Field>
           </div>
         </div>
@@ -1523,9 +1541,9 @@ const inputCls =
 const addCls = "mt-3 text-sm font-semibold text-primary hover:underline";
 const removeCls = "rounded-lg border border-black/[0.1] px-3 text-sm text-ink/60 hover:text-red-600";
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+function Section({ title, hint, accent, children }: { title: string; hint?: string; accent?: boolean; children: ReactNode }) {
   return (
-    <section className="glass p-5 sm:p-6">
+    <section className={"glass p-5 sm:p-6" + (accent ? " border-l-4 !border-l-primary" : "")}>
       <h3 className="h-display text-base text-ink">{title}</h3>
       {hint && <p className="mt-1 text-xs text-ink/55">{hint}</p>}
       <div className="mt-4">{children}</div>
