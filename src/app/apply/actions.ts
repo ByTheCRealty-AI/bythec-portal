@@ -70,9 +70,9 @@ export async function createApplicationPaymentIntent(coApplicants: number): Prom
   const pi = await stripe.paymentIntents.create({
     amount: applicationFeeCents(coApplicants),
     currency: "usd",
-    // Só cartão + Link (nenhum redireciona): o confirmPayment resolve inline e
-    // o insert sempre roda com o PaymentIntent já em 'succeeded'. Tem que bater
-    // com o paymentMethodTypes do Payment Element (modo deferido).
+    // Só cartão: o confirmPayment resolve inline e o insert sempre roda com o
+    // PaymentIntent já em 'succeeded'. Tem que bater com o paymentMethodTypes do
+    // Payment Element (modo deferido).
     payment_method_types: [...APPLICATION_PAYMENT_METHODS],
     description: "By the C — Rental application fee",
     metadata: { purpose: "rental_application", co_applicants: String(coApplicants) },

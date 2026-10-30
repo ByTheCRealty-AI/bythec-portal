@@ -148,6 +148,7 @@ export function applicationBaseCents(coApplicants: number): number {
 export function applicationFeeCents(coApplicants: number): number {
   return Math.ceil((applicationBaseCents(coApplicants) + 30) / (1 - 0.029));
 }
-// Métodos aceitos — os MESMOS no Payment Element e no PaymentIntent (exigência
-// do modo deferido). Nenhum deles redireciona pra fora da página.
-export const APPLICATION_PAYMENT_METHODS = ["card", "link"] as const;
+// Só cartão, de propósito (Andrea 2026-10-30). O "link" trazia Bank, Klarna e Crypto
+// pra tela: Klarna custa 5.99% + 30¢ e a taxa acima só cobre os 2.9% + 30¢ do
+// cartão. Tem que ser igual no Payment Element e no PaymentIntent (modo deferido).
+export const APPLICATION_PAYMENT_METHODS = ["card"] as const;
