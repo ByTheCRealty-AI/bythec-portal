@@ -189,12 +189,23 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 
   // ---- Occupants ----
+  // Rótulo do parentesco (valor guardado é a chave do dropdown do /apply).
+  const REL: Record<string, string> = {
+    spouse_partner: "Spouse / partner", child: "Child", parent: "Parent", sibling: "Sibling",
+    other_relative: "Other relative", friend_roommate: "Friend / roommate", other: "Other",
+  };
+  const relLabel = (v?: string | null) => (v ? REL[v] ?? v : null);
   const occupants = a.occupants ?? [];
   if (a.occupants_count || occupants.length > 0) {
     section(`Occupants${a.occupants_count ? ` (${a.occupants_count})` : ""}`);
     if (occupants.length === 0) row("Occupants", String(a.occupants_count ?? ""));
     occupants.forEach((o, i) =>
-      row(o.name || `Occupant ${i + 1}`, [fmtDate(o.dob), o.is_adult ? "18+" : null, o.phone].filter(Boolean).join(" · "))
+      row(
+        o.name || `Occupant ${i + 1}`,
+        [fmtDate(o.dob), relLabel(o.relationship), o.is_adult ? "18+" : null, o.phone, o.email]
+          .filter(Boolean)
+          .join(" · ")
+      )
     );
   }
 

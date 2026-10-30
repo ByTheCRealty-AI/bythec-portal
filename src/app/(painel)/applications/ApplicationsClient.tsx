@@ -47,6 +47,12 @@ function propertyLabel(a: RentalApplication): string {
   return "—";
 }
 
+// Rótulo do parentesco do ocupante (chave vem do dropdown do /apply).
+const REL_LABEL: Record<string, string> = {
+  spouse_partner: "Spouse / partner", child: "Child", parent: "Parent", sibling: "Sibling",
+  other_relative: "Other relative", friend_roommate: "Friend / roommate", other: "Other",
+};
+
 export function ApplicationsClient({ applications }: { applications: RentalApplication[] }) {
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -289,7 +295,15 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
             <Group title={`Occupants${a.occupants_count ? ` (${a.occupants_count})` : ""}`}>
               {(a.occupants ?? []).map((o, i) => (
                 <Row key={i} label={o.name || `Occupant ${i + 1}`}>
-                  {[o.dob, o.is_adult ? "18+" : null, o.phone].filter(Boolean).join(" · ") || "—"}
+                  {[
+                    o.dob,
+                    REL_LABEL[o.relationship ?? ""] ?? o.relationship,
+                    o.is_adult ? "18+" : null,
+                    o.phone,
+                    o.email,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
                 </Row>
               ))}
             </Group>

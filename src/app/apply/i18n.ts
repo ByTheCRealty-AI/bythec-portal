@@ -45,6 +45,9 @@ export interface Dict {
   govIdPassport: string;
   govIdNumber: string;
   email: string;
+  occEmail: string;
+  occRelationship: string;
+  relOptions: { value: string; label: string }[];
 
   idUploadApplicant: string;
   idUploadOccupant: string;
@@ -192,6 +195,17 @@ const en: Dict = {
   govIdPassport: "Passport",
   govIdNumber: "Government ID number",
   email: "Email Address",
+  occEmail: "Email Address (18 or older)",
+  occRelationship: "Relationship to applicant (optional)",
+  relOptions: [
+    { value: "spouse_partner", label: "Spouse / partner" },
+    { value: "child", label: "Child" },
+    { value: "parent", label: "Parent" },
+    { value: "sibling", label: "Sibling" },
+    { value: "other_relative", label: "Other relative" },
+    { value: "friend_roommate", label: "Friend / roommate" },
+    { value: "other", label: "Other" },
+  ],
 
   idUploadApplicant: "Upload your government ID",
   idUploadOccupant: "Upload this occupant's government ID",
@@ -340,6 +354,17 @@ const pt: Dict = {
   govIdPassport: "Passaporte",
   govIdNumber: "Número do documento oficial",
   email: "Endereço de E-mail",
+  occEmail: "Endereço de E-mail (18 anos ou mais)",
+  occRelationship: "Parentesco com o candidato (opcional)",
+  relOptions: [
+    { value: "spouse_partner", label: "Cônjuge / companheiro(a)" },
+    { value: "child", label: "Filho(a)" },
+    { value: "parent", label: "Pai / Mãe" },
+    { value: "sibling", label: "Irmão / Irmã" },
+    { value: "other_relative", label: "Outro parente" },
+    { value: "friend_roommate", label: "Amigo(a) / colega de casa" },
+    { value: "other", label: "Outro" },
+  ],
 
   idUploadApplicant: "Envie seu documento oficial com foto",
   idUploadOccupant: "Envie o documento oficial deste ocupante",

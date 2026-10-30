@@ -10,6 +10,11 @@ export interface OccupantInput {
   dob: string;
   is_adult: boolean;   // 18 ou mais?
   phone: string;       // obrigatório se 18+ (e ≠ do candidato)
+  // Andrea 2026-10-30: e-mail obrigatório pra maior de 18; parentesco com o
+  // candidato obrigatório pra TODOS (inclusive menores).
+  email: string;
+  // Opcional (Andrea 2026-10-30).
+  relationship: string;
 }
 
 export interface HistoryInput {

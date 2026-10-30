@@ -907,7 +907,7 @@ export interface RentalApplication {
   email: string | null;
 
   occupants_count: number | null;
-  occupants: Array<{ name?: string; dob?: string; is_adult?: boolean; phone?: string }>;
+  occupants: Array<{ name?: string; dob?: string; is_adult?: boolean; phone?: string; email?: string; relationship?: string }>;
   rental_history: Array<{
     kind?: string;
     street?: string;

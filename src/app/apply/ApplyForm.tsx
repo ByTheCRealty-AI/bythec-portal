@@ -45,6 +45,41 @@ function digits(s: string): string {
   return (s || "").replace(/\D/g, "");
 }
 // Formata telefone US enquanto digita: (508) 555-1234.
+// Andrea 2026-10-30: o e-mail precisa ser um endereço de verdade, não só
+// "tem algo escrito". Checagem simples (algo@algo.algo) — sem regex exótica.
+function isEmail(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+}
+
+// Campo de renda: o que se digita são DÓLARES — 5000 vira $5,000.00 (Andrea
+// 2026-10-30). Centavos só se a pessoa digitar o ponto: 5000.50 -> $5,000.50.
+// Guarda o texto limpo ("5000" / "5000.5"); a tela mostra formatado.
+function cleanMoney(v: string): string {
+  const cleaned = (v || "").replace(/[^0-9.]/g, "");
+  const [whole, ...rest] = cleaned.split(".");
+  const cents = rest.join("").slice(0, 2);
+  return (whole.replace(/^0+(?=\d)/, "").slice(0, 9) || "") + (cleaned.includes(".") ? "." + cents : "");
+}
+
+// typing=true: NÃO força os ".00" — senão o ponto fica no caminho da próxima
+// tecla e o campo trava em $5.00. Enquanto digita: $5 -> $50 -> $5,000.
+// Ao sair do campo, fecha com os centavos: $5,000.00.
+function formatMoney(v: string, typing: boolean): string {
+  if (!v) return typing ? "" : "$0.00";
+  const [whole, cents] = v.split(".");
+  const grouped = Number(whole || "0").toLocaleString("en-US");
+  if (typing) return "$" + grouped + (v.includes(".") ? "." + (cents ?? "") : "");
+  return "$" + grouped + "." + (cents ?? "").padEnd(2, "0").slice(0, 2);
+}
+
+// A opção "moro aqui há 10+ anos" só aparece quando a pessoa digita 10 ou mais
+// no tempo de moradia — antes disso ela confundia (Andrea 2026-10-30).
+function tenYearsTyped(duration: string): boolean {
+  const years = (duration || "").match(/(\d+)\s*(y|yr|yrs|year|years|ano|anos)?/i);
+  const n = years ? Number(years[1]) : NaN;
+  return Number.isFinite(n) && n >= 10;
+}
+
 function formatPhone(v: string): string {
   const d = digits(v).slice(0, 10);
   if (d.length <= 3) return d;
@@ -53,7 +88,7 @@ function formatPhone(v: string): string {
 }
 
 interface UploadedFile { path: string; file_name: string; content_type: string }
-interface OccRow { name: string; dob: string; is_adult: boolean; phone: string; idFile: UploadedFile | null }
+interface OccRow { name: string; dob: string; is_adult: boolean; phone: string; email: string; relationship: string; idFile: UploadedFile | null }
 
 interface FlatState {
   rental_type: "" | "year_round" | "winter";
@@ -128,7 +163,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   const set = <K extends keyof FlatState>(k: K, v: FlatState[K]) => setF((p) => ({ ...p, [k]: v }));
 
   const [occupants, setOccupants] = useState<OccRow[]>([
-    { name: "", dob: "", is_adult: false, phone: "", idFile: null },
+    { name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null },
   ]);
   const [history, setHistory] = useState<HistoryInput[]>([
     emptyHist("current"), emptyHist("previous"),
@@ -181,7 +216,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     if (!confirm(d.startOverConfirm)) return;
     try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     setF({ ...EMPTY_FLAT, signature_date: todayISO() });
-    setOccupants([{ name: "", dob: "", is_adult: false, phone: "", idFile: null }]);
+    setOccupants([{ name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null }]);
     setHistory([emptyHist("current"), emptyHist("previous")]);
     setVehicles([emptyVeh()]);
     setRefs([{ name: "", phone: "" }, { name: "", phone: "" }]);
@@ -196,6 +231,9 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
   // deferido e o PaymentIntent só nasce no clique em Pagar, já validado.
 
   const yesNo = (v: "" | "yes" | "no"): boolean | null => (v === "" ? null : v === "yes");
+  // Campo de renda em foco? (muda só a formatação enquanto digita)
+  const [incomeTyping, setIncomeTyping] = useState(false);
+
   const numOrNull = (s: string): number | null => {
     const n = Number((s || "").replace(/[^0-9.]/g, ""));
     return s.trim() && Number.isFinite(n) ? n : null;
@@ -231,6 +269,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
     }
 
     need("email", f.email);
+    if (f.email.trim() && !isEmail(f.email)) e.add("email");
     if (!applicantId) e.add("applicant_id_upload");
 
     need("occupants_count", f.occupants_count);
@@ -240,7 +279,11 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       occupants.forEach((o, i) => {
         need(`occ_${i}_name`, o.name);
         need(`occ_${i}_dob`, o.dob);
+        // Parentesco é OPCIONAL (Andrea 2026-10-30): aparece pra todo ocupante,
+        // mas não trava o envio — e não se pede detalhe do "Other".
         if (o.is_adult) {
+          need(`occ_${i}_email`, o.email);
+          if (o.email.trim() && !isEmail(o.email)) e.add(`occ_${i}_email`);
           need(`occ_${i}_phone`, o.phone);
           if (o.phone.trim() && f.phone.trim() && digits(o.phone) === digits(f.phone)) e.add(`occ_${i}_phone_dup`);
           if (!o.idFile) e.add(`occ_${i}_id`);
@@ -359,7 +402,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       // Só envia outros ocupantes quando o total é 2+ (o #1 é o próprio candidato).
       occupants:
         (numOrNull(f.occupants_count) ?? 0) >= 2
-          ? occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone }))
+          ? occupants.map((o) => ({ name: o.name, dob: o.dob, is_adult: o.is_adult, phone: o.phone, email: o.email.trim(), relationship: o.relationship }))
           : [],
       // 10+ anos no endereço atual: o anterior não é pedido nem enviado.
       rental_history: tenPlus ? history.filter((h) => h.kind === "current") : history,
@@ -377,6 +420,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
       manager_name: f.employment_status === "employed" ? f.manager_name.trim() || null : null,
       manager_phone: f.employment_status === "employed" ? f.manager_phone.trim() || null : null,
       job_title: f.employment_status === "employed" ? f.job_title.trim() || null : null,
+      // O campo já está em dólares ("5000" / "5000.50").
       monthly_income: numOrNull(f.monthly_income),
       length_of_employment: f.employment_status !== "retired" ? f.length_of_employment.trim() || null : null,
 
@@ -564,12 +608,25 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                   <input className={inputCls + E(`occ_${i}_dob`)} placeholder="MM/DD/YY" value={o.dob} onChange={(e) => setOccupants(upd(occupants, i, { dob: e.target.value }))} />
                 </Field>
               </div>
+              <div className="mt-3">
+                <Field label={d.occRelationship}>
+                  <select className={inputCls} value={o.relationship} onChange={(e) => setOccupants(upd(occupants, i, { relationship: e.target.value }))}>
+                    <option value="">—</option>
+                    {d.relOptions.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
               <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-ink/80">
                 <input type="checkbox" className="h-4 w-4 accent-[#198577]" checked={o.is_adult} onChange={(e) => setOccupants(upd(occupants, i, { is_adult: e.target.checked }))} />
                 {d.occAdult}
               </label>
               {o.is_adult && (
                 <div className="mt-3 space-y-3">
+                  <Field label={d.occEmail} required>
+                    <input className={inputCls + E(`occ_${i}_email`)} inputMode="email" value={o.email} onChange={(e) => setOccupants(upd(occupants, i, { email: e.target.value }))} />
+                  </Field>
                   <Field label={d.occPhone} required>
                     <input className={inputCls + E(`occ_${i}_phone`) + (errs.has(`occ_${i}_phone_dup`) ? " !border-red-400 ring-2 ring-red-200" : "")}
                       inputMode="tel" value={o.phone} onChange={(e) => setOccupants(upd(occupants, i, { phone: formatPhone(e.target.value) }))} />
@@ -586,7 +643,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
             </div>
           ))}
         </div>
-        <button type="button" className={addCls} onClick={() => setOccupants([...occupants, { name: "", dob: "", is_adult: false, phone: "", idFile: null }])}>
+        <button type="button" className={addCls} onClick={() => setOccupants([...occupants, { name: "", dob: "", is_adult: false, phone: "", email: "", relationship: "", idFile: null }])}>
           {d.addOccupant}
         </button>
         </>
@@ -610,11 +667,11 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                     <input className={inputCls + E(`hist_${i}_zip`)} inputMode="numeric" value={h.zip} onChange={(e) => setHistory(upd(history, i, { zip: e.target.value }))} />
                   </div>
                 </Field>
-                <Field label={d.howLong} required><input className={inputCls + E(`hist_${i}_dur`)} value={h.duration} onChange={(e) => setHistory(upd(history, i, { duration: e.target.value }))} /></Field>
+                <Field label={d.howLong} required><input className={inputCls + E(`hist_${i}_dur`)} value={h.duration} onChange={(e) => setHistory(upd(history, i, { duration: e.target.value, ...(h.kind === "current" && !tenYearsTyped(e.target.value) ? { ten_plus_years: false } : {}) }))} /></Field>
                 <Field label={d.landlordName} required><input className={inputCls + E(`hist_${i}_lname`)} value={h.landlord_name} onChange={(e) => setHistory(upd(history, i, { landlord_name: e.target.value }))} /></Field>
                 <Field label={d.landlordPhone} required><input className={inputCls + E(`hist_${i}_lphone`)} inputMode="tel" value={h.landlord_phone} onChange={(e) => setHistory(upd(history, i, { landlord_phone: formatPhone(e.target.value) }))} /></Field>
               </div>
-              {h.kind === "current" && (
+              {h.kind === "current" && tenYearsTyped(h.duration) && (
                 <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-ink/80">
                   <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#198577]" checked={!!h.ten_plus_years} onChange={(e) => setHistory(upd(history, i, { ten_plus_years: e.target.checked }))} />
                   <span>{d.tenPlusYears}</span>
@@ -667,7 +724,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           <Field label={d.managerName} required><input className={inputCls + E("manager_name")} value={f.manager_name} onChange={(e) => set("manager_name", e.target.value)} /></Field>
           <Field label={d.managerPhone} required><input className={inputCls + E("manager_phone")} inputMode="tel" value={f.manager_phone} onChange={(e) => set("manager_phone", formatPhone(e.target.value))} /></Field>
           <Field label={d.jobTitle} required><input className={inputCls + E("job_title")} value={f.job_title} onChange={(e) => set("job_title", e.target.value)} /></Field>
-          <Field label={d.monthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
+          <Field label={d.monthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" value={formatMoney(f.monthly_income, incomeTyping)} onFocus={() => setIncomeTyping(true)} onBlur={() => setIncomeTyping(false)} onChange={(e) => set("monthly_income", cleanMoney(e.target.value))} /></Field>
           <Field label={d.lengthEmployment} required><input className={inputCls + E("length_of_employment")} value={f.length_of_employment} onChange={(e) => set("length_of_employment", e.target.value)} /></Field>
         </div>
         )}
@@ -678,7 +735,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
               <Field label={d.businessName} required><input className={inputCls + E("business_name")} value={f.business_name} onChange={(e) => set("business_name", e.target.value)} /></Field>
               <Field label={d.businessType} required><input className={inputCls + E("business_type")} value={f.business_type} onChange={(e) => set("business_type", e.target.value)} /></Field>
               <Field label={d.selfSince} required><input className={inputCls + E("length_of_employment")} value={f.length_of_employment} onChange={(e) => set("length_of_employment", e.target.value)} /></Field>
-              <Field label={d.selfMonthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
+              <Field label={d.selfMonthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" value={formatMoney(f.monthly_income, incomeTyping)} onFocus={() => setIncomeTyping(true)} onBlur={() => setIncomeTyping(false)} onChange={(e) => set("monthly_income", cleanMoney(e.target.value))} /></Field>
             </div>
             <IncomeProofUpload dict={d} hint={d.incomeProofHintSelf} files={incomeProofs} onChange={setIncomeProofs} error={errs.has("income_proof")} />
           </div>
@@ -702,7 +759,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={d.retireMonthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" placeholder="$" value={f.monthly_income} onChange={(e) => set("monthly_income", e.target.value)} /></Field>
+              <Field label={d.retireMonthlyIncome} required><input className={inputCls + E("monthly_income")} inputMode="decimal" value={formatMoney(f.monthly_income, incomeTyping)} onFocus={() => setIncomeTyping(true)} onBlur={() => setIncomeTyping(false)} onChange={(e) => set("monthly_income", cleanMoney(e.target.value))} /></Field>
               <Field label={d.retiredSince} required><input className={inputCls + E("retired_since")} inputMode="numeric" maxLength={4} placeholder="2019" value={f.retired_since} onChange={(e) => set("retired_since", e.target.value.replace(/\D/g, ""))} /></Field>
             </div>
             <IncomeProofUpload dict={d} hint={d.incomeProofHintRetired} files={incomeProofs} onChange={setIncomeProofs} error={errs.has("income_proof")} />
