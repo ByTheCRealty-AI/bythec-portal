@@ -72,12 +72,15 @@ function formatMoney(v: string, typing: boolean): string {
   return "$" + grouped + "." + (cents ?? "").padEnd(2, "0").slice(0, 2);
 }
 
-// A opção "moro aqui há 10+ anos" só aparece quando a pessoa digita 10 ou mais
-// no tempo de moradia — antes disso ela confundia (Andrea 2026-10-30).
-function tenYearsTyped(duration: string): boolean {
+// A opção "moro aqui há 5+ anos" só aparece quando a pessoa digita 5 ou mais no
+// tempo de moradia (Andrea 2026-10-30: era 10, virou 5). A CHAVE guardada
+// continua `ten_plus_years` de propósito — renomear órfãnaria as aplicações já
+// enviadas; quem marcou com 10+ também satisfaz 5+.
+const LONG_STAY_YEARS = 5;
+function longStayTyped(duration: string): boolean {
   const years = (duration || "").match(/(\d+)\s*(y|yr|yrs|year|years|ano|anos)?/i);
   const n = years ? Number(years[1]) : NaN;
-  return Number.isFinite(n) && n >= 10;
+  return Number.isFinite(n) && n >= LONG_STAY_YEARS;
 }
 
 function formatPhone(v: string): string {
@@ -667,11 +670,11 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
                     <input className={inputCls + E(`hist_${i}_zip`)} inputMode="numeric" value={h.zip} onChange={(e) => setHistory(upd(history, i, { zip: e.target.value }))} />
                   </div>
                 </Field>
-                <Field label={d.howLong} required><input className={inputCls + E(`hist_${i}_dur`)} value={h.duration} onChange={(e) => setHistory(upd(history, i, { duration: e.target.value, ...(h.kind === "current" && !tenYearsTyped(e.target.value) ? { ten_plus_years: false } : {}) }))} /></Field>
+                <Field label={d.howLong} required><input className={inputCls + E(`hist_${i}_dur`)} value={h.duration} onChange={(e) => setHistory(upd(history, i, { duration: e.target.value, ...(h.kind === "current" && !longStayTyped(e.target.value) ? { ten_plus_years: false } : {}) }))} /></Field>
                 <Field label={d.landlordName} required><input className={inputCls + E(`hist_${i}_lname`)} value={h.landlord_name} onChange={(e) => setHistory(upd(history, i, { landlord_name: e.target.value }))} /></Field>
                 <Field label={d.landlordPhone} required><input className={inputCls + E(`hist_${i}_lphone`)} inputMode="tel" value={h.landlord_phone} onChange={(e) => setHistory(upd(history, i, { landlord_phone: formatPhone(e.target.value) }))} /></Field>
               </div>
-              {h.kind === "current" && tenYearsTyped(h.duration) && (
+              {h.kind === "current" && longStayTyped(h.duration) && (
                 <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-ink/80">
                   <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#198577]" checked={!!h.ten_plus_years} onChange={(e) => setHistory(upd(history, i, { ten_plus_years: e.target.checked }))} />
                   <span>{d.tenPlusYears}</span>

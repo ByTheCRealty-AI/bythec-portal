@@ -214,7 +214,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     section("Rental history");
     for (const h of a.rental_history) {
       row(h.kind === "current" ? "Current address" : "Previous address", [h.street, h.city, h.state, h.zip].filter(Boolean).join(", "));
-      row("Time there", h.ten_plus_years ? `${h.duration ?? ""} (10+ years - no previous address required)`.trim() : h.duration);
+      row("Time there", h.ten_plus_years ? `${h.duration ?? ""} (5+ years - no previous address required)`.trim() : h.duration);
       row("Landlord", [h.landlord_name, h.landlord_phone].filter(Boolean).join(" · "));
       y -= 4;
     }

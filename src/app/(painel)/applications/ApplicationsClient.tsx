@@ -336,7 +336,7 @@ function DetailModal({ application: a, onClose }: { application: RentalApplicati
                     {[h.duration, h.landlord_name, h.landlord_phone].filter(Boolean).join(" · ")}
                   </p>
                   {h.ten_plus_years && (
-                    <p className="mt-1 text-xs font-medium text-primary">10+ years here · no previous address required</p>
+                    <p className="mt-1 text-xs font-medium text-primary">5+ years here · no previous address required</p>
                   )}
                 </div>
               ))}
