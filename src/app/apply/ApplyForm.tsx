@@ -913,7 +913,7 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
 
       {/* Consentimento */}
       <Section title={`${d.primaryLabel}: ${d.consentSection}`}>
-        <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText.replace("{total}", dollars(feeCents))}</p>
+        <p className="whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
         <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (errs.has("consent") ? " bg-red-50" : "")}>
           <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={f.consent_agreed} onChange={(e) => set("consent_agreed", e.target.checked)} />
           <span>{d.consentCheckbox}</span>
@@ -934,7 +934,6 @@ export default function ApplyForm({ properties }: { properties: PropertyOption[]
           onChange={(patch) => setOccupants((prev) => upd(prev, i, { co: { ...prev[i].co, ...patch } }))}
           errs={errs}
           prefix={`co_${i}_`}
-          feeCents={feeCents}
         />
       ) : null)}
 
@@ -1103,7 +1102,7 @@ function buildCo(o: OccRow): CoApplicantInput {
 // CoApplicantSection — mesmos campos do candidato, para um ocupante 18+.
 // =============================================================================
 function CoApplicantSection({
-  dict: d, name, co: c, onChange, errs, prefix, feeCents,
+  dict: d, name, co: c, onChange, errs, prefix,
 }: {
   dict: (typeof DICT)[Lang];
   name: string;
@@ -1111,7 +1110,6 @@ function CoApplicantSection({
   onChange: (patch: Partial<CoData>) => void;
   errs: Set<string>;
   prefix: string;
-  feeCents: number;
 }) {
   const [incomeTyping, setIncomeTyping] = useState(false);
   const who = name.trim() || d.coSection;
@@ -1332,7 +1330,7 @@ function CoApplicantSection({
         {/* Consentimento + assinatura próprios */}
         <div>
           <h4 className="h-display text-sm text-primary">{heading(d.consentSection)}</h4>
-          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText.replace("{total}", dollars(feeCents))}</p>
+          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-ink/70">{d.consentText}</p>
           <label className={"mt-4 flex cursor-pointer items-start gap-3 rounded-xl p-2 text-sm text-ink" + (has("consent") ? " bg-red-50" : "")}>
             <input type="checkbox" className="mt-1 h-4 w-4 accent-[#198577]" checked={c.consent_agreed} onChange={(e) => onChange({ consent_agreed: e.target.checked })} />
             <span>{d.consentCheckbox}</span>
