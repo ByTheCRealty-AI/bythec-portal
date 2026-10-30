@@ -15,6 +15,8 @@ export interface OccupantInput {
   email: string;
   // Opcional (Andrea 2026-10-30).
   relationship: string;
+  // Andrea 2026-10-30: pergunta obrigatória pra quem tem 18+.
+  co_applicant: boolean;
 }
 
 export interface HistoryInput {
@@ -56,6 +58,7 @@ export interface ApplicationInput {
 
   // SSN/ITIN — pergunta obrigatória; sem SSN exige explicação.
   has_ssn: boolean;
+  tax_id_type: "ssn" | "itin" | null; // qual dos dois foi informado
   ssn: string | null;
   ssn_none_explanation: string | null;
 
@@ -111,8 +114,19 @@ export interface ApplicationInput {
 
   attachments: AttachmentInput[];
 
+  co_applicants: CoApplicantInput[];
+
   stripe_payment_intent_id: string;
 }
+
+// Co-applicant responde o mesmo que o candidato, menos os dados do imóvel e dos
+// ocupantes (Andrea 2026-10-30). Assina por conta própria.
+export type CoApplicantInput = Omit<
+  ApplicationInput,
+  | "language" | "rental_type" | "lease_start" | "property_id" | "property_other"
+  | "occupants_count" | "occupants" | "signature_name_2" | "signature_date_2"
+  | "co_applicants" | "stripe_payment_intent_id"
+>;
 
 // Opção de propriedade passada do server pro dropdown público.
 export interface PropertyOption {
@@ -122,10 +136,18 @@ export interface PropertyOption {
   accepts_winter: boolean;
 }
 
-// Valor TOTAL cobrado no cartão (cents) — $100 líquido + gross-up do fee Stripe.
-// Fonte única: o form (Payment Element deferido) e o server (lib/stripe.ts)
-// leem daqui, então o valor exibido e o cobrado nunca divergem.
-export const APPLICATION_FEE_CENTS = 10330; // $103.30
+// Taxa que a By the C RECEBE líquido: $100 + $50 por co-applicant.
+export const MAX_CO_APPLICANTS = 10;
+export function applicationBaseCents(coApplicants: number): number {
+  return 10000 + 5000 * coApplicants;
+}
+// Valor TOTAL cobrado no cartão (cents) — líquido + gross-up do fee Stripe
+// (US card: 2.9% + $0.30), que cresce junto com o valor. 0 = $103.30, 1 = $154.79,
+// 2 = $206.29. Fonte única: o form (Payment Element deferido) e o server leem
+// daqui, então o valor exibido e o cobrado nunca divergem.
+export function applicationFeeCents(coApplicants: number): number {
+  return Math.ceil((applicationBaseCents(coApplicants) + 30) / (1 - 0.029));
+}
 // Métodos aceitos — os MESMOS no Payment Element e no PaymentIntent (exigência
 // do modo deferido). Nenhum deles redireciona pra fora da página.
 export const APPLICATION_PAYMENT_METHODS = ["card", "link"] as const;

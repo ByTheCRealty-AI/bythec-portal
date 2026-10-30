@@ -13,18 +13,9 @@
 
 import "server-only";
 import Stripe from "stripe";
-import { APPLICATION_FEE_CENTS } from "@/app/apply/types";
 
-export { APPLICATION_FEE_CENTS };
-
-// Taxa de aplicação que a By the C deve RECEBER líquido.
-export const APPLICATION_BASE_CENTS = 10000; // $100.00
-
-// Gross-up do fee do Stripe (US card: 2.9% + $0.30) pra By the C receber os $100
-// cheios. charged = ceil((base + 30) / (1 - 0.029)) = 10330 = $103.30.
-// Stripe fica com ~$3.30 (2.9% de 103.30 + $0.30), líquido = $100.00.
-// APPLICATION_FEE_CENTS (10330 = $103.30, TOTAL cobrado) mora em app/apply/types.ts.
-export const PROCESSING_FEE_CENTS = APPLICATION_FEE_CENTS - APPLICATION_BASE_CENTS; // 330 = $3.30
+// O valor da taxa (com co-applicants e gross-up do fee do Stripe) mora em
+// applicationFeeCents, em app/apply/types.ts.
 
 export function stripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY);

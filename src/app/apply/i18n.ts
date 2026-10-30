@@ -34,6 +34,9 @@ export interface Dict {
   fullName: string;
   dob: string;
   ssnQuestion: string;
+  taxIdWhich: string;
+  taxIdSsn: string;
+  taxIdItin: string;
   ssn: string;
   ssnHint: string;
   ssnNoneExplain: string;
@@ -64,6 +67,16 @@ export interface Dict {
   occName: string;
   occDob: string;
   occAdult: string;
+  occCoQuestion: string;
+  occCoHint: string;
+  coSection: string;
+  coHint: string;
+  primaryLabel: string;
+  coSignature: string;
+  feeBase: string;
+  feeCo: string;
+  feeProcessing: string;
+  feeTotal: string;
   occPhone: string;
   addOccupant: string;
   remove: string;
@@ -82,6 +95,7 @@ export interface Dict {
   landlordPhone: string;
 
   vehiclesSection: string;
+  vehiclesHint: string;
   makeModel: string;
   year: string;
   color: string;
@@ -180,10 +194,13 @@ const en: Dict = {
   propertyOther: "Not listed / other",
   propertyOtherLabel: "Which property? (address or description)",
 
-  applicantSection: "Applicant Information",
+  applicantSection: "Primary Applicant: Information",
   fullName: "Full Name",
-  dob: "Date of Birth (MM/DD/YY)",
+  dob: "Date of Birth (MM/DD/YYYY)",
   ssnQuestion: "Do you have a Social Security # or ITIN?",
+  taxIdWhich: "Which one are you providing?",
+  taxIdSsn: "Social Security #",
+  taxIdItin: "ITIN #",
   ssn: "Social Security # / ITIN #",
   ssnHint: "Encrypted and visible only to By the C staff.",
   ssnNoneExplain: "Please explain why you don't have an SSN or ITIN",
@@ -220,8 +237,18 @@ const en: Dict = {
   occupantsSolo: "Just you — no other occupants to list.",
   occupantsCount: "Number of Occupants",
   occName: "Full Name",
-  occDob: "Date of Birth (MM/DD/YY)",
+  occDob: "Date of Birth (MM/DD/YYYY)",
   occAdult: "18 or older?",
+  occCoQuestion: "Will this person be a co-applicant?",
+  occCoHint: "Each co-applicant adds a $50.00 fee and must fill out their own information below.",
+  coSection: "Co-applicant",
+  coHint: "Everything in this section is about {name}, not the primary applicant, and {name} signs it at the end. Name, date of birth, phone, email and ID come from the occupant list above.",
+  primaryLabel: "Primary Applicant",
+  coSignature: "Co-applicant signature: {name} (type full name)",
+  feeBase: "Application fee",
+  feeCo: "Co-applicant fee",
+  feeProcessing: "Card processing",
+  feeTotal: "Total charged to your card",
   occPhone: "Phone Number (must differ from applicant's)",
   addOccupant: "+ Add occupant",
   remove: "Remove",
@@ -240,6 +267,7 @@ const en: Dict = {
   landlordPhone: "Landlord Phone Number",
 
   vehiclesSection: "Vehicle Information",
+  vehiclesHint: "Optional. Leave blank if there is no vehicle.",
   makeModel: "Make & Model",
   year: "Year",
   color: "Color",
@@ -299,17 +327,17 @@ const en: Dict = {
 
   consentSection: "Signature and Consent",
   consentText:
-    "I believe that the statements I have made are true and correct. I hereby authorize the verification of information I provided, communication with any and all names listed on this application and for the issuer of this form to conduct a background check to obtain additional information on credit history, criminal history and all Unlawful Detainers. I understand that any discrepancy or lack of information may result in the rejection of this application. I understand that this is an application for a home or apartment and does not constitute a rental or lease agreement in whole or in part. I further understand that there is a non-refundable fee of $100.00 to cover the cost of processing my application and I am not entitled to a refund.",
+    "I believe that the statements I have made are true and correct. I hereby authorize the verification of information I provided, communication with any and all names listed on this application and for the issuer of this form to conduct a background check to obtain additional information on credit history, criminal history and all Unlawful Detainers. I understand that any discrepancy or lack of information may result in the rejection of this application. I understand that this is an application for a home or apartment and does not constitute a rental or lease agreement in whole or in part. I further understand that there is a non-refundable fee of $100.00, plus $50.00 for each co-applicant, plus a card processing fee, to cover the cost of processing my application and I am not entitled to a refund.",
   consentCheckbox: "I have read and agree to the statement above, and authorize the background and credit check.",
-  signature: "Signature (type your full name)",
+  signature: "Primary applicant signature (type your full name)",
   signature2: "Second applicant signature (optional)",
   date: "Date",
 
   feeSection: "Application Fee",
-  feeText: "A non-refundable $100.00 application fee is required. A $3.30 card processing fee is added so we receive the full amount — your card is charged $103.30 total when you submit.",
+  feeText: "A non-refundable $100.00 application fee is required, plus $50.00 for each co-applicant. A card processing fee is added so we receive the full amount.",
   cardLabel: "Card details",
 
-  submit: "Pay $103.30 & Submit Application",
+  submit: "Pay {total} & Submit Application",
   submitting: "Submitting…",
   required: "This field is required.",
   fixErrors: "Please complete all required fields highlighted below before submitting.",
@@ -339,10 +367,13 @@ const pt: Dict = {
   propertyOther: "Não listada / outra",
   propertyOtherLabel: "Qual propriedade? (endereço ou descrição)",
 
-  applicantSection: "Informações do Candidato",
+  applicantSection: "Candidato Principal: Informações",
   fullName: "Nome Completo",
-  dob: "Data de Nascimento (MM/DD/AA)",
+  dob: "Data de Nascimento (MM/DD/AAAA)",
   ssnQuestion: "Você tem Social Security nº ou ITIN?",
+  taxIdWhich: "Qual deles você vai informar?",
+  taxIdSsn: "Social Security nº",
+  taxIdItin: "ITIN nº",
   ssn: "Número Social Security ou ITIN nº",
   ssnHint: "Criptografado e visível apenas para a equipe da By the C.",
   ssnNoneExplain: "Explique por que você não tem SSN ou ITIN",
@@ -379,8 +410,18 @@ const pt: Dict = {
   occupantsSolo: "Apenas você — nenhum outro ocupante a listar.",
   occupantsCount: "Número de ocupantes",
   occName: "Nome Completo",
-  occDob: "Data de Nascimento (MM/DD/AA)",
+  occDob: "Data de Nascimento (MM/DD/AAAA)",
   occAdult: "18 anos ou mais?",
+  occCoQuestion: "Esta pessoa será co-candidata?",
+  occCoHint: "Cada co-candidato adiciona uma taxa de $50.00 e precisa preencher as próprias informações abaixo.",
+  coSection: "Co-candidato",
+  coHint: "Tudo nesta seção é sobre {name}, não sobre o candidato principal, e {name} assina no final. Nome, data de nascimento, telefone, e-mail e documento vêm da lista de ocupantes acima.",
+  primaryLabel: "Candidato Principal",
+  coSignature: "Assinatura do co-candidato: {name} (digite o nome completo)",
+  feeBase: "Taxa de aplicação",
+  feeCo: "Taxa de co-candidato",
+  feeProcessing: "Processamento do cartão",
+  feeTotal: "Total cobrado no seu cartão",
   occPhone: "Número de Telefone (diferente do candidato)",
   addOccupant: "+ Adicionar ocupante",
   remove: "Remover",
@@ -399,6 +440,7 @@ const pt: Dict = {
   landlordPhone: "Contato do Proprietário",
 
   vehiclesSection: "Informações do Veículo",
+  vehiclesHint: "Opcional. Deixe em branco se não houver veículo.",
   makeModel: "Marca e Modelo",
   year: "Ano",
   color: "Cor",
@@ -458,17 +500,17 @@ const pt: Dict = {
 
   consentSection: "Assinatura e Consentimento",
   consentText:
-    "Acredito que as declarações que fiz são verdadeiras e corretas. Por meio deste, autorizo a verificação das informações que forneci, a comunicação com todo e qualquer nome listado nesta aplicação e para que o emissor desta aplicação conduza uma verificação de antecedentes para obter informações adicionais sobre histórico de crédito, antecedentes criminais e todos os Detentores Ilegais. Compreendo que qualquer discrepância ou falta de informação poderá resultar na rejeição desta aplicação. Entendo que este é um pedido de locação e não constitui um contrato de locação. Compreendo ainda que existe uma taxa de $100.00 não reembolsável para cobrir os custos de processamento da minha aplicação e não tenho direito a reembolso.",
+    "Acredito que as declarações que fiz são verdadeiras e corretas. Por meio deste, autorizo a verificação das informações que forneci, a comunicação com todo e qualquer nome listado nesta aplicação e para que o emissor desta aplicação conduza uma verificação de antecedentes para obter informações adicionais sobre histórico de crédito, antecedentes criminais e todos os Detentores Ilegais. Compreendo que qualquer discrepância ou falta de informação poderá resultar na rejeição desta aplicação. Entendo que este é um pedido de locação e não constitui um contrato de locação. Compreendo ainda que existe uma taxa não reembolsável de $100.00, mais $50.00 por co-candidato, mais uma taxa de processamento do cartão, para cobrir os custos de processamento da minha aplicação e não tenho direito a reembolso.",
   consentCheckbox: "Li e concordo com a declaração acima, e autorizo a verificação de antecedentes e crédito.",
-  signature: "Assinatura (digite seu nome completo)",
+  signature: "Assinatura do candidato principal (digite seu nome completo)",
   signature2: "Assinatura do segundo candidato (opcional)",
   date: "Data",
 
   feeSection: "Taxa de Aplicação",
-  feeText: "É necessária uma taxa de aplicação não reembolsável de $100.00. Uma taxa de processamento de cartão de $3.30 é adicionada para recebermos o valor integral — seu cartão é cobrado no total de $103.30 ao enviar.",
+  feeText: "É necessária uma taxa de aplicação não reembolsável de $100.00, mais $50.00 por co-candidato. Uma taxa de processamento de cartão é adicionada para recebermos o valor integral.",
   cardLabel: "Dados do cartão",
 
-  submit: "Pagar $103.30 e Enviar Aplicação",
+  submit: "Pagar {total} e Enviar Aplicação",
   submitting: "Enviando…",
   required: "Este campo é obrigatório.",
   fixErrors: "Preencha todos os campos obrigatórios destacados abaixo antes de enviar.",

@@ -885,6 +885,7 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
 // o SSN só é decifrado sob demanda via revealSSNAction (gated + auditado).
 export interface RentalApplication {
   id: string;
+  primary_application_id: string | null; // preenchido só em co-applicant
   language: "en" | "pt";
   status: ApplicationStatus;
 
@@ -896,6 +897,7 @@ export interface RentalApplication {
   full_name: string;
   date_of_birth: string | null;
   has_ssn: boolean | null;
+  tax_id_type: "ssn" | "itin" | null;
   ssn_last4: string | null;
   ssn_none_explanation: string | null;
   phone: string | null;
@@ -907,7 +909,7 @@ export interface RentalApplication {
   email: string | null;
 
   occupants_count: number | null;
-  occupants: Array<{ name?: string; dob?: string; is_adult?: boolean; phone?: string; email?: string; relationship?: string }>;
+  occupants: Array<{ name?: string; dob?: string; is_adult?: boolean; phone?: string; email?: string; relationship?: string; co_applicant?: boolean }>;
   rental_history: Array<{
     kind?: string;
     street?: string;
