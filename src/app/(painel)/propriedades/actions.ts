@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { propertyTypeFlagsFromForm, type RequestStatus } from "@/lib/types";
@@ -297,6 +298,13 @@ export async function clearPropertyTenantAction(propertyId: string) {
 //
 // Os clientes levam o MESMO `archived_at` da casa — é assim que o restore sabe
 // quem foi arquivado JUNTO (mesmo padrão que os payments já usavam).
+//
+// Andrea 2026-10-30: "when a property is archived, remove it from listings and
+// also from active applications". Sai junto, com o MESMO carimbo: a listing (some
+// do portal e do site), as aplicações recebidas pra casa e o "accept applications"
+// (a casa sai do /apply). No restore, listing e aplicações voltam, mas a listing
+// volta DESLIGADA do site e o "accept applications" fica desligado: quem restaura
+// revisa antes de republicar (mesma regra do restoreListingAction).
 export async function archivePropriedadeAction(
   id: string,
   opts: { tenant?: boolean; owner?: boolean } = {}
@@ -311,11 +319,20 @@ export async function archivePropriedadeAction(
     .maybeSingle();
   const prop = propRow as { owner_id: string | null; tenant_id: string | null } | null;
 
-  const { error } = await supabase
+  // .select: sem permissão o RLS não dá erro, só não atualiza nada. A linha
+  // devolvida prova que este usuário pode arquivar ANTES de usar o admin abaixo.
+  const { data: archivedRows, error } = await supabase
     .from("properties")
-    .update({ archived_at: stamp })
-    .eq("id", id);
+    .update({
+      archived_at: stamp,
+      accepting_applications: false,
+      accepts_year_round: false,
+      accepts_winter: false,
+    })
+    .eq("id", id)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!archivedRows?.length) throw new Error("You don't have permission to archive this property.");
 
   const { error: payErr } = await supabase
     .from("payments")
@@ -324,6 +341,23 @@ export async function archivePropriedadeAction(
     .is("archived_at", null)
     .or("status.neq.received,kind.eq.security_deposit");
   if (payErr) throw new Error(payErr.message);
+
+  // Admin: nem todo papel que arquiva casa tem listings.manage/applications.manage,
+  // e o RLS pularia essas linhas em silêncio (a casa sairia, a listing ficaria no ar).
+  const admin = createAdminClient();
+  const { error: listingErr } = await admin
+    .from("listings")
+    .update({ archived_at: stamp, updated_at: stamp })
+    .eq("property_id", id)
+    .is("archived_at", null);
+  if (listingErr) throw new Error(listingErr.message);
+
+  const { error: appErr } = await admin
+    .from("rental_applications")
+    .update({ archived_at: stamp })
+    .eq("property_id", id)
+    .is("archived_at", null);
+  if (appErr) throw new Error(appErr.message);
 
   // ---- Cascata opcional: inquilino atual e/ou owner -------------------------
   const archiveClient = async (clientId: string) => {
@@ -369,6 +403,9 @@ export async function archivePropriedadeAction(
   revalidatePath("/propriedades");
   revalidatePath("/clientes");
   revalidatePath("/payments");
+  revalidatePath("/listings");
+  revalidatePath("/applications");
+  revalidatePath("/apply");
   redirect("/propriedades");
 }
 
@@ -398,6 +435,21 @@ export async function unarchivePropriedadeAction(id: string, clientIds: string[]
       .eq("archived_at", stamp);
     if (payErr) throw new Error(payErr.message);
 
+    const admin = createAdminClient();
+    const { error: listingErr } = await admin
+      .from("listings")
+      .update({ archived_at: null, active: false, featured: false, updated_at: new Date().toISOString() })
+      .eq("property_id", id)
+      .eq("archived_at", stamp);
+    if (listingErr) throw new Error(listingErr.message);
+
+    const { error: appErr } = await admin
+      .from("rental_applications")
+      .update({ archived_at: null })
+      .eq("property_id", id)
+      .eq("archived_at", stamp);
+    if (appErr) throw new Error(appErr.message);
+
     // Restaura só quem foi arquivado JUNTO com esta casa (mesmo carimbo). Se o
     // cliente foi arquivado noutro momento, o id não casa e ele fica como está.
     if (clientIds.length > 0) {
@@ -413,6 +465,8 @@ export async function unarchivePropriedadeAction(id: string, clientIds: string[]
   revalidatePath(`/propriedades/${id}`);
   revalidatePath("/clientes");
   revalidatePath("/payments");
+  revalidatePath("/listings");
+  revalidatePath("/applications");
 }
 
 // HARD DELETE (permanente, irreversível) — OWNER ONLY. Delega TODA a regra

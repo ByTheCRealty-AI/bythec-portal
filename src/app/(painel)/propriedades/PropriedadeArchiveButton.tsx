@@ -157,6 +157,10 @@ export function PropriedadeArchiveButton({
                 </div>
               </>
             )}
+            <p className="mt-3 text-xs text-ink/55">
+              Its listing and applications come back too. The listing stays off the website, and accepting
+              applications stays off, until you turn them on again.
+            </p>
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
             <div className="mt-5 flex gap-3">
               <button
@@ -187,7 +191,9 @@ export function PropriedadeArchiveButton({
         <Modal onClose={() => !pending && setOpen(false)}>
           <h3 className="h-display text-lg text-ink">Archive this property?</h3>
           <p className="mt-2 text-sm text-ink/70">
-            The history is preserved — we never delete. Unpaid and scheduled payments are archived with it.
+            The history is preserved — we never delete. Unpaid and scheduled payments are archived with it. Its
+            listing comes off the website, and it stops taking rental applications; applications already
+            received for it are archived too.
           </p>
 
           {(tenant || owner) && (
